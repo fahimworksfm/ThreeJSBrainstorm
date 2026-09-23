@@ -169,14 +169,28 @@ function signStyle(poi) {
 
 /** One texture with a painted sign board per row: bold letters, a thin border, a shadow. */
 function makeSignAtlas(names, signs = null, info = null) {
-  const rows = names.length;
+  // a few names: one full-size board per row; a real neighborhood's hundred-odd shops: a grid of half-size boards
+  const cols = names.length > 160 ? 5 : names.length > 24 ? 4 : 1;
+  const cw = cols === 5 ? 384 : cols === 4 ? 512 : 1024;
+  const ch = cw / 8;
+  const rows = Math.ceil(names.length / cols);
   const c = document.createElement('canvas');
-  c.width = 1024;
-  c.height = 128 * rows;
-  const ctx = c.getContext('2d');
+  c.width = cw * cols;
+  c.height = ch * rows;
+  const atlas = c.getContext('2d');
+  // every board is painted at 1024 x 128 on a scratch canvas, then copied into its cell
+  const scratch = document.createElement('canvas');
+  scratch.width = 1024;
+  scratch.height = 128;
+  const ctx = scratch.getContext('2d');
+  const y = 0;
   names.forEach((name, i) => {
+    ctx.clearRect(0, 0, 1024, 128);
+    drawBoard(name, i);
+    atlas.drawImage(scratch, (i % cols) * cw, Math.floor(i / cols) * ch, cw, ch);
+  });
+  function drawBoard(name, i) {
     const [bg, fg] = BOARD_COLORS[i % BOARD_COLORS.length];
-    const y = i * 128;
     const painted = paintedSign(signs, name);
     if (painted) {
       // stretched to the row; the board geometry takes the painting's own shape, which undoes the stretch
@@ -200,12 +214,16 @@ function makeSignAtlas(names, signs = null, info = null) {
     ctx.fillText(name, 516, y + 70, 940);
     ctx.fillStyle = fg;
     ctx.fillText(name, 512, y + 66, 940);
-  });
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
-  // rows are flipped by the texture's flipY: canvas row k lives at v in [(rows-1-k)/rows, (rows-k)/rows]
-  return { tex, count: rows };
+  return {
+    tex,
+    count: names.length,
+    /** Texture coordinates for (u, v) in 0..1 on board `slot` (canvas rows are flipped by flipY). */
+    uv: (slot, u, v) => [((slot % cols) + u) / cols, (rows - 1 - Math.floor(slot / cols) + v) / rows],
+  };
 }
 
 /** A real shop's board: its name large, its trade (and hours) small underneath, an icon at the left. */
@@ -884,6 +902,8 @@ export function buildBuildings(layout, shared) {
       realBoards.push({ name: best.name, x: f.x - f.nz * center, z: f.z + f.nx * center, nx: f.nx, nz: f.nz });
       return slotOf.get(best.name);
     }
+    // on the real map a sign names a real shop or there is no sign at all
+    if (Array.isArray(layout.signNames)) return -1;
     const pool = genericSlots.length ? genericSlots : boardNames.map((_, i) => i);
     let slot = pool[Math.floor(rand() * pool.length)];
     // a painted sign is one particular shop: up to two in a neighborhood, then plain trade words
@@ -914,7 +934,7 @@ export function buildBuildings(layout, shared) {
       const tx = f.x - f.nz * center + f.nx * 0.12;
       const tz = f.z + f.nx * center + f.nz * 0.12;
       const slot = signSlot(f, center, bw);
-      const art = paintedSign(shared.signs, boardNames[slot]);
+      const art = slot >= 0 && paintedSign(shared.signs, boardNames[slot]);
       let bh = 0.9;
       let bwid = bw - 0.3;
       if (art) {
@@ -922,10 +942,12 @@ export function buildBuildings(layout, shared) {
         bwid = bh * art.aspect;
         paintedBoards.push({ x: tx, z: tz, nx: f.nx, nz: f.nz });
       }
-      const board = new THREE.PlaneGeometry(bwid, bh);
-      const uv = board.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setY(i, (boards.count - 1 - slot + uv.getY(i)) / boards.count); // canvas row slot, flipped by flipY
-      boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
+      if (slot >= 0) {
+        const board = new THREE.PlaneGeometry(bwid, bh);
+        const uv = board.attributes.uv;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, ...boards.uv(slot, uv.getX(i), uv.getY(i)));
+        boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
+      }
       if (chance(0.65)) {
         const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7, Math.max(1, Math.round(bw / 2)), 2);
         // how free each vertex is to flap: pinned at the wall, loose at the hem

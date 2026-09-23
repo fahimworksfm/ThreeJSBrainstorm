@@ -308,7 +308,7 @@ function buildRealWorld(def, data) {
   });
   const kit = new LightKit();
   for (const l of city.kitLamps) kit.add(l.x, l.z, l.nx, l.nz, { kind: l.kind, height: l.underEl ? 6.5 : 8.5, arm: l.underEl ? 1.2 : 2.2 });
-  const buildings = buildBuildings({ lots: city.lots, faces: city.faces, signNames: [...city.signNames, ...(def.shops ?? [])].slice(0, 44) }, shared);
+  const buildings = buildBuildings({ lots: city.lots, faces: city.faces, signNames: city.signNames }, shared);
   let elevated = city.elevated ? buildViaduct({ ...city.elevated, shared, kit, spot: city.spot }) : null;
   if (!elevated || !elevated.entrances.length) {
     for (const e of city.looseEntrances) kit.add(e.x, e.z, 1, 0, { globe: true, height: 2.4, kind: 'green', pool: 3 });
@@ -451,6 +451,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
   if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
+  document.body.classList.toggle('realmap', !!W.real); // keeps the OpenStreetMap credit under the map
   hud.setRide(MODES.walk.name, 'walk');
   const crowd = () => {
     const templates = [player.hero, ...(crowdExtras ?? [])];

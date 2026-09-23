@@ -17,6 +17,12 @@ import { buildCorners } from './props.js';
 
 const SIDING_TINTS = ['#d3dfea', '#ece4cf', '#d6e8d4', '#efd6d2', '#dedede', '#efe7c2', '#e0d4ea'];
 const BRICK_TINTS = ['#ffffff', '#f0d0c0', '#d8b8a8', '#ffe0cc', '#c8a898'];
+/** A shop name as it goes on a board: capitals, and long names cut back to whole words. */
+function signName(n) {
+  let s = n.toUpperCase().replace(/\s+/g, ' ').trim();
+  if (s.length > 26) s = s.slice(0, 27).replace(/\s+\S*$/, '').replace(/[\s,&\-–]+$/, '') || s.slice(0, 26);
+  return s;
+}
 const HOUSE_TYPES = /^(house|detached|semidetached_house|bungalow|terrace|residential)$/;
 const pickBy = (list, r) => list[Math.floor(r * list.length) % list.length];
 
@@ -449,15 +455,15 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
       const shop = lot.kind !== 'house' && hit <= 10 && (names.length > 0 || (lot.floors <= 7 && (lot.kind === 'mixed' ? commercial : commercial && hash01(lot.id, i) < 0.8)));
       if (shop && lot.kind === 'apt') lot.kind = 'mixed';
       for (const n of names) {
-        if (!signSeen.has(n) && signNames.length < 40) {
+        if (!signSeen.has(n) && signNames.length < 320) {
           signSeen.add(n);
-          signNames.push(n.toUpperCase().slice(0, 22));
+          signNames.push(signName(n));
         }
       }
       const bigSign = !!bigAt && lot.h > 14 && w >= 6 && Math.hypot(mx - bigAt[0], mz - bigAt[1]) < def.bigSigns.radius && hash01(lot.id, i + 50) < (def.bigSigns.chance ?? 0.6);
       // the real shops along this facade, with where they are, so each gets the sign over its own door
-      const pois = near.map((poi) => ({ poi, name: poi.name.toUpperCase().slice(0, 22), x: poi.p[0], z: poi.p[1] }));
-      faces.push({ x: mx, z: mz, nx, nz, w, lot, shop, bigSign, names: names.map((n) => n.toUpperCase().slice(0, 22)), pois });
+      const pois = near.map((poi) => ({ poi, name: signName(poi.name), x: poi.p[0], z: poi.p[1] }));
+      faces.push({ x: mx, z: mz, nx, nz, w, lot, shop, bigSign, names: names.map((n) => signName(n)), pois });
     }
   }
 

@@ -711,3 +711,7 @@ body.touch #hud #herohud #badge { width: 48px; height: 48px; }
   #hud #hbars > #progress, body.touch #hud #hbars > #progress { width: 18vw; }
   #dial { transform: scale(0.72); transform-origin: left bottom; }
 }
+
+/* OpenStreetMap credit (required by its license) under the map whenever real streets are showing */
+#osmcredit { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 4px; font: 500 9px/1.3 Oswald, sans-serif; letter-spacing: 0.04em; color: #e8e8ee; background: rgba(10, 10, 14, 0.72); text-decoration: none; text-align: right; pointer-events: auto; white-space: nowrap; overflow: hidden; }
+body.realmap #osmcredit { display: block; }
