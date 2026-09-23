@@ -223,6 +223,8 @@ function loadDistrict(id, { arrive = false } = {}) {
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
   hud.setRide(MODES.walk.name, 'walk');
+  if (player.hero) peds.setSkinned(player.hero, LOW ? 6 : 12);
+  else player.onHero = (hero) => W.peds.setSkinned(hero, LOW ? 6 : 12);
   return W;
 }
 

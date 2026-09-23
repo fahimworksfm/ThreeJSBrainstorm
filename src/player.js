@@ -67,6 +67,7 @@ export class Player {
         this.hero = hero;
         this.root.add(hero.root);
         this.guy.root.visible = false;
+        this.onHero?.(hero);
       })
       .catch((err) => console.warn('Hero model unavailable, using the built-in figure', err));
     this.speedo = makeSpeedo();

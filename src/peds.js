@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { D } from './config.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { rand, range, pick } from './random.js';
 
 const SKIN = [0x3b2519, 0x5a3a26, 0x7a4e32, 0x8d5a3b, 0xa8744f, 0xc68e64, 0xe0b08a, 0xf1c9a5];
@@ -111,6 +112,71 @@ export class Pedestrians {
     }
   }
 
+  /**
+   * Upgrade the pedestrians closest to you to full skinned humans with motion-captured
+   * walks. They take over from the instanced crowd figure at the same spot.
+   */
+  setSkinned(template, count = 10) {
+    const JACKETS = [0x2b3a55, 0x7a2430, 0x2f4a36, 0x3d3d44, 0xc9a24a, 0x6a3f7a, 0xd8d2c4, 0x9a5a2a, 0x3f6f8f, 0xb5483a];
+    const PANTS = [0x1f2533, 0x2c3a58, 0x121216, 0x6b5a45, 0x3a3a40, 0x4a3b2f];
+    const SHOES = [0xf1f1ee, 0x1a1a1a, 0x6b4a2a, 0x8a3a24];
+    const SKINS = [0.45, 0.6, 0.75, 0.9, 1.0, 1.1];
+    const HAIRS = [0x14100e, 0x2a1a10, 0x3b2616, 0x6b4a2a, 0x8a8a8a];
+    this.skinned = [];
+    for (let k = 0; k < count; k++) {
+      const root = cloneSkinned(template.root);
+      const skin = SKINS[k % SKINS.length];
+      root.traverse((o) => {
+        if (!o.isMesh) return;
+        const src = o.material;
+        const m = src.clone();
+        if (src.userData.outfit) {
+          m.onBeforeCompile = src.onBeforeCompile;
+          m.customProgramCacheKey = src.customProgramCacheKey;
+          const pal = o.name.includes('Top') ? JACKETS : o.name.includes('Bottom') ? PANTS : SHOES;
+          m.color.set(pal[(k * 7 + pal.length) % pal.length]).multiplyScalar(1.6);
+        } else if (o.name === 'Wolf3D_Body' || o.name === 'Wolf3D_Head') {
+          m.color.setScalar(skin);
+        } else if (!o.isSkinnedMesh && m.color && o.parent?.isBone && o.parent.name === 'Head') {
+          m.color.set(HAIRS[k % HAIRS.length]);
+        }
+        o.material = m;
+        // the backpack only on some of them
+        if (o.parent?.isBone && o.parent.name === 'Spine2') o.visible = k % 3 === 0;
+      });
+      root.traverse((o) => {
+        if (o.isGroup && o.parent?.isBone && o.parent.name === 'Spine2') o.visible = k % 3 === 0;
+      });
+      const mixer = new THREE.AnimationMixer(root);
+      const walk = mixer.clipAction(template.clips.Walk);
+      walk.play();
+      walk.time = rand() * walk.getClip().duration;
+      root.visible = false;
+      this.group.add(root);
+      this.skinned.push({ root, mixer, walk, ped: null });
+    }
+  }
+
+  assignSkinned(cam) {
+    const near = [];
+    this.peds.forEach((p, i) => {
+      if (p.hidden || !p.last) return;
+      const d = Math.hypot(p.last.x - cam.x, p.last.z - cam.z);
+      if (d < 38) near.push([d, i]);
+    });
+    near.sort((a, b) => a[0] - b[0]);
+    const want = new Set(near.slice(0, this.skinned.length).map(([, i]) => i));
+    // keep existing assignments where possible so nobody pops
+    for (const s of this.skinned) if (s.ped !== null && !want.has(s.ped)) s.ped = null;
+    const taken = new Set(this.skinned.map((s) => s.ped).filter((v) => v !== null));
+    for (const i of want) {
+      if (taken.has(i)) continue;
+      const free = this.skinned.find((s) => s.ped === null);
+      if (!free) break;
+      free.ped = i;
+    }
+  }
+
   *blocks() {
     // same block math as the layout, without needing the layout object
     for (let c = D.cMin; c <= D.cMax; c++) {
@@ -197,6 +263,36 @@ export class Pedestrians {
       }
     });
     for (const mesh of [this.torso, this.head, this.hair, this.legs, this.arms]) mesh.instanceMatrix.needsUpdate = true;
+    // skinned stand-ins for the nearest pedestrians
+    if (this.skinned) {
+      this.assignTimer = (this.assignTimer ?? 0) - dt;
+      if (this.assignTimer <= 0) {
+        this.assignSkinned(cam);
+        this.assignTimer = 0.5;
+      }
+      for (const s of this.skinned) {
+        if (s.ped === null) {
+          s.root.visible = false;
+          continue;
+        }
+        const p = this.peds[s.ped];
+        const i = s.ped;
+        this.torso.setMatrixAt(i, zero);
+        this.head.setMatrixAt(i, zero);
+        this.hair.setMatrixAt(i, zero);
+        for (let k = 0; k < 2; k++) {
+          this.legs.setMatrixAt(i * 2 + k, zero);
+          this.arms.setMatrixAt(i * 2 + k, zero);
+        }
+        const [, , dx, dz] = this.at(p, p.s);
+        s.root.visible = true;
+        s.root.position.set(p.last.x, D.sidewalkY, p.last.z);
+        s.root.rotation.y = Math.atan2(dx * p.dir, dz * p.dir);
+        s.root.scale.setScalar(p.height * 0.98);
+        s.walk.timeScale = p.speed / 1.5;
+        s.mixer.update(dt);
+      }
+    }
     // hand out the bubbles to the nearest talkers
     let b = 0;
     for (const p of this.peds) {

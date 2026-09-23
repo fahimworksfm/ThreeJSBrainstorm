@@ -13,5 +13,10 @@ const out = `<title>Night Walker NYC</title>
 ${body.trim()}
 <script type="module">${js}</script>
 `;
-writeFileSync('dist/game.html', out);
+writeFileSync('dist/game.html', out.replace('<script type="module">', '<script src="models-embed.js"></script>\n<script type="module">'));
+const b64 = (f) => readFileSync(f).toString('base64');
+writeFileSync(
+  'dist/models-embed.js',
+  `window.__NW_MODELS = { avatar: "${b64('dist/models/readyplayer.me.glb')}", motion: "${b64('dist/models/Soldier.glb')}" };\n`,
+);
 console.log('bytes', out.length, 'script-close occurrences', (js.match(/<\/script/gi) || []).length);

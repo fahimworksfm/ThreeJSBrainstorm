@@ -12,9 +12,18 @@ const BASE = import.meta.env?.BASE_URL ?? '/';
  */
 export async function loadHero(urls = {}) {
   const loader = new GLTFLoader();
+  // hosts that can't serve .glb get the models embedded as base64 in models-embed.js
+  const embedded = typeof window !== 'undefined' ? window.__NW_MODELS : null;
+  const load = (url, key) => {
+    if (embedded?.[key]) {
+      const bin = Uint8Array.from(atob(embedded[key]), (c) => c.charCodeAt(0));
+      return loader.parseAsync(bin.buffer, '');
+    }
+    return loader.loadAsync(url);
+  };
   const [avatar, motion] = await Promise.all([
-    loader.loadAsync(urls.avatar ?? `${BASE}models/readyplayer.me.glb`),
-    loader.loadAsync(urls.motion ?? `${BASE}models/Soldier.glb`),
+    load(urls.avatar ?? `${BASE}models/readyplayer.me.glb`, 'avatar'),
+    load(urls.motion ?? `${BASE}models/Soldier.glb`, 'motion'),
   ]);
   const root = avatar.scene;
   const outfit = {
@@ -37,6 +46,7 @@ export async function loadHero(urls = {}) {
       m.color.set(outfit[o.name]).multiplyScalar(1.6);
       const map = m.map;
       if (map) {
+        m.userData.outfit = true;
         m.onBeforeCompile = (s) => {
           s.fragmentShader = s.fragmentShader.replace(
             '#include <map_fragment>',
@@ -106,7 +116,7 @@ export async function loadHero(urls = {}) {
     a.setEffectiveWeight(name === 'Idle' ? 1 : 0);
     actions[name] = a;
   }
-  return { root, mixer, actions, bones };
+  return { root, mixer, actions, bones, clips };
 }
 
 const _q = new THREE.Quaternion();

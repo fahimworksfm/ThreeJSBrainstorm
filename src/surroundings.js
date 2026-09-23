@@ -95,7 +95,9 @@ export function buildSky(shared) {
           float h = max(dir.y, 0.0);
           vec3 col = mix(uHorizon, uTop, pow(h, 0.4));
           float sd = max(dot(dir, normalize(uSunDir)), 0.0);
-          col += uSun * (pow(sd, 6.0) * 0.45 + smoothstep(0.9985, 0.9992, sd) * 1.5);
+          // a big flat comic sun with a warm halo
+          col += uSun * (pow(sd, 8.0) * 0.55 + pow(sd, 90.0) * 0.6);
+          col = mix(col, vec3(1.0, 0.97, 0.86) * 1.6, smoothstep(0.99935, 0.9995, sd) * step(0.001, dot(uSun, uSun)));
           vec2 uv = dir.xz / (dir.y + 0.1) * 0.07 + vec2(time * 0.002, time * 0.0012);
           float n = clouds(uv);
           float lo = mix(0.42, 0.56, uSharp);
