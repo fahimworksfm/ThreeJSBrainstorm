@@ -31,6 +31,11 @@ export default {
   condoChance: () => 0.05,
   condoFloors: [7, 11],
 
+  // painted sign boards over the shops
+  shops: [
+    'GYRO HOUSE', 'TAVERNA', 'PIZZA & SUB', 'DELI', 'BAKERY', 'COFFEE', 'LAUNDROMAT', 'PHARMACY',
+    'MINI MART', 'FLOWERS', 'HARDWARE', 'ΚΑΦΕΝΕΙΟ', 'BARBER', 'NAIL SALON', 'DINER', 'SWEETS',
+  ],
   // [word, color, can be a vertical blade sign]
   neon: [
     ['TAVERNA', '#57a8ff', false], ['ΚΑΦΕ', '#ffd23b', true], ['BAKERY', '#ff9a3b', false],

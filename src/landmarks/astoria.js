@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB, D } from '../config.js';
 import { facadeBox } from '../buildings.js';
+import { hazy, buildIcons } from '../surroundings.js';
 import { LightKit } from '../lightkit.js';
 import { TILE_COLS, TILE_ROWS, makeNeon } from '../textures.js';
 import { rand, range, pick, chance } from '../random.js';
@@ -106,10 +107,10 @@ export function buildAstoriaLandmarks(layout, shared) {
     group.add(
       new THREE.Mesh(
         mergeGeometries(geos),
-        new THREE.MeshStandardMaterial({
+        hazy(new THREE.MeshStandardMaterial({
           map: tex.map, emissiveMap: tex.emissiveMap, emissive: 0xffffff, emissiveIntensity: 1.8,
-          vertexColors: true, fog: false, roughness: 0.8, color: 0x444444,
-        }),
+          vertexColors: true, roughness: 0.8, color: 0x6d6a78,
+        })),
       ),
     );
   }
@@ -124,28 +125,9 @@ export function buildAstoriaLandmarks(layout, shared) {
       ),
     );
   }
-  // Empire-style landmark far down in Midtown with a color-cycling crown
-  const esb = [];
-  const ex = shoreX - 1600;
-  const ez = 3200;
-  for (const [w, top] of [[70, 25], [55, 90], [42, 300], [30, 330], [20, 350], [12, 368]]) {
-    esb.push(facadeBox(w, top, w * 0.8, ex, WATER_Y, ez, 0, 0, new THREE.Color(0.6, 0.6, 0.6)));
-  }
-  group.add(
-    new THREE.Mesh(
-      mergeGeometries(esb),
-      new THREE.MeshStandardMaterial({
-        map: shared.facade.deco.map, emissiveMap: shared.facade.deco.emissiveMap, emissive: 0xffffff,
-        emissiveIntensity: 1.6, vertexColors: true, fog: false, color: 0x444444,
-      }),
-    ),
-  );
-  const crownMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
-  const crown = new THREE.Mesh(
-    mergeGeometries([box(21, 18, 17, ex, 340, ez), box(13, 20, 11, ex, 360, ez), box(4, 50, 4, ex, 393, ez)]),
-    crownMat,
-  );
-  group.add(crown);
+  // Empire State and Chrysler, far down in Midtown
+  const icons = buildIcons(shared, shoreX - 1600, 3200, WATER_Y);
+  group.add(icons.group);
 
   // ---- bridges to the north: an arch (Hell Gate) and a suspension span (Triborough)
   const steel = [];
@@ -241,7 +223,7 @@ export function buildAstoriaLandmarks(layout, shared) {
   group.add(new THREE.Mesh(mergeGeometries(scaffold), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.7, roughness: 0.5 })));
 
   function update(t) {
-    crownMat.color.setHSL((t * 0.01) % 1, 0.7, 0.55).multiplyScalar(1.6);
+
     beaconMat.color.setRGB(t % 2 < 0.6 ? 6 : 0.2, 0, 0);
   }
 

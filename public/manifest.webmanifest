@@ -1,0 +1,16 @@
+{
+  "name": "Night Walker NYC",
+  "short_name": "Night Walker",
+  "description": "A first-person walk (and ride) through New York City neighborhoods.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#120f1b",
+  "theme_color": "#120f1b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

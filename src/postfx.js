@@ -87,6 +87,9 @@ export const GradeShader = {
     ink: { value: 0 },
     grain: { value: 0.035 },
     vignette: { value: 0.9 },
+    speed: { value: 0 },
+    shadowDots: { value: 0 },
+    misprint: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -94,7 +97,7 @@ export const GradeShader = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 resolution;
-    uniform float time, saturation, contrast, bands, pixel, levels, chroma, ink, grain, vignette;
+    uniform float time, saturation, contrast, bands, pixel, levels, chroma, ink, grain, vignette, speed, shadowDots, misprint;
     uniform vec3 shadowTint, highlightTint;
     varying vec2 vUv;
     const vec3 LUMA = vec3(0.299, 0.587, 0.114);
@@ -113,7 +116,10 @@ export const GradeShader = {
         cell = floor(gl_FragCoord.xy / pixel);
       }
       vec3 c;
-      if (chroma > 0.0) {
+      if (misprint > 0.0) {
+        // comic print: the color plates are slightly out of register
+        c = vec3(texture2D(tDiffuse, uv + vec2(misprint, 0.0)).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - vec2(0.0, misprint)).b);
+      } else if (chroma > 0.0) {
         vec2 d = (uv - 0.5) * chroma;
         c = vec3(texture2D(tDiffuse, uv + d).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - d).b);
       } else {
@@ -131,6 +137,26 @@ export const GradeShader = {
         float q = (floor(L * bands) + 0.5) / bands;
         float soft = smoothstep(0.0, 0.08, fract(L * bands)) * smoothstep(1.0, 0.92, fract(L * bands));
         c *= mix(1.0, clamp(q / L, 0.0, 3.0), 0.8 * soft + 0.2);
+      }
+      if (shadowDots > 0.0) {
+        // halftone dots in the shadows, like a printed comic
+        float L = dot(c, LUMA);
+        float a = 0.26;
+        vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * gl_FragCoord.xy / 6.0;
+        float dist = length(fract(q) - 0.5);
+        float r = clamp((0.42 - L) / 0.42, 0.0, 1.0) * 0.55;
+        float dots = 1.0 - smoothstep(r - 0.06, r + 0.06, dist);
+        c *= 1.0 - dots * shadowDots * 0.6;
+      }
+      if (speed > 0.001) {
+        // speed lines streaking out from the center
+        vec2 p = vUv - 0.5;
+        p.x *= resolution.x / resolution.y;
+        float ang = atan(p.y, p.x);
+        float r = length(p);
+        float n = hash(vec2(floor(ang * 70.0), floor(time * 14.0)));
+        float line = step(0.82, n) * smoothstep(0.28, 0.75, r) * speed;
+        c = mix(c, vec3(1.0, 0.98, 0.94), line * 0.55);
       }
       if (levels > 0.0) {
         c += bayer4(cell) / levels;

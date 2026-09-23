@@ -4,6 +4,7 @@ import { CURB, D } from '../config.js';
 import { facadeBox } from '../buildings.js';
 import { LightKit } from '../lightkit.js';
 import { makeNeon } from '../textures.js';
+import { buildSkyline } from '../surroundings.js';
 import { range } from '../random.js';
 
 function box(w, h, d, x, y, z) {
@@ -258,6 +259,9 @@ export function buildJamaicaLandmarks(layout, shared) {
   const dirV = new THREE.Vector3().subVectors(P1, P0).normalize();
 
   group.add(kit.build(shared.pool));
+  // Manhattan, far off to the west, rising over the rooftops
+  const skyline = buildSkyline(shared, { x: D.xMin - 1900, z0: D.zMin - 900, z1: D.zMax + 300, depth: 600 });
+  group.add(skyline.group);
 
   function update(t, camera, dt) {
     if (bulbs.length) {

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1a52"/>
+      <stop offset="0.65" stop-color="#b8527a"/>
+      <stop offset="1" stop-color="#f29a5c"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#sky)"/>
+  <g fill="#15121c" stroke="#15121c" stroke-width="6">
+    <rect x="40" y="250" width="90" height="262"/>
+    <rect x="140" y="190" width="70" height="322"/>
+    <rect x="300" y="210" width="80" height="302"/>
+    <rect x="392" y="270" width="80" height="242"/>
+    <path d="M226 512 V140 h60 V512z"/>
+    <path d="M241 140 L256 60 L271 140z"/>
+  </g>
+  <g fill="#ffd27a">
+    <rect x="60" y="280" width="14" height="18"/><rect x="96" y="320" width="14" height="18"/>
+    <rect x="158" y="220" width="12" height="16"/><rect x="182" y="260" width="12" height="16"/>
+    <rect x="318" y="240" width="14" height="18"/><rect x="350" y="290" width="14" height="18"/>
+    <rect x="410" y="300" width="14" height="18"/><rect x="240" y="180" width="10" height="16"/>
+  </g>
+  <rect x="0" y="440" width="512" height="72" fill="#f5c518"/>
+  <text x="256" y="494" font-family="Arial Black, Arial, sans-serif" font-size="46" text-anchor="middle" fill="#15121c">NIGHT WALKER</text>
+</svg>

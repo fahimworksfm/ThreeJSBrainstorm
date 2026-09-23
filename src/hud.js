@@ -50,6 +50,9 @@ export class HUD {
       hud: document.getElementById('hud'),
       district: document.getElementById('district'),
       prompt: document.getElementById('prompt'),
+      ride: document.getElementById('ride'),
+      rideName: document.getElementById('ride-name'),
+      rideSpeed: document.getElementById('ride-speed'),
     };
     this.lastLocation = '';
     this.lastClock = '';
@@ -67,6 +70,20 @@ export class HUD {
     this.lastPrompt = text;
     this.el.prompt.textContent = text || '';
     this.el.prompt.classList.toggle('show', !!text);
+  }
+
+  /** Which ride you're on, for the HUD chip. */
+  setRide(name, mode) {
+    if (this.el.ride.dataset.mode === mode && this.el.rideName.textContent === name) return;
+    this.el.ride.dataset.mode = mode;
+    this.el.rideName.textContent = name;
+  }
+
+  setSpeed(mph) {
+    const v = mph > 0.5 ? `${Math.round(mph)} mph` : '';
+    if (v === this.lastSpeed) return;
+    this.lastSpeed = v;
+    this.el.rideSpeed.textContent = v;
   }
 
   setLocation(text) {
@@ -89,6 +106,7 @@ export class HUD {
 
   setCount(n, total) {
     this.el.count.textContent = `${n} / ${total}`;
+    document.getElementById('objective-count').textContent = `${n} / ${total}`;
   }
 
   showMemory(title, text, ms = 10000) {

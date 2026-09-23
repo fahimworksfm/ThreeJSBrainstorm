@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { makeAsphalt } from './textures.js';
 
 /**
  * Wet asphalt: a planar reflection of the whole scene, smeared vertically like
@@ -88,10 +89,9 @@ export function buildRoad(noiseTex, rect, pixelSize) {
   reflector.rotation.x = -Math.PI / 2;
   reflector.position.set((rect.x0 + rect.x1) / 2, 0, (rect.z0 + rect.z1) / 2);
 
-  const plain = new THREE.Mesh(
-    geo,
-    new THREE.MeshStandardMaterial({ color: 0x14151a, roughness: 0.3, metalness: 0.4 }),
-  );
+  const asphalt = makeAsphalt();
+  asphalt.repeat.set((rect.x1 - rect.x0) / 16, (rect.z1 - rect.z0) / 16);
+  const plain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: asphalt, color: 0x14151a, roughness: 1 }));
   plain.rotation.copy(reflector.rotation);
   plain.position.copy(reflector.position);
   plain.visible = false;
@@ -104,8 +104,9 @@ export function buildRoad(noiseTex, rect, pixelSize) {
       plain.visible = !on;
     },
     setColor(hex) {
-      reflector.material.uniforms.color.value.set(hex);
-      plain.material.color.set(hex);
+      reflector.material.uniforms.color.value.copy(hex);
+      // the asphalt texture is mid-grey, so lift the plain road's tint to compensate
+      plain.material.color.copy(hex).multiplyScalar(2.2);
     },
     setSize(w, h) {
       reflector.getRenderTarget().setSize(w, h);

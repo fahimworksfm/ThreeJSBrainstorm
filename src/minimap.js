@@ -28,7 +28,7 @@ export class Minimap {
     const s = SIZE / 2 / RANGE;
     ctx.save();
     ctx.clearRect(0, 0, SIZE, SIZE);
-    ctx.fillStyle = '#5b5f6b'; // streets
+    ctx.fillStyle = '#2f3a47'; // streets
     ctx.fillRect(0, 0, SIZE, SIZE);
     ctx.translate(SIZE / 2, SIZE / 2);
     ctx.rotate(yaw); // heading always points up
@@ -36,19 +36,19 @@ export class Minimap {
     ctx.translate(-pos.x, -pos.z);
 
     if (D.riverX !== null) {
-      ctx.fillStyle = '#3d5f8a';
+      ctx.fillStyle = '#4f86b8';
       ctx.fillRect(D.riverX - 4000, pos.z - 4000, 4000, 8000);
     }
     if (D.parkZ1 !== null) {
-      ctx.fillStyle = '#5f8a5a';
+      ctx.fillStyle = '#6fa06a';
       ctx.fillRect(pos.x - 4000, D.parkZ1 - 4000, 8000, 4000);
     }
     const near = (b) => Math.abs((b.x0 + b.x1) / 2 - pos.x) < RANGE * 2 && Math.abs((b.z0 + b.z1) / 2 - pos.z) < RANGE * 2;
     for (const b of layout.blocks) {
       if (!near(b)) continue;
-      ctx.fillStyle = '#c9ccd4'; // sidewalk
+      ctx.fillStyle = '#c9d4de'; // sidewalk
       ctx.fillRect(b.x0, b.z0, b.x1 - b.x0, b.z1 - b.z0);
-      ctx.fillStyle = b.park ? '#6f9a66' : '#e9eaee';
+      ctx.fillStyle = b.park ? '#7aa870' : '#a9bdd0';
       const sw = D.sidewalk;
       ctx.fillRect(b.x0 + sw, b.z0 + sw, b.x1 - b.x0 - 2 * sw, b.z1 - b.z0 - 2 * sw);
     }

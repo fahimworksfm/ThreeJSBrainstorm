@@ -33,6 +33,10 @@ export default {
   parkBlocks: [[2, 3]], // Rufus King Park
   reserved: [{ c: 6, r: 3, part: 'south', depth: 30 }], // the old Valencia theater
 
+  shops: [
+    'PATTIES', 'ROTI SHOP', 'JERK CHICKEN', 'BRAIDING', 'SNEAKERS', '99¢ STORE', 'GOLD & SILVER', 'BAKERY',
+    'PHARMACY', 'CELL PHONES', 'TAX SERVICE', 'DELI', 'HAIR SALON', 'FISH MARKET', 'DISCOUNT', 'CARIBBEAN FOOD',
+  ],
   neon: [
     ['PATTIES', '#ffb03b', true], ['JERK CHICKEN', '#ff5a36', false], ['ROTI', '#ffd23b', true],
     ['OXTAIL', '#ff9a3b', false], ['BRAIDING', '#ff7ad9', false], ['SNEAKERS', '#39d0ff', false],

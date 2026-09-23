@@ -1,127 +1,124 @@
 # Night Walker NYC
 
-A first-person walk through New York City neighborhoods, built with [three.js](https://threejs.org).
+A walk (and ride) through New York City neighborhoods in an inked, cel-shaded comic style, built with
+[three.js](https://threejs.org). It runs in any modern browser, on desktop or phone.
 
-![Astoria in the Comic style](docs/style-comic.png)
+![Astoria at golden hour](docs/golden-hour.png)
 
-You can't sleep, so you walk. Each neighborhood hides eight memories: follow the blue light beams to find them. When
-you want to go somewhere else, find a station entrance (the green globes) and take the train.
+You play a guy with a backpack, a bicycle, a motorcycle and an SUV. Each neighborhood hides eight memories:
+follow the blue light beams to find them. Time passes on its own, from golden hour through a purple dusk into a
+neon night. When you want to go somewhere else, find a green-globe station entrance and take the train.
 
-Everything is generated in code: streets, buildings, textures, neon, traffic and sound. There are no asset files to
-download.
+Everything is generated in code: streets, buildings, signs, textures, traffic, crowds and sound. There are no asset
+files to download.
 
 ## Run it
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # static site in dist/ (deploy anywhere: Netlify, GitHub Pages, Vercel...)
+npm run build    # static site in dist/
 ```
 
-## Neighborhoods
+## Put it on the web
 
-Each neighborhood is a compressed version of the real one: the street names and their order are right, the distances
-are shortened.
+It's a static site, so it's free to host:
 
-| | |
-| --- | --- |
-| **Astoria, Queens**: the N/W on the el over 31st St, tavernas and bakeries on 30th Ave and Broadway, Steinway St, rowhouses with stoops, Astoria Park, and Manhattan across the East River. | **Jamaica, Queens**: Jamaica Ave's patty shops and sneaker stores, the LIRR viaduct and Jamaica Station, Rufus King Park and King Manor, the Valencia's chasing-bulb marquee, detached houses, and planes coming down toward JFK. |
-| ![Astoria](docs/style-comic.png) | ![Jamaica](docs/jamaica-comic.png) |
+- **Vercel**: import the GitHub repo at vercel.com/new. It detects Vite; `vercel.json` is included.
+- **Render**: New → Blueprint, pick this repo. `render.yaml` creates a free static site.
+- Netlify, Cloudflare Pages and GitHub Pages work the same way (build command `npm run build`, output `dist`).
 
-The train map lists all five boroughs. Places that aren't built yet are marked "coming soon".
+On a phone, open the link and use **Add to Home Screen** to install it as a full-screen app.
 
-## Visual styles
+## The look
 
-Press **V** to switch styles, or pick one on the title screen.
+One art style: black ink outlines from the depth buffer, flat cel-shaded color bands, halftone dots in the shadows,
+painted skies with cartoon clouds, and speed lines when you go fast. The time of day changes the light:
 
-| Style | Look |
-| --- | --- |
-| **Comic** (default) | Dusk, cel-shaded color bands, ink outlines, cartoon clouds |
-| **Realism** | Rainy 2 AM, wet streets with real reflections |
-| **Neon** | Cyberpunk rain in magenta and teal, heavy glow, chromatic aberration |
-| **PS1** | Chunky pixels, ordered dithering, a limited palette |
-| **Ink** | Black-and-white manga halftone with heavy outlines |
+| Golden hour | Dusk | Night |
+| --- | --- | --- |
+| ![Golden hour](docs/golden-hour.png) | ![Dusk in Jamaica](docs/dusk.png) | ![Night](docs/night.png) |
 
-| Realism | Neon |
-| --- | --- |
-| ![Realism](docs/jamaica-realism.png) | ![Neon](docs/style-neon.png) |
-| **PS1** | **Ink** |
-| ![PS1](docs/style-ps1.png) | ![Ink](docs/style-ink.png) |
+Some nights it rains, and the streets turn wet and reflective. Pick a start time on the title screen.
+
+## Rides
+
+| Key | Ride | |
+| --- | --- | --- |
+| 1 | On foot | walk, Shift to run |
+| 2 | Bicycle | pedals, leans into turns |
+| 3 | Motorcycle | fast, leans hard, engine sound |
+| 4 | SUV | big, heavy, a proper dashboard |
+
+Press **C** (or **View** on a phone) to switch between third person (default) and first person, where each ride has
+its own cockpit: handlebars, gauges, a dashboard and a steering wheel. When you switch rides, the old one stays parked
+where you left it.
+
+| Motorcycle | SUV, first person | Phone |
+| --- | --- | --- |
+| ![Motorcycle](docs/motorcycle.png) | ![SUV cockpit](docs/suv-cockpit.png) | ![On a phone](docs/phone.png) |
 
 ## Controls
 
-| Key | Action |
-| --- | --- |
-| Click | start (locks the mouse) |
-| WASD / arrows | walk |
-| Shift | hurry |
-| Mouse | look around |
-| E | take the train (at a green-globe station entrance) |
-| V | change visual style |
-| R | rain on / off |
-| Q | street reflections on / off (the biggest performance win) |
-| B | bloom on / off |
-| M | mute |
-| H | hide HUD |
-| F | show fps |
-| Esc | pause, read your journal |
+| Desktop | Phone | Action |
+| --- | --- | --- |
+| WASD / arrows | left thumb | walk / drive |
+| Mouse | right thumb | look around |
+| Shift | Run | hurry / boost |
+| Space | | brake |
+| 1 2 3 4 | Ride | walk, bicycle, motorcycle, SUV |
+| C | View | third / first person |
+| E | Train | take the train at a green-globe entrance |
+| R | | rain on / off |
+| Q | | wet-street reflections on / off |
+| M | | mute |
+| H | | hide HUD |
+| F | | show fps |
+| Esc | ❚❚ | pause, journal |
 
-## What's in a neighborhood
+## Phones and screen sizes
 
-- **Streets**: sidewalks, crosswalks, traffic lights on the busy strips, stop signs on side streets, street-name signs,
-  hydrants, manholes (some steaming), street trees, parked cars. The HUD tells you where you are
-  ("31st St & Broadway · under the el"), and the minimap turns with you.
-- **Buildings**: rowhouses with stoops and iron fences, detached houses with gable roofs, walk-ups with fire escapes,
-  corner buildings with water towers, new glass condos. Shopping strips get storefronts and neon in the neighborhood's
-  languages.
-- **The elevated line**: steel, stations with name boards, green-globe entrances, and trains that stop, turn back at
-  terminals, light up the street below and rumble. The LIRR sounds its horn.
-- **Traffic**: cars, yellow cabs with checkered stripes and green boro taxis stop at red lights, queue, and honk if you
-  stand in the road.
-- **Sound**, all synthesized with Web Audio: rain, city hum, footsteps, trains, jets overhead, distant sirens and horns.
-- **Progress**: memories you find are saved per neighborhood in `localStorage`; the journal on the pause screen shows
-  them all.
+- Touch screens get a floating joystick, drag-to-look and big buttons.
+- The game fills any screen. Portrait phones get a wider field of view; desktops fill the window.
+- Phones get a lighter renderer (no MSAA, no sun shadows, no wet reflections, half-resolution bloom, less rain),
+  and every device gets dynamic resolution that drops the render scale when the frame rate dips below ~45 fps.
+
+## Neighborhoods
+
+- **Astoria, Queens**: the N/W on the el over 31st St, tavernas and bakeries on 30th Ave and Broadway, Steinway St,
+  rowhouses with stoops, Astoria Park, and Manhattan across the East River.
+- **Jamaica, Queens**: Jamaica Ave's patty shops and sneaker stores, the LIRR viaduct and Jamaica Station,
+  Rufus King Park and King Manor, the Valencia's chasing-bulb marquee, detached houses, and planes heading into JFK.
+
+The train map lists all five boroughs; places that aren't built yet are marked "coming soon".
 
 ## How it works
 
 | File | Role |
 | --- | --- |
-| `src/districts/*.js` | One file per neighborhood: grid, street names, shopping strips, el line, memories, landmarks |
-| `src/districts/index.js` | The list of playable districts and the five-borough map |
-| `src/config.js` | Activates a district and derives its geometry helpers and bounds |
-| `src/layout.js` | Deterministic block → lot → facade generation (seeded RNG in `random.js`) |
-| `src/textures.js` | Canvas-generated textures: facades with lit windows, storefronts, neon, sidewalk, noise |
-| `src/buildings.js` | Buildings merged into one mesh per facade style, storefronts, neon, stoops, fire escapes |
-| `src/streets.js` | Sidewalks, road paint, lamps, signals, signs, hydrants, manholes |
-| `src/elevated.js` | Elevated rail (any axis, subway or LIRR style), stations, entrances, trains |
-| `src/landmarks/*.js` | Per-neighborhood set pieces (river and skyline, King Manor, the Valencia, planes...) |
-| `src/styles.js` | The visual style presets |
-| `src/postfx.js` | Depth-based ink outlines and the final grade (cel bands, halftone, dither, pixels) |
-| `src/road.js` | Wet road: a `Reflector` with a custom shader (vertical smear, puddles, ripples, fresnel) |
-| `src/traffic.js`, `src/weather.js`, `src/memories.js`, `src/audio.js`, `src/player.js`, `src/minimap.js` | Systems |
-| `src/main.js` | Renderer, post-processing chain, district loading and train travel, game loop, input |
+| `src/districts/*.js` | One file per neighborhood: grid, street and shop names, el line, memories, landmarks |
+| `src/look.js` | The art style and its time-of-day keyframes |
+| `src/postfx.js` | Ink outlines and the final grade (cel bands, halftone, speed lines) |
+| `src/player.js`, `src/models.js` | The guy, his rides, cockpits, vehicle physics, cameras |
+| `src/input.js` | Keyboard, mouse and touch controls |
+| `src/peds.js` | Instanced sidewalk crowds |
+| `src/layout.js`, `src/buildings.js`, `src/textures.js` | Blocks, lots, facades, signs, awnings, fire escapes |
+| `src/streets.js`, `src/elevated.js`, `src/traffic.js` | Streets, the el and trains, traffic |
+| `src/surroundings.js`, `src/landmarks/*.js` | Sky, trees, skyline, parks, rivers, set pieces |
+| `src/collide.js` | Grid-accelerated collisions |
+| `src/main.js` | Renderer, quality settings, district loading, game loop |
 
-Rendering uses **WebGL 2** through `THREE.WebGLRenderer`. The post-processing chain is: scene → ink outlines (from
-the depth buffer) → bloom → tone mapping → grade. Geometry is merged per material and cars are `InstancedMesh`es, so a
-neighborhood costs a few hundred draw calls.
+See [docs/TECH-STACK.md](docs/TECH-STACK.md) for other free tools that can push the look further, and how the
+hosting works.
 
 ### Adding a neighborhood
 
-1. Copy `src/districts/jamaica.js`, change the street names, grid size, shopping strips, el line and memories.
-2. Optionally write a landmarks module in `src/landmarks/` for its set pieces.
+1. Copy `src/districts/jamaica.js`; change the street names, grid, shopping strips, shop names, el line and memories.
+2. Optionally write a landmarks module in `src/landmarks/`.
 3. Register it in `src/districts/index.js` and give its entry on the borough map an `id`.
 
 ### Debug URL parameters
 
-- `?district=jamaica` and `?style=neon` pick a neighborhood and look
+- `?district=jamaica`, `?time=night` (golden, dusk, night), `?quality=low`
 - `?cam=x,z,yawDeg,pitchDeg,height&fly` puts a static camera anywhere
-- `?shot` hides the title screen
-- `?t=60` fast-forwards trains and traffic by 60 seconds
-
-## Ideas for next steps
-
-- More neighborhoods: Long Island City, Jackson Heights, Flushing, then Manhattan, Brooklyn, the Bronx and Staten Island
-- Pedestrians on the sidewalks
-- Split merged geometry into chunks so off-screen parts of the city can be culled
-- Climb the station stairs and ride the train in real time
-- Mobile touch controls
+- `?shot` hides the title screen, `?t=60` fast-forwards trains and traffic

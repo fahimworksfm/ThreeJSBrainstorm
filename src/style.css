@@ -136,3 +136,107 @@ h3 { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: v
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45); opacity: 0.92;
 }
 @media (max-width: 640px) { #minimap { width: 120px; height: 120px; } }
+
+/* ---------- phones and any screen size ---------- */
+html, body { height: 100dvh; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; }
+#app canvas { touch-action: none; }
+.corner { top: max(14px, env(safe-area-inset-top)); }
+#where { left: max(16px, env(safe-area-inset-left)); }
+#tally { right: max(16px, env(safe-area-inset-right)); }
+#minimap { left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); }
+.touch-only { display: none; }
+body.touch .touch-only { display: block; }
+
+.start-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+#start { justify-self: auto; }
+.ghost {
+  background: none; border: 1px solid rgba(255, 255, 255, 0.3); color: var(--ink); padding: 13px 18px;
+  border-radius: 4px; cursor: pointer; font: inherit; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+}
+
+#ride {
+  position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex; gap: 10px; align-items: baseline; background: var(--panel); padding: 8px 14px; border-radius: 999px;
+  font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+#ride-speed { color: var(--glow); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* touch controls */
+#touch { display: none; }
+body.touch.playing #touch { display: block; }
+#touch .zone { position: fixed; top: 0; bottom: 0; touch-action: none; }
+#touch .zone.left { left: 0; width: 45%; }
+#touch .zone.right { right: 0; width: 55%; }
+#touch .joy {
+  position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.06);
+  pointer-events: none; opacity: 0; transition: opacity 0.15s;
+}
+#touch .joy.on { opacity: 1; }
+#touch .knob {
+  position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+#touch .buttons {
+  position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: max(70px, calc(env(safe-area-inset-bottom) + 58px));
+  display: grid; grid-template-columns: repeat(2, auto); gap: 10px; justify-items: end; align-items: end;
+}
+#touch button {
+  touch-action: none; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.5);
+  background: rgba(10, 8, 18, 0.55); color: #fff; font: 600 12px system-ui, sans-serif; letter-spacing: 0.04em;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+#touch button.big { width: 78px; height: 78px; font-size: 13px; border-color: rgba(255, 210, 90, 0.8); }
+#touch button.on { background: rgba(111, 227, 255, 0.35); }
+#touch button.act { grid-column: span 2; width: auto; height: 46px; border-radius: 999px; padding: 0 16px; border-color: rgba(61, 255, 122, 0.8); }
+#touch button.hidden { display: none; }
+#touch .pause {
+  position: fixed; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: 44px; height: 44px; font-size: 12px;
+}
+
+/* phones: tighter HUD, minimap up top so thumbs have room */
+body.touch #minimap { width: 104px; height: 104px; top: max(64px, calc(env(safe-area-inset-top) + 50px)); bottom: auto; left: auto; right: max(12px, env(safe-area-inset-right)); }
+body.touch #tally .label { display: none; }
+body.touch #location { font-size: 13px; max-width: 58vw; }
+body.touch #ride { bottom: auto; top: max(174px, calc(env(safe-area-inset-top) + 160px)); padding: 6px 10px; font-size: 10px; }
+body.touch #subtitle { bottom: 32vh; }
+body.touch #subtitle-text { font-size: 16px; }
+body.touch #prompt { display: none; }
+body.touch #crosshair { display: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  body.touch #subtitle { bottom: 40vh; width: min(520px, calc(100% - 300px)); }
+  .card { gap: 12px; }
+  h1 { font-size: 40px; }
+}
+#overlay, #travel { touch-action: pan-y; }
+body.touch #touch .pause { left: auto; right: max(12px, env(safe-area-inset-right)); transform: none; }
+body.touch #tally { right: max(66px, calc(env(safe-area-inset-right) + 54px)); }
+body.touch:not(.playing) #hud { opacity: 0; }
+
+/* ---------- comic HUD ---------- */
+#district, #location, #objective, #ride, #count, .eyebrow, h1, #subtitle-title {
+  font-family: 'Bangers', 'Impact', 'Arial Black', sans-serif; letter-spacing: 0.06em;
+}
+#where .label { font-size: 14px; color: #ffe08a; text-shadow: 2px 2px 0 #000; letter-spacing: 0.12em; }
+#location { font-size: 22px; font-weight: 400; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000; }
+#clock { font-weight: 700; text-shadow: 1px 1px 0 #000; }
+#objective {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 6px 12px 5px 8px;
+  background: rgba(12, 10, 14, 0.85); border: 2px solid #000; box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+  font-size: 17px; color: #fff; text-transform: uppercase; letter-spacing: 0.08em;
+}
+#objective .gem { width: 12px; height: 12px; background: #f5c518; transform: rotate(45deg); border: 2px solid #000; }
+#objective b { color: #f5c518; font-weight: 400; margin-left: 4px; }
+#tally { display: none; }
+#minimap { border-radius: 2px; border: 3px solid #0b0b0d; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55); opacity: 1; }
+#ride { font-size: 15px; border: 2px solid #000; border-radius: 3px; background: rgba(12, 10, 14, 0.85); box-shadow: 3px 3px 0 rgba(0,0,0,0.6); }
+#ride-speed { color: #f5c518; }
+#subtitle-title { font-size: 20px; color: #f5c518; letter-spacing: 0.12em; text-shadow: 2px 2px 0 #000; }
+#subtitle-text {
+  background: #fdf6e3; color: #16120e; font-style: normal; font-family: 'Comic Neue', Georgia, serif;
+  border: 3px solid #000; box-shadow: 5px 5px 0 rgba(0,0,0,0.55); padding: 12px 16px; text-shadow: none;
+}
+h1 { font-weight: 400; letter-spacing: 0.05em; text-shadow: 4px 4px 0 #000, 0 0 30px rgba(245, 197, 24, 0.35); color: #f5c518; }
+body.touch #objective { font-size: 13px; margin-top: 6px; }
+body.touch #location { font-size: 17px; }

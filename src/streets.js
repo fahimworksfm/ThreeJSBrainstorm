@@ -127,7 +127,7 @@ export function buildStreets(layout, shared) {
       if (!e.shops) {
         for (let z = b.z0 + 5; z < b.z1 - 5; z += 7.5) {
           if (lampZ.some((lz) => Math.abs(lz - z) < 3)) continue;
-          if (chance(0.6)) trees.push([e.x - e.nx * 0.8, z, range(0.8, 1.25)]);
+          if (chance(0.6)) trees.push([e.x - e.nx * 0.8, z, range(1.1, 1.6)]);
         }
       }
     }

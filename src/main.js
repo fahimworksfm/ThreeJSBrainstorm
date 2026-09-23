@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, GradeShader } from './postfx.js';
-import { STYLES, STYLE_ORDER } from './styles.js';
+import { INK, lookAt, nightness, START_TIMES } from './look.js';
 
 import { CURB, D, activateDistrict } from './config.js';
 import { DISTRICTS, BOROUGHS } from './districts/index.js';
@@ -17,7 +17,8 @@ import {
 import { buildBuildings } from './buildings.js';
 import { buildStreets } from './streets.js';
 import { buildElevated } from './elevated.js';
-import { buildSky, buildTrees, nightSky } from './surroundings.js';
+import { buildSky, buildTrees, nightSky, setFoliage } from './surroundings.js';
+import { Pedestrians } from './peds.js';
 import { LightKit } from './lightkit.js';
 import { buildRoad } from './road.js';
 import { Traffic } from './traffic.js';
@@ -25,7 +26,9 @@ import { Weather } from './weather.js';
 import { Memories } from './memories.js';
 import { CityAudio } from './audio.js';
 import { HUD, describeLocation } from './hud.js';
-import { Player } from './player.js';
+import { Player, MODES, MODE_ORDER } from './player.js';
+import { Input, IS_TOUCH } from './input.js';
+import { ColliderGrid } from './collide.js';
 import { makeCityEnvironment } from './env.js';
 import { Minimap } from './minimap.js';
 import './style.css';
@@ -48,12 +51,27 @@ const store = {
   },
 };
 
+// ---------- quality ----------
+// Phones get a lighter setup; everyone gets dynamic resolution that follows the frame rate.
+const LOW = IS_TOUCH || params.get('quality') === 'low';
+const quality = {
+  maxRatio: LOW ? Math.min(devicePixelRatio, 1.25) : Math.min(devicePixelRatio, 1.5),
+  scale: 1, // dynamic resolution multiplier, 0.5..1
+  samples: LOW ? 0 : 4,
+  rain: LOW ? 2500 : 7000,
+};
+const pixelRatioNow = () => quality.maxRatio * quality.scale;
+
 // ---------- renderer ----------
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-const pixelRatio = Math.min(devicePixelRatio, 1.5);
+let pixelRatio = pixelRatioNow();
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+// sun shadows (desktop): a shadow box that follows you, refreshed every other frame
+renderer.shadowMap.enabled = !LOW;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false;
 renderer.toneMappingExposure = 1.1;
 document.getElementById('app').appendChild(renderer.domElement);
 
@@ -68,7 +86,12 @@ scene.add(camera);
 // at night the warm ground color stands in for street light bouncing up onto the el and cornices
 const hemi = new THREE.HemisphereLight(0x2c3452, 0x7a4a2a, 0.65);
 const sun = new THREE.DirectionalLight(0x8090c0, 0.12);
-scene.add(hemi, sun);
+scene.add(hemi, sun, sun.target);
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 600 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.05;
+const sunDir = new THREE.Vector3(-1, 2, 1).normalize();
 
 // ---------- textures shared by every neighborhood ----------
 const shared = {
@@ -89,9 +112,10 @@ const audio = new CityAudio();
 const hud = new HUD();
 const minimap = new Minimap(document.getElementById('minimap'));
 const settings = {
-  style: STYLES[params.get('style')] ? params.get('style') : store.get('style', 'comic'),
+  startAt: START_TIMES[params.get('time')] ? params.get('time') : store.get('startAt', 'golden'),
+  rainOverride: null, // R forces rain on or off; otherwise it rains on some nights
   rain: true,
-  reflections: store.get('reflections', true),
+  reflections: store.get('reflections', !LOW),
   bloom: true,
 };
 
@@ -99,31 +123,11 @@ const settings = {
 let W = null;
 const worldProxy = {
   groundAt: (x, z) => (W ? W.groundAt(x, z) : 0),
-  collide(p, r) {
-    for (const c of W.colliders) {
-      if (p.x < c.x0 - r || p.x > c.x1 + r || p.z < c.z0 - r || p.z > c.z1 + r) continue;
-      const nx = Math.max(c.x0, Math.min(c.x1, p.x));
-      const nz = Math.max(c.z0, Math.min(c.z1, p.z));
-      const dx = p.x - nx;
-      const dz = p.z - nz;
-      const d2 = dx * dx + dz * dz;
-      if (d2 > r * r) continue;
-      if (d2 > 1e-8) {
-        const d = Math.sqrt(d2);
-        p.x += (dx / d) * (r - d);
-        p.z += (dz / d) * (r - d);
-      } else {
-        // inside the box: push out along the shallowest side
-        const pushes = [
-          [c.x0 - r - p.x, 0], [c.x1 + r - p.x, 0], [0, c.z0 - r - p.z], [0, c.z1 + r - p.z],
-        ].sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
-        p.x += pushes[0][0];
-        p.z += pushes[0][1];
-      }
-    }
-  },
+  collide: (p, r) => (W ? W.grid.collide(p, r) : false),
+  inside: (x, z, pad) => (W ? W.grid.inside(x, z, pad) : false),
 };
-const player = new Player(camera, renderer.domElement, worldProxy, audio);
+const input = new Input(renderer.domElement);
+const player = new Player(camera, scene, worldProxy, audio, input, shared);
 if (params.has('fly')) player.update = () => {};
 
 const reflectSize = () => new THREE.Vector2(innerWidth * pixelRatio * 0.5, innerHeight * pixelRatio * 0.5);
@@ -163,20 +167,29 @@ function loadDistrict(id, { arrive = false } = {}) {
     buildings.group, streets.group, elevated.group, landmarks.group, kit.build(shared.pool), sky.mesh,
     buildTrees([...streets.trees, ...landmarks.trees]),
   );
-  const colliders = [...layout.colliders, ...elevated.colliders, ...landmarks.colliders];
 
   const road = buildRoad(shared.noise, D.roadRect, reflectSize());
   road.setReflections(settings.reflections);
   root.add(road.reflector, road.plain);
   const traffic = new Traffic(shared, audio);
-  const weather = new Weather(shared, groundAt, streets.steam);
+  // parked cars are solid too
+  const parked = traffic.parked.map((c) => ({ x0: c.x - 1, x1: c.x + 1, z0: c.z - 2.35, z1: c.z + 2.35 }));
+  const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...parked]);
+  const weather = new Weather(shared, groundAt, streets.steam, quality.rain);
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
   const memories = new Memories(shared, audio, hud);
-  root.add(traffic.group, weather.group, memories.group);
+  const peds = new Pedestrians();
+  root.add(traffic.group, weather.group, memories.group, peds.group);
+  // opaque things cast and catch sun shadows
+  root.traverse((o) => {
+    if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
+    o.castShadow = true;
+    o.receiveShadow = !o.material.isMeshBasicMaterial;
+  });
   scene.add(root);
 
-  W = { def, root, layout, groundAt, colliders, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
-  applyStyle(settings.style, { keepRain: true });
+  W = { def, root, layout, groundAt, grid, peds, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
+  applyTime(true);
   minimap.setWorld(W);
   hud.setDistrict(`${def.name}, ${def.borough}`);
   store.set('district', def.id);
@@ -192,97 +205,112 @@ function loadDistrict(id, { arrive = false } = {}) {
     const s = def.start(D);
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
+  hud.setRide(MODES.walk.name, 'walk');
   return W;
 }
 
-// ---------- visual styles ----------
-let clockStart = 0;
-function applyStyle(id, { keepRain = false } = {}) {
-  const st = STYLES[id] ?? STYLES.comic;
-  settings.style = id;
-  store.set('style', id);
-  const def = W.def;
-  const fogColor = st.fog?.color ?? def.fogColor;
-  scene.fog.color.set(fogColor);
-  scene.fog.density = st.fog?.density ?? def.fog;
-  scene.background.set(fogColor);
-  hemi.color.set(st.light.hemiSky);
-  hemi.groundColor.set(st.light.hemiGround);
-  hemi.intensity = st.light.hemi;
-  sun.color.set(st.light.sun);
-  sun.intensity = st.light.sunI;
-  sun.position.set(...st.light.sunDir);
-  renderer.toneMappingExposure = st.exposure;
-  scene.environmentIntensity = st.env ?? 0.35;
-  W.sky.set(st.sky ?? nightSky(def.sky));
+// ---------- the look: one inked comic style, lit by the time of day ----------
+const MINUTES_PER_SECOND = 0.5; // a full day takes 48 real minutes
+let minute = START_TIMES[settings.startAt].minute;
+let materialTimer = 0;
+let rainyNight = Math.random() < 0.5;
+let wasNight = false;
+const tmpColor = new THREE.Color();
 
-  [bloom.strength, bloom.radius, bloom.threshold] = st.bloom;
-  outline.enabled = !!st.outline;
-  if (st.outline) {
-    const u = outline.material.uniforms;
-    u.strength.value = st.outline.strength;
-    u.width.value = st.outline.width;
-    u.color.value.setRGB(...st.outline.color);
-    u.threshold.value.set(...st.outline.threshold);
-    u.fade.value.set(...st.outline.fade);
-  }
+function applyInk() {
+  const u = outline.material.uniforms;
+  u.strength.value = INK.outline.strength;
+  u.width.value = INK.outline.width;
+  u.color.value.setRGB(...INK.outline.color);
+  u.threshold.value.set(...INK.outline.threshold);
+  u.fade.value.set(...INK.outline.fade);
   const g = grade.uniforms;
-  const gr = st.grade;
-  g.saturation.value = gr.saturation ?? 1;
-  g.contrast.value = gr.contrast ?? 1;
-  g.shadowTint.value.set(...(gr.shadowTint ?? [1, 1, 1]));
-  g.highlightTint.value.set(...(gr.highlightTint ?? [1, 1, 1]));
-  g.bands.value = gr.bands ?? 0;
-  g.pixel.value = gr.pixel ?? 1;
-  g.levels.value = gr.levels ?? 0;
-  g.chroma.value = gr.chroma ?? 0;
-  g.ink.value = gr.ink ?? 0;
-  g.grain.value = gr.grain ?? 0.035;
-  g.vignette.value = gr.vignette ?? 0.9;
+  g.bands.value = INK.bands;
+  g.shadowDots.value = INK.shadowDots;
+  g.misprint.value = 0;
+  g.chroma.value = 0;
+  g.ink.value = 0;
+  g.pixel.value = 1;
+  g.levels.value = 0;
+  g.grain.value = 0.01;
+  g.vignette.value = 0.3;
+  scene.environmentIntensity = INK.env;
+}
 
-  if (!keepRain || settings.rainStyle !== id) {
-    settings.rain = st.rain;
-    settings.rainStyle = id;
+function applyTime(force = false) {
+  const L = lookAt(minute);
+  const [fr, fg, fb, density] = L.fog;
+  scene.fog.color.setRGB(fr, fg, fb);
+  scene.fog.density = density;
+  scene.background.setRGB(fr, fg, fb);
+  hemi.color.setRGB(...L.hemiSky);
+  hemi.groundColor.setRGB(...L.hemiGround);
+  hemi.intensity = L.hemi;
+  sun.color.setRGB(...L.sun);
+  sun.intensity = L.sunI;
+  sunDir.set(...L.sunDir).normalize();
+  const castNow = renderer.shadowMap.enabled && L.sunI > 0.7;
+  if (castNow !== sun.castShadow) {
+    sun.castShadow = castNow;
+    renderer.shadowMap.needsUpdate = true;
   }
-  W.weather.setEnabled(settings.rain);
-  audio.setRain(settings.rain);
-  W.road.setReflections(st.reflections && settings.reflections);
-  W.road.setColor(st.road);
-  W.wet = st.wet;
-  clockStart = st.clock;
+  renderer.toneMappingExposure = L.exposure;
+  [bloom.strength, bloom.radius, bloom.threshold] = L.bloom;
+  const g = grade.uniforms;
+  g.saturation.value = L.saturation;
+  g.contrast.value = L.contrast;
+  g.shadowTint.value.set(...L.shadowTint);
+  g.highlightTint.value.set(...L.highlightTint);
+  W.sky.set(L.sky);
+  W.road.setColor(tmpColor.setRGB(...L.road));
 
-  // per-material tweaks: brighter facades by day, dimmer light pools
+  // weather: some nights it rains
+  const night = nightness(minute) > 0.75;
+  if (night && !wasNight) rainyNight = Math.random() < 0.5;
+  wasNight = night;
+  const rain = settings.rainOverride ?? (night && rainyNight);
+  if (rain !== settings.rain || force) {
+    settings.rain = rain;
+    W.weather.setEnabled(rain);
+    audio.setRain(rain);
+    W.road.setReflections(rain && settings.reflections);
+  }
+  W.wet = rain ? 1 : 0.05;
+
+  materialTimer -= 1;
+  if (force || materialTimer <= 0) {
+    materialTimer = 30; // every ~half second is plenty for slow light changes
+    updateMaterials(L, force);
+  }
+}
+
+/** Facades brighter by day, windows and neon brighter by night, no specular anywhere. */
+function updateMaterials(L, first) {
   W.root.traverse((o) => {
+    if (first && o.userData.foliage) setFoliage(o, W.def.foliage ?? 'autumn');
     const m = o.material;
     if (!m || Array.isArray(m)) return;
-    if (m.isMeshStandardMaterial) {
-      // cel styles have no specular highlights
-      m.userData.baseRough ??= m.roughness;
-      m.userData.baseMetal ??= m.metalness;
-      m.roughness = st.matte ? 1 : m.userData.baseRough;
-      m.metalness = st.matte ? 0 : m.userData.baseMetal;
+    if (first && m.isMeshStandardMaterial) {
+      m.roughness = 1; // no glints in a drawing
+      m.metalness = 0;
     }
     if (m.isMeshStandardMaterial && m.map && m.emissiveMap) {
       m.userData.baseColor ??= m.color.clone();
       m.userData.baseEmissive ??= m.emissiveIntensity;
-      m.color.copy(m.userData.baseColor).multiplyScalar(st.albedo);
-      m.emissiveIntensity = m.userData.baseEmissive * st.windows;
+      m.color.copy(m.userData.baseColor).multiplyScalar(m.userData.storefront ? Math.min(L.albedo, 1.1) : L.albedo);
+      m.emissiveIntensity = m.userData.baseEmissive * (m.userData.storefront ? 0.5 + L.windows * 0.6 : L.windows);
     } else if (m.blending === THREE.AdditiveBlending && m.map === shared.pool) {
       m.userData.baseOpacity ??= m.opacity;
-      m.opacity = m.userData.baseOpacity * st.pools;
+      m.opacity = m.userData.baseOpacity * L.pools;
+    } else if (m.userData.neonBase) {
+      m.userData.neonScale = L.neon;
+      if (!m.userData.flicker) m.color.copy(m.userData.neonBase).multiplyScalar(L.neon);
     }
   });
-  renderMenus();
-}
-
-function cycleStyle() {
-  const next = STYLE_ORDER[(STYLE_ORDER.indexOf(settings.style) + 1) % STYLE_ORDER.length];
-  applyStyle(next);
-  hud.toast(`Style: ${STYLES[next].name}, ${STYLES[next].desc}`);
 }
 
 // ---------- post-processing ----------
-const target = new THREE.WebGLRenderTarget(innerWidth * pixelRatio, innerHeight * pixelRatio, { type: THREE.HalfFloatType, samples: 4 });
+const target = new THREE.WebGLRenderTarget(innerWidth * pixelRatio, innerHeight * pixelRatio, { type: THREE.HalfFloatType, samples: quality.samples });
 target.depthTexture = new THREE.DepthTexture(innerWidth * pixelRatio, innerHeight * pixelRatio);
 const composer = new EffectComposer(renderer, target);
 composer.addPass(new RenderPass(scene, camera));
@@ -294,20 +322,30 @@ composer.addPass(new OutputPass());
 const grade = new ShaderPass(GradeShader);
 composer.addPass(grade);
 
+let baseFov = 72;
 function resize() {
-  camera.aspect = innerWidth / innerHeight;
+  const w = innerWidth;
+  const h = innerHeight;
+  pixelRatio = pixelRatioNow();
+  renderer.setPixelRatio(pixelRatio);
+  composer.setPixelRatio(pixelRatio);
+  camera.aspect = w / h;
+  // portrait phones: widen the vertical FOV so you still see a sensible slice of street
+  const minHorizontal = THREE.MathUtils.degToRad(68);
+  const needed = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect));
+  baseFov = THREE.MathUtils.clamp(needed, 72, 100);
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
-  bloom.resolution.set(innerWidth, innerHeight);
-  grade.uniforms.resolution.value.set(innerWidth * pixelRatio, innerHeight * pixelRatio);
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  bloom.resolution.set(w / (LOW ? 2 : 1), h / (LOW ? 2 : 1));
+  grade.uniforms.resolution.value.set(w * pixelRatio, h * pixelRatio);
   if (W) {
-    const s = reflectSize();
-    W.road.setSize(s.x, s.y);
-    W.weather.setViewport(innerHeight * pixelRatio, camera.fov);
+    W.road.setSize(w * pixelRatio * 0.5, h * pixelRatio * 0.5);
+    W.weather.setViewport(h * pixelRatio, camera.fov);
   }
 }
 addEventListener('resize', resize);
+visualViewport?.addEventListener('resize', resize);
 
 // ---------- menus ----------
 const overlay = document.getElementById('overlay');
@@ -347,22 +385,24 @@ function renderMenus() {
       picker.append(placeButton(p, (id) => id !== W.def.id && goTo(id, false)));
     }
   }
-  // title screen: visual styles
-  const stylePicker = document.getElementById('styles');
-  stylePicker.replaceChildren();
-  for (const id of STYLE_ORDER) {
-    const st = STYLES[id];
+  // title screen: what time to start
+  const timePicker = document.getElementById('styles');
+  timePicker.replaceChildren();
+  for (const [id, st] of Object.entries(START_TIMES)) {
     const b = document.createElement('button');
     b.className = 'place';
-    b.classList.toggle('here', id === settings.style);
-    b.innerHTML = '<span class="pname"></span><span class="blurb"></span>';
-    b.querySelector('.pname').textContent = st.name;
-    b.querySelector('.blurb').textContent = st.desc;
+    b.classList.toggle('here', id === settings.startAt);
+    b.innerHTML = '<span class="pname"></span>';
+    b.querySelector('.pname').textContent = st.label;
     b.addEventListener('click', (e) => {
       e.stopPropagation();
-      applyStyle(id);
+      settings.startAt = id;
+      store.set('startAt', id);
+      minute = st.minute;
+      applyTime(true);
+      renderMenus();
     });
-    stylePicker.append(b);
+    timePicker.append(b);
   }
   // the train map: every borough
   const map = document.getElementById('map');
@@ -381,7 +421,7 @@ function goTo(id, arrive) {
   const def = DISTRICTS[id];
   if (arrive) {
     closeTravel(false);
-    player.controls.lock();
+    input.start();
   }
   fade.querySelector('span').textContent = arrive ? `Taking ${W.def.el.ride} to ${def.name}…` : `${def.name}, ${def.borough}`;
   fade.classList.add('show');
@@ -395,46 +435,78 @@ function goTo(id, arrive) {
 function openTravel() {
   travelOpen = true;
   renderMenus();
-  player.controls.unlock();
+  input.pause();
   travel.classList.add('show');
 }
 function closeTravel(relock) {
   travelOpen = false;
   travel.classList.remove('show');
-  if (relock) player.controls.lock();
+  if (relock) input.start();
 }
 document.getElementById('travel-close').addEventListener('click', () => closeTravel(true));
 
 if (params.has('shot')) overlay.classList.add('gone');
 document.getElementById('start').addEventListener('click', () => {
   audio.start();
-  player.controls.lock();
+  if (IS_TOUCH) document.documentElement.requestFullscreen?.().catch(() => {});
+  input.start();
+});
+document.getElementById('start').textContent = IS_TOUCH ? 'Tap to play' : 'Click to play';
+document.getElementById('fullscreen').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else document.documentElement.requestFullscreen?.().catch(() => hud.toast('Fullscreen not supported here. Try Add to Home Screen.'));
 });
 document.getElementById('reset').addEventListener('click', (e) => {
   e.stopPropagation();
   W.memories.reset();
   hud.toast('Journal cleared');
 });
-player.controls.addEventListener('lock', () => {
+input.addEventListener('start', () => {
   audio.start();
   overlay.classList.add('gone');
 });
-player.controls.addEventListener('unlock', () => {
+input.addEventListener('pause', () => {
   if (!travelOpen) overlay.classList.remove('gone');
+});
+
+function ride(mode) {
+  if (mode === player.mode) return;
+  player.setMode(mode);
+  hud.setRide(MODES[mode].name, player.mode);
+  hud.toast(MODES[mode].name);
+}
+input.addEventListener('button', (e) => {
+  switch (e.detail) {
+    case 'vehicle':
+      ride(MODE_ORDER[(MODE_ORDER.indexOf(player.mode) + 1) % MODE_ORDER.length]);
+      break;
+    case 'camera':
+      hud.toast(player.toggleView() === 'fpv' ? 'First person' : 'Third person');
+      break;
+    case 'action':
+      if (W.nearEntrance) openTravel();
+      break;
+  }
 });
 
 addEventListener('keydown', (e) => {
   switch (e.code) {
     case 'KeyE':
-      if (W.nearEntrance && player.controls.isLocked) openTravel();
+      if (W.nearEntrance && input.active) openTravel();
       break;
-    case 'KeyV':
-      cycleStyle();
+    case 'Digit1':
+    case 'Digit2':
+    case 'Digit3':
+    case 'Digit4':
+      if (input.active) ride(MODE_ORDER[Number(e.code.slice(5)) - 1]);
+      break;
+    case 'KeyC':
+      if (input.active) hud.toast(player.toggleView() === 'fpv' ? 'First person' : 'Third person');
       break;
     case 'KeyR': {
-      settings.rain = !settings.rain;
-      W.weather.setEnabled(settings.rain);
-      audio.setRain(settings.rain);
+      settings.rainOverride = !settings.rain;
+      applyTime(true);
       hud.toast(settings.rain ? 'Rain on' : 'Rain off');
       break;
     }
@@ -443,7 +515,7 @@ addEventListener('keydown', (e) => {
       break;
     case 'KeyQ':
       settings.reflections = !settings.reflections;
-      W.road.setReflections(settings.reflections && STYLES[settings.style].reflections);
+      W.road.setReflections(settings.reflections && settings.rain);
       store.set('reflections', settings.reflections);
       hud.toast(settings.reflections ? 'Street reflections on' : 'Street reflections off (faster)');
       break;
@@ -463,6 +535,7 @@ addEventListener('keydown', (e) => {
 });
 
 // ---------- start ----------
+applyInk();
 loadDistrict(params.get('district') || store.get('district', 'astoria'));
 if (params.has('cam')) {
   const [x, z, yaw = 0, pitch = 0, height = 1.68] = params.get('cam').split(',').map(Number);
@@ -470,6 +543,34 @@ if (params.has('cam')) {
   camera.rotation.set(THREE.MathUtils.degToRad(pitch), THREE.MathUtils.degToRad(yaw), 0, 'YXZ');
 }
 resize();
+
+// ---------- dynamic resolution: keep it smooth ----------
+let slowTime = 0;
+let fastTime = 0;
+let smoothDt = 1 / 60;
+function adaptResolution(dt) {
+  if (dt <= 0) return;
+  smoothDt += (dt - smoothDt) * 0.05;
+  const fps = 1 / smoothDt;
+  if (fps < 45) {
+    slowTime += dt;
+    fastTime = 0;
+  } else if (fps > 57) {
+    fastTime += dt;
+    slowTime = 0;
+  } else {
+    slowTime = fastTime = 0;
+  }
+  if (slowTime > 1.5 && quality.scale > 0.5) {
+    quality.scale = Math.max(0.5, quality.scale - 0.1);
+    slowTime = 0;
+    resize();
+  } else if (fastTime > 5 && quality.scale < 1) {
+    quality.scale = Math.min(1, quality.scale + 0.1);
+    fastTime = 0;
+    resize();
+  }
+}
 
 // ---------- loop ----------
 let t = Number(params.get('t') || 0) + 3;
@@ -482,6 +583,7 @@ let last = performance.now();
 let frames = 0;
 let fpsTime = 0;
 let edgeCooldown = 0;
+let shadowFrame = 0;
 const camEuler = new THREE.Euler();
 
 function frame(now) {
@@ -490,6 +592,8 @@ function frame(now) {
   last = now;
   t += dt;
 
+  minute = (minute + dt * MINUTES_PER_SECOND) % 1440;
+  applyTime();
   player.update(dt);
   W.buildings.update(t, dt);
   W.streets.update(t);
@@ -497,6 +601,13 @@ function frame(now) {
   W.traffic.update(t, dt, player, camera);
   W.weather.update(dt, camera.position);
   W.memories.update(t, dt, camera.position);
+  W.peds.update(dt, camera.position, player);
+  if (sun.castShadow) {
+    sun.target.position.set(player.pos.x, 0, player.pos.z);
+    sun.position.copy(sun.target.position).addScaledVector(sunDir, 250);
+    shadowFrame = (shadowFrame + 1) % 2;
+    if (shadowFrame === 0) renderer.shadowMap.needsUpdate = true;
+  }
   W.landmarks.update(t, camera, dt);
   W.sky.update(t, camera);
   W.road.update(t, W.weather.intensity * W.wet);
@@ -514,7 +625,21 @@ function frame(now) {
   let near = null;
   for (const e of W.elevated.entrances) if (Math.hypot(e.x - pos.x, e.z - pos.z) < 3.2) near = e;
   W.nearEntrance = near;
-  hud.setPrompt(near && player.controls.isLocked ? `Press E to take ${W.def.el.ride} from ${near.name.replace(/–/g, '-')}` : '');
+  const stationName = near?.name.replace(/–/g, '-');
+  hud.setPrompt(near && input.active && !IS_TOUCH ? `Press E to take ${W.def.el.ride} from ${stationName}` : '');
+  input.setAction(near && input.active ? `Take ${W.def.el.ride}` : '');
+  hud.setSpeed(player.mode === 'walk' ? 0 : player.mph);
+  hud.setRide(MODES[player.mode].name, player.mode);
+
+  // comic-movie touches: speed lines and a wider lens as you pick up speed
+  const rush = player.rush;
+  grade.uniforms.speed.value += (rush - grade.uniforms.speed.value) * Math.min(1, dt * 4);
+  const fov = baseFov + rush * 12;
+  if (Math.abs(camera.fov - fov) > 0.05) {
+    camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
+    camera.updateProjectionMatrix();
+  }
+  adaptResolution(dt);
 
   edgeCooldown -= dt;
   if (player.atEdge && edgeCooldown <= 0) {
@@ -525,7 +650,7 @@ function frame(now) {
   camEuler.setFromQuaternion(camera.quaternion, 'YXZ');
   minimap.update(dt, pos, camEuler.y);
   hud.setLocation(describeLocation(pos.x, pos.z));
-  hud.setClock(t + clockStart * 6);
+  hud.setClock(minute * 6);
   grade.uniforms.time.value = t;
   composer.render();
 
@@ -540,4 +665,4 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-window.__nightwalker = { scene, camera, renderer, player, minimap, get world() { return W; }, loadDistrict, applyStyle };
+window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, get world() { return W; }, loadDistrict, setMinute: (m) => { minute = m; applyTime(true); } };

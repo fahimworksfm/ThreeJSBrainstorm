@@ -30,13 +30,14 @@ const WARM = ['#ffd59a', '#ffc47a', '#ffe6bf', '#ffb766', '#fff0d6'];
 const COOL = ['#e4ecff', '#cfdcff', '#f5f8ff', '#bcd0ff'];
 const TV = ['#7fa6ff', '#8fd0ff', '#b28cff'];
 
+// Illustrated facades: warm brick and stone with cream trim, sky-tinted glass, AC units.
 export const FACADE_STYLES = {
-  brick: { wall: '#3c2723', mx: 10, my: 8, lit: 0.3, palette: WARM, floorBias: 0.15 },
-  stone: { wall: '#4a463f', mx: 8, my: 7, lit: 0.27, palette: WARM, floorBias: 0.2 },
-  deco: { wall: '#5a5241', mx: 11, my: 5, lit: 0.25, palette: WARM, floorBias: 0.2 },
-  office: { wall: '#24272d', mx: 3, my: 7, lit: 0.2, palette: COOL, floorBias: 0.6 },
-  glass: { wall: '#0d1420', mx: 1, my: 9, lit: 0.15, palette: COOL, floorBias: 0.7 },
-  siding: { wall: '#80858b', mx: 9, my: 8, lit: 0.33, palette: WARM, floorBias: 0.1, siding: true },
+  brick: { wall: '#b5532f', mortar: 'rgba(60,20,10,0.35)', trim: '#efe2c4', mx: 9, my: 6, lit: 0.3, palette: WARM, floorBias: 0.15, bricks: true },
+  stone: { wall: '#c7ab82', mortar: 'rgba(90,70,40,0.25)', trim: '#f1e7cf', mx: 8, my: 6, lit: 0.27, palette: WARM, floorBias: 0.2 },
+  deco: { wall: '#d4bf95', mortar: 'rgba(90,70,40,0.2)', trim: '#8a5a3a', mx: 10, my: 5, lit: 0.25, palette: WARM, floorBias: 0.2 },
+  office: { wall: '#8d949e', mortar: 'rgba(40,40,50,0.2)', trim: '#dfe3e8', mx: 3, my: 7, lit: 0.2, palette: COOL, floorBias: 0.6, noAC: true },
+  glass: { wall: '#3d5f82', mortar: 'rgba(10,20,40,0.3)', trim: '#23374f', mx: 1, my: 9, lit: 0.15, palette: COOL, floorBias: 0.7, curtain: true, noAC: true },
+  siding: { wall: '#d9d6cc', mortar: 'rgba(0,0,0,0.12)', trim: '#fbf8f0', mx: 9, my: 7, lit: 0.33, palette: WARM, floorBias: 0.1, siding: true },
 };
 
 /** Facade color map + emissive (lit windows) map for one building style. */
@@ -50,13 +51,18 @@ export function makeFacade(style) {
   const e = ce.getContext('2d');
   m.fillStyle = s.wall;
   m.fillRect(0, 0, W, H);
-  for (let k = 0; k < 5000; k++) {
-    m.fillStyle = chance(0.5) ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.06)';
-    m.fillRect(2 + rand() * (W - 4), 2 + rand() * (H - 4), 2, 2);
+  // painterly variation in the wall
+  for (let k = 0; k < 900; k++) {
+    m.fillStyle = chance(0.5) ? 'rgba(255,230,200,0.05)' : 'rgba(60,20,10,0.06)';
+    m.fillRect(rand() * W, rand() * H, range(6, 30), range(3, 10));
   }
-  if (s.siding) {
+  if (s.bricks) {
+    // brick courses as fine, faint lines: at this texel size real bricks would look like blocks
+    m.fillStyle = 'rgba(70,25,12,0.14)';
+    for (let y = 0; y < H; y += 2) m.fillRect(0, y, W, 1);
+  } else if (s.siding) {
     for (let y = 0; y < H; y += 4) {
-      m.fillStyle = 'rgba(0,0,0,0.12)';
+      m.fillStyle = s.mortar;
       m.fillRect(0, y, W, 1);
     }
   }
@@ -64,46 +70,79 @@ export function makeFacade(style) {
   e.fillRect(0, 0, W, H);
 
   for (let row = 0; row < TILE_ROWS; row++) {
-    const r = rand();
-    const floorMode = r < s.floorBias ? (chance(0.45) ? 'lit' : 'dark') : 'mixed';
+    const floorMode = rand() < s.floorBias ? (chance(0.45) ? 'lit' : 'dark') : 'mixed';
     const floorColor = pick(s.palette);
+    if (!s.curtain) {
+      // a thin stone band at every floor line
+      m.fillStyle = 'rgba(255,240,215,0.12)';
+      m.fillRect(0, row * CELL + CELL - 2, W, 2);
+    }
     for (let col = 0; col < TILE_COLS; col++) {
       const x = col * CELL + s.mx;
       const y = row * CELL + s.my;
       const w = CELL - 2 * s.mx;
       const h = CELL - 2 * s.my;
+      if (!s.curtain) {
+        // lintel, frame and sill in cream trim
+        m.fillStyle = s.trim;
+        m.fillRect(x - 2, y - 3, w + 4, 3);
+        m.fillRect(x - 1, y - 1, w + 2, h + 2);
+        m.fillRect(x - 2, y + h + 1, w + 4, 2);
+      }
+      // glass: sky at the top, deep blue below, a diagonal glint
       const g = m.createLinearGradient(0, y, 0, y + h);
-      g.addColorStop(0, '#161c27');
-      g.addColorStop(1, '#07090d');
+      g.addColorStop(0, s.curtain ? '#9fc3de' : '#8fb0cc');
+      g.addColorStop(1, s.curtain ? '#1f3552' : '#2b3d5c');
       m.fillStyle = g;
       m.fillRect(x, y, w, h);
-      m.fillStyle = 'rgba(0,0,0,0.35)';
-      m.fillRect(x, y + h, w, 2);
+      m.fillStyle = 'rgba(255,255,255,0.18)';
+      m.beginPath();
+      m.moveTo(x + w * 0.15, y + h);
+      m.lineTo(x + w * 0.45, y);
+      m.lineTo(x + w * 0.6, y);
+      m.lineTo(x + w * 0.3, y + h);
+      m.fill();
+      if (!s.curtain) {
+        // sash bar
+        m.fillStyle = s.trim;
+        m.fillRect(x, y + Math.floor(h / 2), w, 1);
+      } else {
+        m.fillStyle = 'rgba(10,20,35,0.8)';
+        m.fillRect(x + w - 1, y, 2, h);
+      }
 
       const lit =
         floorMode === 'lit' ? chance(0.85) : floorMode === 'dark' ? chance(0.03) : chance(s.lit);
-      if (!lit) continue;
-      const c = chance(0.06) ? pick(TV) : floorMode === 'lit' ? floorColor : pick(s.palette);
-      e.globalAlpha = range(0.45, 1);
-      e.fillStyle = c;
-      e.fillRect(x, y, w, h);
-      if (chance(0.4)) {
-        // half-drawn blinds
-        e.globalAlpha = 0.75;
-        e.fillStyle = '#000';
-        e.fillRect(x, y, w, h * range(0.2, 0.7));
+      const ac = !s.noAC && chance(0.12);
+      if (lit) {
+        const c = chance(0.06) ? pick(TV) : floorMode === 'lit' ? floorColor : pick(s.palette);
+        e.globalAlpha = range(0.5, 1);
+        e.fillStyle = c;
+        e.fillRect(x, y, w, h);
+        if (chance(0.4)) {
+          e.globalAlpha = 0.75;
+          e.fillStyle = '#000';
+          e.fillRect(x, y, w, h * range(0.2, 0.6));
+        }
+        if (chance(0.1)) {
+          e.globalAlpha = 0.85;
+          e.fillStyle = '#000';
+          e.fillRect(x + w * range(0.2, 0.6), y + h * 0.4, Math.max(2, w * 0.2), h * 0.6);
+        }
+        e.globalAlpha = 1;
       }
-      if (chance(0.1)) {
-        // someone standing at the window
-        e.globalAlpha = 0.85;
+      if (ac) {
+        // window air conditioner in the lower sash
+        const aw = Math.min(w - 2, 10);
+        const ax = x + (w - aw) / 2;
+        const ay = y + h - 7;
+        m.fillStyle = '#d7d6d0';
+        m.fillRect(ax, ay, aw, 6);
+        m.fillStyle = '#8b8b88';
+        for (let k = 1; k < aw - 1; k += 2) m.fillRect(ax + k, ay + 1, 1, 4);
         e.fillStyle = '#000';
-        e.fillRect(x + w * range(0.2, 0.6), y + h * 0.4, Math.max(2, w * 0.2), h * 0.6);
+        e.fillRect(ax, ay, aw, 6);
       }
-      e.globalAlpha = 1;
-      m.globalAlpha = 0.55;
-      m.fillStyle = c;
-      m.fillRect(x, y, w, h);
-      m.globalAlpha = 1;
     }
   }
   return { map: canvasTexture(cm), emissiveMap: canvasTexture(ce) };
@@ -353,12 +392,12 @@ export function makeNoise(size = 256) {
 export function makeSidewalk() {
   const c = makeCanvas(256, 256);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#6a6a6e';
+  ctx.fillStyle = '#b9b1a4';
   ctx.fillRect(0, 0, 256, 256);
-  for (let k = 0; k < 6000; k++) {
-    const v = Math.floor(range(70, 125));
-    ctx.fillStyle = `rgba(${v},${v},${v + 4},0.35)`;
-    ctx.fillRect(rand() * 256, rand() * 256, 2, 2);
+  for (let k = 0; k < 3000; k++) {
+    const v = Math.floor(range(150, 190));
+    ctx.fillStyle = `rgba(${v},${v - 6},${v - 12},0.14)`;
+    ctx.fillRect(rand() * 256, rand() * 256, 1, 1);
   }
   // gum spots and stains
   for (let k = 0; k < 40; k++) {
@@ -372,6 +411,45 @@ export function makeSidewalk() {
   ctx.fillRect(0, 128, 256, 3);
   ctx.fillRect(0, 0, 3, 256);
   ctx.fillRect(128, 0, 3, 256);
+  return canvasTexture(c);
+}
+
+/** Worn asphalt: speckle, patches and hairline cracks. Tiles every 16 m. */
+export function makeAsphalt() {
+  const c = makeCanvas(512, 512);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#8a8580';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let k = 0; k < 6000; k++) {
+    const v = Math.floor(range(115, 150));
+    ctx.fillStyle = `rgba(${v},${v - 4},${v - 8},0.18)`;
+    ctx.fillRect(rand() * 512, rand() * 512, 1, 1);
+  }
+  for (let k = 0; k < 6; k++) {
+    ctx.fillStyle = `rgba(40,38,36,${range(0.08, 0.18)})`;
+    ctx.fillRect(rand() * 400, rand() * 400, range(40, 160), range(30, 120));
+  }
+  ctx.strokeStyle = 'rgba(25,22,20,0.75)';
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 14; k++) {
+    ctx.lineWidth = range(1, 2.5);
+    ctx.beginPath();
+    let x = rand() * 512;
+    let y = rand() * 512;
+    ctx.moveTo(x, y);
+    const n = Math.floor(range(4, 9));
+    for (let i = 0; i < n; i++) {
+      x += range(-40, 40);
+      y += range(-40, 40);
+      ctx.lineTo(x, y);
+      if (chance(0.3)) {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + range(-25, 25), y + range(-25, 25));
+        ctx.moveTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
   return canvasTexture(c);
 }
 

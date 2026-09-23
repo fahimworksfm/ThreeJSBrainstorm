@@ -2,7 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#120f1b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Night Walker" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet" />
     <title>Night Walker NYC</title>
     <meta name="description" content="A first-person night walk through New York City neighborhoods, built with three.js." />
   </head>
@@ -13,7 +24,8 @@
       <div class="corner" id="where">
         <div class="label" id="district">Queens</div>
         <div id="location"></div>
-        <div id="clock">2:13 AM</div>
+        <div id="clock"></div>
+        <div id="objective"><span class="gem"></span><span>Find the memories</span><b id="objective-count">0 / 8</b></div>
       </div>
       <div class="corner" id="tally">
         <div class="label">Memories</div>
@@ -22,6 +34,7 @@
       </div>
       <div id="crosshair"></div>
       <canvas id="minimap"></canvas>
+      <div id="ride" data-mode="walk"><span id="ride-name">On foot</span><span id="ride-speed"></span></div>
       <div id="subtitle">
         <div id="subtitle-title"></div>
         <div id="subtitle-text"></div>
@@ -39,25 +52,34 @@
             You can't sleep, so you walk. Follow the blue lights to find the memories hidden in each neighborhood.
             When you want to go somewhere else, find a station and take the train.
           </p>
+          <p class="sub touch-only">
+            Left thumb moves, right thumb looks. <b>Ride</b> cycles walking, the bicycle, the motorcycle and the SUV;
+            <b>View</b> switches between first and third person.
+          </p>
+        </div>
+        <div class="start-row">
+          <button id="start">Click to play</button>
+          <button id="fullscreen" class="ghost">Fullscreen</button>
         </div>
         <div>
           <h3>Neighborhood</h3>
           <div id="picker"></div>
         </div>
         <div>
-          <h3>Look</h3>
+          <h3>Start at</h3>
           <div id="styles"></div>
         </div>
-        <button id="start">Click to walk</button>
         <div class="cols">
           <div>
             <h3>Controls</h3>
             <dl class="keys">
-              <dt>WASD</dt><dd>walk</dd>
-              <dt>Shift</dt><dd>hurry</dd>
+              <dt>WASD</dt><dd>walk / drive</dd>
+              <dt>Shift</dt><dd>hurry / boost</dd>
+              <dt>Space</dt><dd>brake</dd>
               <dt>Mouse</dt><dd>look around</dd>
+              <dt>1 2 3 4</dt><dd>walk, bicycle, motorcycle, SUV</dd>
+              <dt>C</dt><dd>first / third person</dd>
               <dt>E</dt><dd>take the train (at a green-globe entrance)</dd>
-              <dt>V</dt><dd>change visual style</dd>
               <dt>R</dt><dd>rain on / off</dd>
               <dt>Q</dt><dd>street reflections (performance)</dd>
               <dt>B</dt><dd>bloom</dd>

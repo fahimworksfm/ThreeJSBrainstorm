@@ -58,6 +58,66 @@ function makeFenceTexture() {
   return tex;
 }
 
+const lot_h_ok = (f) => f.lot.h > 8;
+
+const BOARD_COLORS = [
+  ['#b3261e', '#fff3d6'], ['#1f5f3a', '#f7e7b0'], ['#1d3a6b', '#ffe08a'], ['#f2c230', '#2a1a0e'],
+  ['#efe6d2', '#8a1f1a'], ['#6b2a5a', '#ffe6f2'], ['#0f6b6b', '#f1f7e8'], ['#e46a1c', '#fff8e8'],
+];
+
+/** One texture with a painted sign board per row: bold letters, a thin border, a shadow. */
+function makeSignAtlas(names) {
+  const rows = names.length;
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 128 * rows;
+  const ctx = c.getContext('2d');
+  names.forEach((name, i) => {
+    const [bg, fg] = BOARD_COLORS[i % BOARD_COLORS.length];
+    const y = i * 128;
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, y, 1024, 128);
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(10, y + 10, 1004, 108);
+    ctx.font = 'bold 84px "Arial Black", Impact, "Helvetica Neue", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillText(name, 516, y + 70, 940);
+    ctx.fillStyle = fg;
+    ctx.fillText(name, 512, y + 66, 940);
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  // rows are flipped by the texture's flipY: slot k lives at v in [k/rows, (k+1)/rows] from the bottom
+  return { tex, count: rows };
+}
+
+/** Six striped awning fabrics stacked in one texture. */
+function makeAwningTexture() {
+  const pairs = [['#c0392b', '#f4ecd8'], ['#1e6b44', '#f4ecd8'], ['#1d3a6b', '#f4ecd8'], ['#e1a22b', '#fff5dc'], ['#7a2a5a', '#f6e6ee'], ['#b3261e', '#1f1f1f']];
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 64 * pairs.length;
+  const ctx = c.getContext('2d');
+  pairs.forEach(([a, b], i) => {
+    for (let x = 0; x < 128; x += 32) {
+      ctx.fillStyle = a;
+      ctx.fillRect(x, i * 64, 16, 64);
+      ctx.fillStyle = b;
+      ctx.fillRect(x + 16, i * 64, 16, 64);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(0, i * 64 + 56, 128, 8);
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
 function place(g, x, y, z, rotY = 0) {
   if (rotY) g.rotateY(rotY);
   g.translate(x, y, z);
@@ -97,8 +157,10 @@ export function buildBuildings(layout, shared) {
       shingleGeos.push(place(roof, cx, top + rh / 3, cz));
     } else {
       // cornice / parapet lip
-      const lip = new THREE.BoxGeometry(w + 0.3, 0.45, d + 0.3);
-      roofGeos.push(place(lip, cx, top - 0.1, cz));
+      const lip = new THREE.BoxGeometry(w + 0.5, 0.55, d + 0.5);
+      roofGeos.push(place(lip, cx, top - 0.05, cz));
+      const band = new THREE.BoxGeometry(w + 0.3, 0.25, d + 0.3);
+      roofGeos.push(place(band, cx, top - 0.65, cz));
     }
 
     if (lot.kind === 'corner' || lot.kind === 'condo' || lot.kind === 'apt') {
@@ -166,7 +228,7 @@ export function buildBuildings(layout, shared) {
   const addMerged = (geos, mat) => {
     if (geos.length) group.add(new THREE.Mesh(mergeGeometries(geos), mat));
   };
-  addMerged(roofGeos, new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.9 }));
+  addMerged(roofGeos, new THREE.MeshStandardMaterial({ color: 0xcfc3a8, roughness: 0.9 })); // cream cornices and roof bits
   addMerged(shingleGeos, new THREE.MeshStandardMaterial({ color: 0x2b2624, roughness: 0.9, flatShading: true }));
   addMerged(woodGeos, new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 }));
   const fenceTex = makeFenceTexture();
@@ -234,8 +296,35 @@ export function buildBuildings(layout, shared) {
   const shop = makeStorefront();
   const shopGeos = [];
   const neonGroups = new Map();
+  const boardGeos = [];
+  const awningGeos = [];
+  const boards = makeSignAtlas(D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE']);
   for (const f of layout.faces) {
     if (!f.shop) continue;
+    // painted sign board over each shop, with a striped awning on many of them
+    const faceAng = Math.atan2(f.nx, f.nz);
+    for (let off = -f.w / 2 + 0.3; off < f.w / 2 - 3; ) {
+      const bw = Math.min(range(5.5, 9), f.w / 2 - 0.3 - off);
+      if (bw < 3) break;
+      const center = off + bw / 2;
+      const tx = f.x - f.nz * center + f.nx * 0.12;
+      const tz = f.z + f.nx * center + f.nz * 0.12;
+      const board = new THREE.PlaneGeometry(bw - 0.3, 0.9);
+      const slot = Math.floor(rand() * boards.count);
+      const uv = board.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / boards.count);
+      boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
+      if (chance(0.65)) {
+        const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7);
+        aw.rotateX(-1.05); // slopes down and out from the wall
+        const stripe = Math.floor(rand() * 6);
+        const auv = aw.attributes.uv;
+        for (let i = 0; i < auv.count; i++) auv.setXY(i, (auv.getX(i) * (bw - 0.5)) / 1.2, (stripe + auv.getY(i)) / 6);
+        awningGeos.push(place(aw.translate(0, 4.2, 0.75), f.x - f.nz * center, CURB, f.z + f.nx * center, faceAng));
+      }
+      off += bw;
+    }
+    if (!chance(0.3)) continue;
     const g = new THREE.PlaneGeometry(f.w, 4.6);
     const uv = g.attributes.uv;
     const uo = Math.floor(rand() * 8) / 8;
@@ -254,13 +343,17 @@ export function buildBuildings(layout, shared) {
       const hgt = 4.2;
       entry.geos.push({ x: f.x + f.nx * 0.9, y: CURB + 5 + hgt / 2, z: f.z + f.nz * 0.9, ang: ang + Math.PI / 2, blade: true, hgt, offset: range(-f.w / 3, f.w / 3), nx: f.nx, nz: f.nz });
     } else {
-      entry.geos.push({ x: f.x + f.nx * 0.1, y: CURB + 5.4, z: f.z + f.nz * 0.1, ang, blade: false, maxW: f.w - 1, nx: f.nx, nz: f.nz });
+      if (lot_h_ok(f)) entry.geos.push({ x: f.x + f.nx * 0.1, y: CURB + 6.5, z: f.z + f.nz * 0.1, ang, blade: false, maxW: f.w - 1, nx: f.nx, nz: f.nz });
     }
   }
   const shopMat = new THREE.MeshStandardMaterial({
     map: shop.map, emissiveMap: shop.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0.75, roughness: 0.6,
   });
+  shopMat.userData.storefront = true;
   addMerged(shopGeos, shopMat);
+  const boardMat = new THREE.MeshStandardMaterial({ map: boards.tex, roughness: 0.8, emissive: 0xffffff, emissiveMap: boards.tex, emissiveIntensity: 0.12 });
+  addMerged(boardGeos, boardMat);
+  addMerged(awningGeos, new THREE.MeshStandardMaterial({ map: makeAwningTexture(), roughness: 0.9, side: THREE.DoubleSide }));
 
   const neonMats = [];
   for (const entry of neonGroups.values()) {
@@ -291,6 +384,8 @@ export function buildBuildings(layout, shared) {
     const mat = new THREE.MeshBasicMaterial({
       map: tex, color: base.clone(), transparent: true, depthWrite: false, side: THREE.DoubleSide,
     });
+    mat.userData.neonBase = base.clone();
+    mat.userData.flicker = entry.flicker;
     neonMats.push({ mat, base, flicker: entry.flicker, on: true, timer: range(0, 3) });
     group.add(new THREE.Mesh(mergeGeometries(geos), mat));
   }
@@ -302,7 +397,7 @@ export function buildBuildings(layout, shared) {
       if (n.timer <= 0) {
         n.on = !n.on;
         n.timer = n.on ? range(0.05, 2.5) : range(0.03, 0.25);
-        n.mat.color.copy(n.base).multiplyScalar(n.on ? 1 : 0.06);
+        n.mat.color.copy(n.base).multiplyScalar((n.on ? 1 : 0.06) * (n.mat.userData.neonScale ?? 1));
       }
     }
   }

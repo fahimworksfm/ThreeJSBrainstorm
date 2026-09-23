@@ -115,6 +115,84 @@ export class CityAudio {
     whine.start();
   }
 
+  /** Engine note for the motorcycle and SUV, freewheel ticking for the bicycle. */
+  setEngine(mode) {
+    this.engineMode = mode;
+  }
+
+  engine(mode, load, throttle) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (!this.engineOsc) {
+      this.engineOsc = [ctx.createOscillator(), ctx.createOscillator()];
+      this.engineOsc[0].type = 'sawtooth';
+      this.engineOsc[1].type = 'square';
+      this.engineFilter = ctx.createBiquadFilter();
+      this.engineFilter.type = 'lowpass';
+      this.engineFilter.frequency.value = 600;
+      this.engineGain = ctx.createGain();
+      this.engineGain.gain.value = 0;
+      for (const o of this.engineOsc) {
+        o.connect(this.engineFilter);
+        o.start();
+      }
+      this.engineFilter.connect(this.engineGain).connect(this.master);
+      this.tick = 0;
+    }
+    const now = ctx.currentTime;
+    const on = mode === 'moto' || mode === 'suv';
+    const base = mode === 'moto' ? 42 : 28;
+    const top = mode === 'moto' ? 170 : 85;
+    // fake gear changes: rpm climbs then drops back within each gear
+    const gear = (load * 4) % 1;
+    const rpm = base + (top - base) * (0.25 + 0.75 * (load < 0.05 ? 0 : 0.35 + gear * 0.65));
+    this.engineOsc[0].frequency.setTargetAtTime(rpm, now, 0.08);
+    this.engineOsc[1].frequency.setTargetAtTime(rpm * 0.5, now, 0.08);
+    this.engineFilter.frequency.setTargetAtTime(300 + Math.max(0, throttle) * 900 + load * 600, now, 0.1);
+    this.engineGain.gain.setTargetAtTime(on ? (mode === 'moto' ? 0.05 : 0.035) * (0.6 + Math.max(0, throttle) * 0.6) : 0, now, 0.15);
+    if (mode === 'bike' && load > 0.05 && throttle <= 0) {
+      this.tick += load * 30 * 0.016;
+      if (this.tick > 1) {
+        this.tick = 0;
+        this.click(0.02);
+      }
+    }
+  }
+
+  click(vol) {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.white;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 4200;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
+    src.connect(bp).connect(g).connect(this.master);
+    src.start(now, Math.random(), 0.04);
+  }
+
+  /** Bumping into a wall. */
+  thud(amount) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(90, now);
+    o.frequency.exponentialRampToValueAtTime(40, now + 0.25);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.25 * amount, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+    o.connect(g).connect(this.master);
+    g.connect(this.reverb);
+    o.start(now);
+    o.stop(now + 0.35);
+    this.click(0.15 * amount);
+  }
+
   /** Long Island Rail Road style chime horn: two long blasts. */
   horn(level) {
     const ctx = this.ctx;

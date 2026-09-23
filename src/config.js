@@ -29,6 +29,7 @@ export function activateDistrict(def) {
     commercialEW: new Set(def.commercialEW),
   });
 
+  D.sidewalkY = CURB;
   const riverWest = def.edges.west === 'river';
   const parkNorth = def.edges.north === 'park';
   D.riverX = riverWest ? D.colX(0) - def.nsW / 2 - 18 : null;

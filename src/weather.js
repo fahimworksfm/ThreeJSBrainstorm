@@ -6,13 +6,13 @@ const RAIN_H = 34;
 
 /** Rain streaks that follow the camera, ground splashes, and manhole steam. */
 export class Weather {
-  constructor(shared, groundAt, steamSources) {
+  constructor(shared, groundAt, steamSources, drops = 7000) {
     this.group = new THREE.Group();
     this.enabled = true;
     this.intensity = 1;
     this.groundAt = groundAt;
 
-    const N = (this.N = 7000);
+    const N = (this.N = drops);
     this.drops = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
       this.drops[i * 3] = range(-RAIN_W / 2, RAIN_W / 2);
