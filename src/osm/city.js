@@ -456,6 +456,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     const p = M.nodePos.get(id);
     if (p && inBox(p[0], p[1], -20)) junctions.push({ id, p, names: new Set() });
   }
+  const juncById = new Map(junctions.map((j) => [j.id, j]));
   const juncBuckets = new Buckets(30);
   for (const j of junctions) juncBuckets.add(j.p[0], j.p[1], j.p[0], j.p[1], j);
   const nearJunction = (x, z, r) => {
@@ -473,7 +474,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     for (const id of c.nodes) {
       const set = degree.get(id);
       if (set && set.size >= 3) {
-        const j = junctions.find((jj) => jj.id === id);
+        const j = juncById.get(id);
         if (j) j.names.add(shortName(c.name));
       }
     }
