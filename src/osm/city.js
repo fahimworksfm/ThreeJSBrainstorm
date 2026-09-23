@@ -438,10 +438,15 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
       if (!hit) continue;
       const commercial = at(shopping, mx + nx * hit, mz + nz * hit) > 127;
       const names = [];
+      const near = [];
       for (const poi of poiBuckets.near(mx, mz, 16)) {
-        if (Math.hypot(poi.p[0] - mx, poi.p[1] - mz) < Math.max(12, w / 2 + 4)) names.push(poi.name);
+        if (Math.hypot(poi.p[0] - mx, poi.p[1] - mz) < Math.max(12, w / 2 + 4)) {
+          names.push(poi.name);
+          near.push(poi);
+        }
       }
-      const shop = lot.kind !== 'house' && lot.floors <= 7 && hit <= 10 && (lot.kind === 'mixed' ? commercial || names.length > 0 : (commercial && hash01(lot.id, i) < 0.8) || names.length > 0);
+      // a mapped shop always gets its storefront, even under a tower; otherwise shopping streets fill in
+      const shop = lot.kind !== 'house' && hit <= 10 && (names.length > 0 || (lot.floors <= 7 && (lot.kind === 'mixed' ? commercial : commercial && hash01(lot.id, i) < 0.8)));
       if (shop && lot.kind === 'apt') lot.kind = 'mixed';
       for (const n of names) {
         if (!signSeen.has(n) && signNames.length < 40) {
@@ -450,7 +455,9 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
         }
       }
       const bigSign = !!bigAt && lot.h > 14 && w >= 6 && Math.hypot(mx - bigAt[0], mz - bigAt[1]) < def.bigSigns.radius && hash01(lot.id, i + 50) < (def.bigSigns.chance ?? 0.6);
-      faces.push({ x: mx, z: mz, nx, nz, w, lot, shop, bigSign, names: names.map((n) => n.toUpperCase().slice(0, 22)) });
+      // the real shops along this facade, with where they are, so each gets the sign over its own door
+      const pois = near.map((poi) => ({ poi, name: poi.name.toUpperCase().slice(0, 22), x: poi.p[0], z: poi.p[1] }));
+      faces.push({ x: mx, z: mz, nx, nz, w, lot, shop, bigSign, names: names.map((n) => n.toUpperCase().slice(0, 22)), pois });
     }
   }
 

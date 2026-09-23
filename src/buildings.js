@@ -767,7 +767,32 @@ export function buildBuildings(layout, shared) {
   const fruitGeos = [];
   const litterGeos = [];
   const propColliders = [];
-  const boards = makeSignAtlas(D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE']);
+  const generic = D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE'];
+  const boardNames = layout.signNames?.length ? layout.signNames : generic;
+  const boards = makeSignAtlas(boardNames);
+  // real shops (OpenStreetMap) get their own name; other storefronts get a generic trade word
+  const slotOf = new Map(boardNames.map((n, i) => [n, i]));
+  const realNames = new Set(layout.faces.flatMap((f) => (f.pois ?? []).map((p) => p.name)));
+  const genericSlots = boardNames.map((n, i) => (realNames.has(n) ? -1 : i)).filter((i) => i >= 0);
+  const usedPois = new Set();
+  const signSlot = (f, tx, tz, bw) => {
+    let best = null;
+    let bd = Math.max(7, bw);
+    for (const p of f.pois ?? []) {
+      if (usedPois.has(p.poi) || !slotOf.has(p.name)) continue;
+      const d = Math.hypot(p.x - tx, p.z - tz);
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    if (best) {
+      usedPois.add(best.poi);
+      return slotOf.get(best.name);
+    }
+    const pool = genericSlots.length ? genericSlots : boardNames.map((_, i) => i);
+    return pool[Math.floor(rand() * pool.length)];
+  };
   for (const f of layout.faces) {
     if (!f.shop) {
       if (f.w > 3 && f.lot?.kind !== 'house' && chance(0.4)) litterGeos.push(...litter(f.x, f.z, f.nx, f.nz, 2.6, f.w * 0.8, rand, CURB, Math.floor(range(1, 4))));
@@ -783,7 +808,7 @@ export function buildBuildings(layout, shared) {
       const tx = f.x - f.nz * center + f.nx * 0.12;
       const tz = f.z + f.nx * center + f.nz * 0.12;
       const board = new THREE.PlaneGeometry(bw - 0.3, 0.9);
-      const slot = Math.floor(rand() * boards.count);
+      const slot = signSlot(f, tx, tz, bw);
       const uv = board.attributes.uv;
       for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / boards.count);
       boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
@@ -945,5 +970,5 @@ export function buildBuildings(layout, shared) {
     }
   }
 
-  return { group, update, fireEscapes, colliders: propColliders };
+  return { group, update, fireEscapes, colliders: propColliders, realSigns: usedPois.size };
 }
