@@ -1,21 +1,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CURB } from './config.js';
+import { CURB, D } from './config.js';
 import {
   TILE_COLS, TILE_ROWS, TILE_W, TILE_H, SHOP_TILE_W,
   makeStorefront, makeNeon,
 } from './textures.js';
 import { rand, range, pick, chance } from './random.js';
 
-// [word, color, can be a vertical blade sign]
-const NEON_WORDS = [
-  ['TAVERNA', '#57a8ff', false], ['ΚΑΦΕ', '#ffd23b', true], ['BAKERY', '#ff9a3b', false],
-  ['DINER', '#ff3b6b', true], ['PIZZA', '#ff5a36', false], ['DELI', '#9dff4a', true],
-  ['24 HR', '#39d0ff', false], ['HOOKAH', '#c86bff', false], ['LAUNDROMAT', '#42f5e6', false],
-  ['PANADERÍA', '#ffb03b', false], ['GYRO', '#ff4fd8', true], ['BAR', '#ff2f5f', true],
-  ['OPEN', '#ff2f5f', true], ['LIQUORS', '#57ff8a', false], ['PHARMACY', '#4aff9d', false],
-  ['NAIL SALON', '#ff7ad9', false], ['MINI MART', '#ffd23b', false], ['ΨΗΤΟΠΩΛΕΙΟ', '#6bd6ff', false],
-];
 
 /** Box with facade UVs in world units so window grids line up across buildings. */
 export function facadeBox(w, h, d, x, y, z, uOff, vOff, tint) {
@@ -77,6 +68,7 @@ export function buildBuildings(layout, shared) {
   const byStyle = {};
   const roofGeos = [];
   const woodGeos = [];
+  const shingleGeos = [];
   const fenceGeos = [];
   const stoneGeos = [];
   const porchBulbs = [];
@@ -95,13 +87,22 @@ export function buildBuildings(layout, shared) {
     (byStyle[style] ??= []).push(facadeBox(w, h, d, cx, CURB, cz, uOff, vOff, tint));
     const top = CURB + h;
 
-    // cornice / parapet lip
-    const lip = new THREE.BoxGeometry(w + 0.3, 0.45, d + 0.3);
-    roofGeos.push(place(lip, cx, top - 0.1, cz));
+    if (lot.kind === 'house') {
+      // gable roof: a triangular prism with its ridge running away from the street
+      const rh = range(2.2, 3.2);
+      const roof = new THREE.CylinderGeometry(1, 1, w + 0.6, 3, 1, false, Math.PI / 2);
+      roof.rotateZ(Math.PI / 2);
+      roof.scale(1, rh / 1.5, (d + 0.7) / 1.732);
+      shingleGeos.push(place(roof, cx, top + rh / 3, cz));
+    } else {
+      // cornice / parapet lip
+      const lip = new THREE.BoxGeometry(w + 0.3, 0.45, d + 0.3);
+      roofGeos.push(place(lip, cx, top - 0.1, cz));
+    }
 
-    if (lot.kind === 'corner' || lot.kind === 'condo') {
+    if (lot.kind === 'corner' || lot.kind === 'condo' || lot.kind === 'apt') {
       if (chance(0.6)) roofGeos.push(place(new THREE.BoxGeometry(3, 2.8, 3.4), cx + range(-w / 4, w / 4), top + 1.4, cz + range(-d / 4, d / 4)));
-      if (lot.kind === 'corner' && h > 14 && chance(0.45)) {
+      if ((lot.kind === 'corner' || lot.kind === 'apt') && h > 14 && chance(0.45)) {
         const tx = cx + range(-w / 5, w / 5);
         const tz = cz + range(-d / 5, d / 5);
         woodGeos.push(place(new THREE.CylinderGeometry(1.5, 1.5, 3, 12), tx, top + 3.4, tz));
@@ -117,20 +118,20 @@ export function buildBuildings(layout, shared) {
       roofGeos.push(place(dish, cx, top + 0.7, cz + range(-d / 3, d / 3)));
     }
 
-    // rowhouse front: iron fence, stoop, porch light
-    if (lot.kind === 'row') {
+    // front yard: iron fence, stoop, porch light
+    if (lot.kind === 'row' || lot.kind === 'house') {
       const faceX = lot.side < 0 ? x0 : x1;
       const fenceX = lot.frontX + lot.side * 0.15;
       const stoopZ = chance(0.5) ? z0 + 1.2 : z1 - 1.2;
       const gate = [stoopZ - 0.7, stoopZ + 0.7];
-      for (const [a, b] of [[z0 + 0.1, gate[0]], [gate[1], z1 - 0.1]]) {
+      for (const [a, b] of [[lot.lotZ0 + 0.1, gate[0]], [gate[1], lot.lotZ1 - 0.1]]) {
         if (b - a < 0.3) continue;
         const fence = new THREE.PlaneGeometry(b - a, 1.05);
         const uv = fence.attributes.uv;
         for (let i = 0; i < uv.count; i++) uv.setX(i, (uv.getX(i) * (b - a)) / 0.6);
         fenceGeos.push(place(fence, fenceX, CURB + 0.55, (a + b) / 2, Math.PI / 2));
       }
-      const steps = 3;
+      const steps = lot.kind === 'house' ? 2 : 3;
       for (let s = 0; s < steps; s++) {
         const depth = (steps - s) * 0.45;
         const step = new THREE.BoxGeometry(depth, 0.32, 1.5);
@@ -165,6 +166,7 @@ export function buildBuildings(layout, shared) {
     if (geos.length) group.add(new THREE.Mesh(mergeGeometries(geos), mat));
   };
   addMerged(roofGeos, new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.9 }));
+  addMerged(shingleGeos, new THREE.MeshStandardMaterial({ color: 0x2b2624, roughness: 0.9, flatShading: true }));
   addMerged(woodGeos, new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 }));
   addMerged(
     fenceGeos,
@@ -196,7 +198,7 @@ export function buildBuildings(layout, shared) {
     shopGeos.push(place(g, f.x + f.nx * 0.06, CURB + 2.3, f.z + f.nz * 0.06, Math.atan2(f.nx, f.nz)));
 
     if (!chance(0.55)) continue;
-    const [word, color, canBlade] = pick(NEON_WORDS);
+    const [word, color, canBlade] = pick(D.neon);
     const blade = canBlade && f.lot.h > 9 && chance(0.4);
     const flicker = chance(0.15);
     const key = `${word}|${blade}|${flicker}`;

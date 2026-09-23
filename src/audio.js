@@ -93,6 +93,54 @@ export class CityAudio {
     this.squeal.connect(this.squealGain).connect(this.master);
     this.squealGain.connect(this.reverb);
     this.squeal.start();
+
+    // jet engines overhead: a low roar plus a thin turbine whine
+    const jet = ctx.createBufferSource();
+    jet.buffer = brown;
+    jet.loop = true;
+    const jl = ctx.createBiquadFilter();
+    jl.type = 'lowpass';
+    jl.frequency.value = 700;
+    this.jetGain = ctx.createGain();
+    this.jetGain.gain.value = 0;
+    jet.connect(jl).connect(this.jetGain).connect(this.master);
+    this.jetGain.connect(this.reverb);
+    jet.start();
+    const whine = ctx.createOscillator();
+    whine.type = 'sine';
+    whine.frequency.value = 3100;
+    this.whineGain = ctx.createGain();
+    this.whineGain.gain.value = 0;
+    whine.connect(this.whineGain).connect(this.master);
+    whine.start();
+  }
+
+  /** Long Island Rail Road style chime horn: two long blasts. */
+  horn(level) {
+    const ctx = this.ctx;
+    if (!ctx || level <= 0.02) return;
+    const now = ctx.currentTime;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2200;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    for (const [a, b] of [[0, 1.3], [1.6, 2.4]]) {
+      g.gain.setValueAtTime(0, now + a);
+      g.gain.linearRampToValueAtTime(0.05 * level, now + a + 0.08);
+      g.gain.setValueAtTime(0.05 * level, now + b - 0.1);
+      g.gain.linearRampToValueAtTime(0, now + b);
+    }
+    for (const f of [311, 370, 415, 494, 622]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.connect(lp);
+      o.start(now);
+      o.stop(now + 2.6);
+    }
+    lp.connect(g).connect(this.master);
+    g.connect(this.reverb);
   }
 
   noise(seconds, brown) {
@@ -236,10 +284,12 @@ export class CityAudio {
     return this.muted;
   }
 
-  update(dt, rumble, braking) {
+  update(dt, { rumble = 0, braking = false, plane = 0 } = {}) {
     const ctx = this.ctx;
     if (!ctx) return;
     const now = ctx.currentTime;
+    this.jetGain.gain.setTargetAtTime(plane * plane * 0.9, now, 0.4);
+    this.whineGain.gain.setTargetAtTime(plane * plane * 0.006, now, 0.4);
     this.rumbleGain.gain.setTargetAtTime(rumble * 1.1, now, 0.15);
     this.clatterPhase += dt * 7;
     const clack = Math.pow(Math.max(0, Math.sin(this.clatterPhase)), 12);

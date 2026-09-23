@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import {
-  NS_W, EW_W, CURB, NX, NZ, colX, rowZ, PITCH_Z, NS_ROADS, EW_ROADS, COMMERCIAL_NS, COMMERCIAL_EW, EL_COL,
-} from './config.js';
+import { CURB, D } from './config.js';
 import { LightKit } from './lightkit.js';
 import { isSignalized, signalState } from './signals.js';
 import { makeSidewalk, makeStreetSign } from './textures.js';
@@ -33,6 +31,12 @@ function makeStopTexture() {
 
 export function buildStreets(layout, shared) {
   const group = new THREE.Group();
+  const {
+    nsW: NS_W, ewW: EW_W, NX, NZ, colX, rowZ, PITCH_Z,
+    nsRoads: NS_ROADS, ewRoads: EW_ROADS, commercialNS: COMMERCIAL_NS, commercialEW: COMMERCIAL_EW,
+  } = D;
+  const elNS = D.el?.axis === 'ns' ? D.el.index : null;
+  const elEW = D.el?.axis === 'ew' ? D.el.index : null;
 
   // ---- sidewalks (blocks, promenade); UVs in world space so the flags tile evenly
   const swGeos = layout.blocks.map((b) => {
@@ -41,9 +45,11 @@ export function buildStreets(layout, shared) {
     return g;
   });
   const pr = layout.promenade;
-  const prom = new THREE.BoxGeometry(pr.x1 - pr.x0, CURB + 2, pr.z1 - pr.z0);
-  prom.translate((pr.x0 + pr.x1) / 2, CURB / 2 - 1, (pr.z0 + pr.z1) / 2);
-  swGeos.push(prom);
+  if (pr) {
+    const prom = new THREE.BoxGeometry(pr.x1 - pr.x0, CURB + 2, pr.z1 - pr.z0);
+    prom.translate((pr.x0 + pr.x1) / 2, CURB / 2 - 1, (pr.z0 + pr.z1) / 2);
+    swGeos.push(prom);
+  }
   const sidewalks = mergeGeometries(swGeos);
   const pos = sidewalks.attributes.position;
   const uv = sidewalks.attributes.uv;
@@ -58,8 +64,8 @@ export function buildStreets(layout, shared) {
   // ---- road markings
   const white = [];
   const yellow = [];
-  for (let i = 0; i < NX; i++) {
-    for (let j = 0; j < NZ; j++) {
+  for (let i = D.iLo; i <= D.iHi; i++) {
+    for (let j = D.jLo; j <= D.jHi; j++) {
       const x = colX(i);
       const z = rowZ(j);
       if (isSignalized(i, j)) {
@@ -79,15 +85,15 @@ export function buildStreets(layout, shared) {
       }
     }
   }
-  for (let i = 0; i < NX; i++) {
-    for (let j = 0; j <= NZ; j++) {
+  for (let i = D.iLo; i <= D.iHi; i++) {
+    for (let j = D.rMin; j <= D.rMax; j++) {
       const a = rowZ(j) + EW_W / 2 + 4;
       const b = rowZ(j + 1) - EW_W / 2 - 4;
       for (const o of [-0.13, 0.13]) yellow.push(flat(0.12, b - a, colX(i) + o, 0.02, (a + b) / 2));
     }
   }
-  for (let j = 0; j < NZ; j++) {
-    for (let i = 0; i <= NX; i++) {
+  for (let j = D.jLo; j <= D.jHi; j++) {
+    for (let i = D.cMin; i <= D.cMax; i++) {
       const a = colX(i) + NS_W / 2 + 4;
       const b = colX(i + 1) - NS_W / 2 - 4;
       for (const o of [-0.13, 0.13]) yellow.push(flat(b - a, 0.12, (a + b) / 2, 0.02, rowZ(j) + o));
@@ -111,7 +117,7 @@ export function buildStreets(layout, shared) {
       { x: b.x1 - 0.5, nx: 1, road: b.c + 1, shops: COMMERCIAL_NS.has(b.c + 1) },
     ];
     for (const e of edges) {
-      const underEl = e.road === EL_COL;
+      const underEl = e.road === elNS;
       const lampZ = [];
       for (let k = 0; k < 4; k++) {
         const z = b.z0 + ((k + 0.5) * len) / 4;
@@ -127,14 +133,19 @@ export function buildStreets(layout, shared) {
     }
     for (const [z, nz, road] of [[b.z0 + 0.5, -1, b.r], [b.z1 - 0.5, 1, b.r + 1]]) {
       const w = b.x1 - b.x0;
+      const underEl = road === elEW;
       for (let k = 0; k < 2; k++) {
-        kit.add(b.x0 + ((k + 0.5) * w) / 2, z, 0, nz, { kind: kindFor(COMMERCIAL_EW.has(road)) });
+        kit.add(b.x0 + ((k + 0.5) * w) / 2, z, 0, nz, {
+          kind: kindFor(COMMERCIAL_EW.has(road)), height: underEl ? 6 : 8.5, arm: underEl ? 1.2 : 2.2,
+        });
       }
     }
   }
   // promenade lamps along the river
-  for (let z = pr.z0 + 10; z < pr.z1 - 300; z += 24) {
-    kit.add(pr.x0 + 3, z, 1, 0, { globe: true, height: 4, kind: 'warm', pool: 6 });
+  if (pr) {
+    for (let z = pr.z0 + 10; z < pr.z1 - 300; z += 24) {
+      kit.add(pr.x0 + 3, z, 1, 0, { globe: true, height: 4, kind: 'warm', pool: 6 });
+    }
   }
   group.add(kit.build(shared.pool));
 
@@ -271,7 +282,7 @@ export function buildStreets(layout, shared) {
   const steam = [];
   for (let i = 0; i < NX; i++) {
     for (let j = 0; j < NZ - 1; j++) {
-      if (!chance(0.4)) continue;
+      if (!chance(0.4) || j === elEW || j + 1 === elEW) continue;
       const mx = colX(i) + range(-2.5, 2.5);
       const mz = rowZ(j) + PITCH_Z / 2 + range(-30, 30);
       const g = new THREE.CircleGeometry(0.45, 14);

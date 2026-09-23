@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { NS_W, EW_W, NX, NZ, colX, rowZ, PARK_Z1, EAST_LIMIT, SOUTH_LIMIT, EL_COL } from './config.js';
+import { D } from './config.js';
 import { isSignalized, signalState } from './signals.js';
 import { rand, range, pick, chance } from './random.js';
 
@@ -21,27 +21,29 @@ export class Traffic {
     this.cars = [];
     this.parked = [];
 
+    const { nsW: NS_W, ewW: EW_W, NX, NZ, colX, rowZ } = D;
+    const elNS = D.el?.axis === 'ns' ? D.el.index : null;
     // two-way roads: drive on the right
     for (let i = 0; i < NX; i++) {
       for (const dir of [-1, 1]) {
         const lane = {
-          axis: 'z', fixed: 0, dir, min: PARK_Z1 + 2, max: SOUTH_LIMIT + 260,
+          // heading south (+z) means driving on the west side
+          axis: 'z', fixed: colX(i) + (dir > 0 ? -3.2 : 3.2), dir, min: D.laneZ0, max: D.laneZ1,
           crossings: [...Array(NZ).keys()].filter((j) => isSignalized(i, j)).map((j) => rowZ(j)), half: EW_W / 2, cars: [],
         };
-        // heading south (+z) means driving on the west side (x smaller)
-        lane.fixed = colX(i) + (dir > 0 ? -3.2 : 3.2);
         this.lanes.push(lane);
-        for (let k = 0; k < (i === 3 || i === 6 ? 4 : 2); k++) this.addCar(lane);
+        const busy = D.commercialNS.has(i);
+        for (let k = 0; k < (busy ? 4 : 2); k++) this.addCar(lane);
       }
     }
     for (let j = 0; j < NZ; j++) {
       for (const dir of [-1, 1]) {
         const lane = {
-          axis: 'x', fixed: rowZ(j) + (dir > 0 ? 3.5 : -3.5), dir, min: colX(0) - 2, max: EAST_LIMIT + 260,
+          axis: 'x', fixed: rowZ(j) + (dir > 0 ? 3.5 : -3.5), dir, min: D.laneX0, max: D.laneX1,
           crossings: [...Array(NX).keys()].filter((i) => isSignalized(i, j)).map((i) => colX(i)), half: NS_W / 2, cars: [],
         };
         this.lanes.push(lane);
-        const busy = j === 0 || j === 4 || j === 6 || j === 8;
+        const busy = D.commercialEW.has(j);
         for (let k = 0; k < (busy ? 3 : 1); k++) this.addCar(lane);
       }
     }
@@ -51,10 +53,10 @@ export class Traffic {
       lane.cars.forEach((c, k) => (c.s = lane.min + ((k + rand() * 0.5) * span) / lane.cars.length));
     }
 
-    // parked cars along residential curbs
-    for (let i = 0; i < NX; i++) {
-      if (i === EL_COL) continue;
-      for (let j = 0; j <= NZ - 1; j++) {
+    // parked cars along the curbs of the north-south streets
+    for (let i = Math.max(D.iLo, -1); i <= Math.min(D.iHi, NX); i++) {
+      if (i === elNS) continue;
+      for (let j = Math.max(D.rMin, -1); j <= Math.min(D.rMax - 1, NZ - 1); j++) {
         const a = rowZ(j) + EW_W / 2 + 6;
         const b = rowZ(j + 1) - EW_W / 2 - 6;
         for (const side of [-1, 1]) {

@@ -1,52 +1,69 @@
-// Astoria, Queens. Numbered streets run north-south, avenues run east-west.
+// The active district. Every neighborhood is a compressed street grid described by a
+// definition in ./districts; activateDistrict() derives the geometry helpers below.
 // World axes: -z is north, +x is east, units are meters.
-// Geography is compressed and lightly fictionalized, but the names and their order are real.
 
-export const NS_W = 14; // north-south streets (constant x)
-export const EW_W = 16; // east-west avenues (constant z)
-export const BLOCK_X = 62;
-export const BLOCK_Z = 100;
-export const SIDEWALK = 4;
 export const CURB = 0.15;
 
-export const NS_ROADS = ['21st St', 'Crescent St', '29th St', '31st St', '33rd St', '35th St', 'Steinway St'];
-export const EW_ROADS = [
-  'Ditmars Blvd', '23rd Ave', '24th Ave', '25th Ave', 'Astoria Blvd', '28th Ave',
-  '30th Ave', '31st Ave', 'Broadway', '34th Ave', '35th Ave', '36th Ave',
-];
-export const NX = NS_ROADS.length;
-export const NZ = EW_ROADS.length;
+/** Active district: definition fields plus derived helpers (colX, rowZ, bounds...). */
+export const D = {};
 
-export const PITCH_X = BLOCK_X + NS_W;
-export const PITCH_Z = BLOCK_Z + EW_W;
-const OX = -((NX - 1) * PITCH_X) / 2;
-const OZ = -((NZ - 1) * PITCH_Z) / 2;
+export function activateDistrict(def) {
+  for (const k of Object.keys(D)) delete D[k];
+  Object.assign(D, def);
+  const NX = def.nsRoads.length;
+  const NZ = def.ewRoads.length;
+  const PITCH_X = def.blockX + def.nsW;
+  const PITCH_Z = def.blockZ + def.ewW;
+  const OX = -((NX - 1) * PITCH_X) / 2;
+  const OZ = -((NZ - 1) * PITCH_Z) / 2;
+  Object.assign(D, {
+    NX,
+    NZ,
+    PITCH_X,
+    PITCH_Z,
+    /** Centerline x of north-south street i (extrapolates past the named ones). */
+    colX: (i) => OX + i * PITCH_X,
+    /** Centerline z of east-west avenue j. */
+    rowZ: (j) => OZ + j * PITCH_Z,
+    commercialNS: new Set(def.commercialNS),
+    commercialEW: new Set(def.commercialEW),
+  });
 
-/** Centerline x of north-south street i (can extrapolate past the named ones). */
-export const colX = (i) => OX + i * PITCH_X;
-/** Centerline z of east-west avenue j. */
-export const rowZ = (j) => OZ + j * PITCH_Z;
+  const riverWest = def.edges.west === 'river';
+  const parkNorth = def.edges.north === 'park';
+  D.riverX = riverWest ? D.colX(0) - def.nsW / 2 - 18 : null;
+  D.parkZ1 = parkNorth ? D.rowZ(0) - def.ewW / 2 : null;
+  D.parkZ0 = parkNorth ? D.parkZ1 - 160 : null;
 
-// Shopping strips: storefronts and neon on every facade facing these
-export const COMMERCIAL_NS = new Set([3, 6]); // 31st St (under the el), Steinway St
-export const COMMERCIAL_EW = new Set([0, 6, 8]); // Ditmars Blvd, 30th Ave, Broadway
+  // blocks c sit between streets c and c+1; a ring of extra blocks hides the edges
+  D.cMin = riverWest ? 0 : -2;
+  D.cMax = NX;
+  D.rMin = parkNorth ? 0 : -2;
+  D.rMax = NZ;
+  // roads that exist (get paint and intersections)
+  D.iLo = riverWest ? 0 : D.cMin + 1;
+  D.iHi = D.cMax;
+  D.jLo = parkNorth ? 0 : D.rMin + 1;
+  D.jHi = D.rMax;
 
-// The elevated N/W line runs above 31st St
-export const EL_COL = 3;
-export const EL_HEIGHT = 9.2;
-export const EL_STATIONS = [
-  { j: 0, name: 'ASTORIA–DITMARS BLVD' },
-  { j: 4, name: 'ASTORIA BLVD' },
-  { j: 6, name: '30 AV' },
-  { j: 8, name: 'BROADWAY' },
-  { j: 11, name: '36 AV' },
-];
+  // where you can walk
+  D.xMin = riverWest ? D.riverX + 0.6 : D.colX(0) - def.nsW / 2 - 6;
+  D.xMax = D.colX(NX - 1) + def.nsW / 2 + 6;
+  D.zMin = parkNorth ? D.parkZ0 : D.rowZ(0) - def.ewW / 2 - 6;
+  D.zMax = D.rowZ(NZ - 1) + def.ewW / 2 + 6;
 
-// Edges of the walkable world
-export const PARK_Z1 = rowZ(0) - EW_W / 2; // Astoria Park begins north of Ditmars
-export const PARK_Z0 = PARK_Z1 - 160;
-export const RIVER_X = colX(0) - NS_W / 2 - 18; // East River railing
-export const EAST_LIMIT = colX(NX - 1) + NS_W / 2 + 8;
-export const SOUTH_LIMIT = rowZ(NZ - 1) + EW_W / 2 + 8;
+  // where cars drive (they appear and vanish out in the fog)
+  D.laneX0 = riverWest ? D.colX(0) - 2 : D.xMin - 260;
+  D.laneX1 = D.xMax + 260;
+  D.laneZ0 = parkNorth ? D.parkZ1 + 2 : D.zMin - 260;
+  D.laneZ1 = D.zMax + 260;
 
-export const FOG_COLOR = 0x120f1b;
+  // the wet road plane
+  D.roadRect = {
+    x0: riverWest ? D.riverX : D.xMin - 900,
+    x1: D.xMax + 900,
+    z0: parkNorth ? D.parkZ1 - 1 : D.zMin - 900,
+    z1: D.zMax + 900,
+  };
+  return D;
+}

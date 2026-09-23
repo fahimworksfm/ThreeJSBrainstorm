@@ -1,9 +1,12 @@
-import { COMMERCIAL_NS, COMMERCIAL_EW } from './config.js';
+import { D } from './config.js';
 
 export const CYCLE = 34;
 
-/** Traffic lights only at busy corners; side streets get stop signs. */
-export const isSignalized = (i, j) => COMMERCIAL_NS.has(i) || COMMERCIAL_EW.has(j) || j === 4;
+/** Traffic lights only at busy named corners; side streets get stop signs. */
+export function isSignalized(i, j) {
+  if (i < 0 || j < 0 || i >= D.NX || j >= D.NZ) return false;
+  return D.commercialNS.has(i) || D.commercialEW.has(j) || D.signalEW.includes(j) || D.signalNS.includes(i);
+}
 
 /** 'G' | 'A' | 'R' for traffic moving along north-south streets ('ns') or avenues ('ew'). */
 export function signalState(t, axis) {

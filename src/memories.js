@@ -1,63 +1,33 @@
 import * as THREE from 'three';
-import { NS_W, EW_W, CURB, colX, rowZ, RIVER_X, PARK_Z1 } from './config.js';
+import { CURB, D } from './config.js';
+import { DISTRICTS } from './districts/index.js';
 import { makePostcard } from './textures.js';
 
-const corner = (i, j, sx, sz) => [colX(i) + sx * (NS_W / 2 + 2), rowZ(j) + sz * (EW_W / 2 + 2)];
+const storageKey = (id) => `nightwalker.${id}.collected`;
 
-export const MEMORIES = [
-  {
-    id: 'el', where: corner(3, 6, 1, 1), title: '31st St & 30th Ave',
-    text: 'The N train shakes the whole street every few minutes. After a week you stop hearing it. After a month you miss it when you’re away.',
-  },
-  {
-    id: 'ditmars', where: corner(3, 0, -1, 1), title: 'Astoria–Ditmars Blvd',
-    text: 'End of the line. Everybody gets off here eventually, and the train just turns around and goes back for more.',
-  },
-  {
-    id: 'river', where: [RIVER_X + 2.5, rowZ(3)], title: 'The East River',
-    text: 'Manhattan looks best from over here. Close enough to see it glitter, far enough that you can’t hear it.',
-  },
-  {
-    id: 'steinway', where: corner(6, 7, -1, 1), title: 'Steinway St',
-    text: 'Steinway after midnight: shisha smoke, a song from a car window, a man selling roasted corn. Six languages on one block and nobody needs a translator.',
-  },
-  {
-    id: 'diner', where: corner(4, 8, -1, -1), title: 'Broadway',
-    text: 'The diner on Broadway never closes. The waitress calls everyone “sweetheart” and means it about half the time.',
-  },
-  {
-    id: 'park', where: [colX(1) + 3, PARK_Z1 - 60], title: 'Astoria Park',
-    text: 'From the park you can see the bridges lit up like jewelry. I’ve never crossed one at this hour. Tonight I don’t need to.',
-  },
-  {
-    id: 'porch', where: corner(1, 2, 1, 1), title: 'Crescent St',
-    text: 'Plastic chairs on the stoop, a fig tree wrapped for winter, somebody’s grandmother’s tomatoes. Queens keeps its gardens small and stubborn.',
-  },
-  {
-    id: 'bakery', where: corner(5, 6, 1, -1), title: '30th Ave',
-    text: 'A bakery is already lit. At four in the morning the whole block smells like bread and warm sugar.',
-  },
-];
-
-export const FINALE =
-  'Two million stories in this borough, and tonight one of them was mine. The train is still running. Keep walking.';
-
-const STORAGE_KEY = 'nightwalker.queens.collected';
-
-function loadCollected() {
+function loadCollected(id) {
   try {
-    return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+    return new Set(JSON.parse(localStorage.getItem(storageKey(id)) || '[]'));
   } catch {
     return new Set();
   }
 }
 
-function saveCollected(set) {
+function saveCollected(id, set) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+    localStorage.setItem(storageKey(id), JSON.stringify([...set]));
   } catch {
     /* private mode: progress just won't persist */
   }
+}
+
+/** Collected memories for every district, for the journal. */
+export function journalAll() {
+  return Object.values(DISTRICTS).map((def) => {
+    const got = loadCollected(def.id);
+    const texts = def.memories;
+    return { name: `${def.name}, ${def.borough}`, entries: texts.filter((m) => got.has(m.id)), total: texts.length };
+  });
 }
 
 /** Glowing postcards with light beams; walk up to one to read it. */
@@ -65,17 +35,21 @@ export class Memories {
   constructor(shared, audio, hud) {
     this.audio = audio;
     this.hud = hud;
+    this.id = D.id;
+    this.list = D.memories;
+    this.finale = D.finale;
     this.group = new THREE.Group();
-    this.collected = loadCollected();
+    this.collected = loadCollected(this.id);
     const cardTex = makePostcard();
     const cardGeo = new THREE.PlaneGeometry(0.75, 0.5);
     const beamGeo = new THREE.CylinderGeometry(0.3, 0.3, 70, 16, 1, true);
     beamGeo.translate(0, 35, 0);
     const poolGeo = new THREE.PlaneGeometry(5, 5);
     poolGeo.rotateX(-Math.PI / 2);
-    this.items = MEMORIES.map((mem) => {
+    this.items = this.list.map((mem) => {
       const g = new THREE.Group();
-      g.position.set(mem.where[0], CURB, mem.where[1]);
+      const [wx, wz] = mem.where(D);
+      g.position.set(wx, CURB, wz);
       const card = new THREE.Mesh(
         cardGeo,
         new THREE.MeshBasicMaterial({ map: cardTex, color: new THREE.Color(1.6, 1.5, 1.3), side: THREE.DoubleSide, transparent: true }),
@@ -102,17 +76,13 @@ export class Memories {
       g.visible = !done;
       return { mem, g, card, beam, fading: 0, done };
     });
-    this.hud.setCount(this.collected.size, MEMORIES.length);
-    this.hud.setJournal(this.journal());
-  }
-
-  journal() {
-    return MEMORIES.filter((m) => this.collected.has(m.id));
+    this.hud.setCount(this.collected.size, this.list.length);
+    this.hud.setJournal(journalAll());
   }
 
   reset() {
+    for (const id of Object.keys(DISTRICTS)) saveCollected(id, new Set());
     this.collected.clear();
-    saveCollected(this.collected);
     for (const it of this.items) {
       it.done = false;
       it.fading = 0;
@@ -120,8 +90,8 @@ export class Memories {
       it.g.scale.setScalar(1);
       it.beam.visible = true;
     }
-    this.hud.setCount(0, MEMORIES.length);
-    this.hud.setJournal([]);
+    this.hud.setCount(0, this.list.length);
+    this.hud.setJournal(journalAll());
   }
 
   update(t, dt, pos) {
@@ -148,14 +118,16 @@ export class Memories {
     it.fading = 1.2;
     it.beam.visible = false; // you're standing in it
     this.collected.add(it.mem.id);
-    saveCollected(this.collected);
+    saveCollected(this.id, this.collected);
     this.audio.chime();
     const n = this.collected.size;
-    this.hud.setCount(n, MEMORIES.length);
-    this.hud.setJournal(this.journal());
+    this.hud.setCount(n, this.list.length);
+    this.hud.setJournal(journalAll());
     this.hud.showMemory(it.mem.title, it.mem.text);
-    if (n === MEMORIES.length) {
-      setTimeout(() => this.hud.showMemory('Astoria, Queens', FINALE, 14000), 11000);
+    if (n === this.list.length) {
+      const title = `${D.name}, ${D.borough}`;
+      const id = this.id;
+      setTimeout(() => D.id === id && this.hud.showMemory(title, this.finale, 14000), 11000);
     }
   }
 }

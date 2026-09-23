@@ -1,32 +1,38 @@
-import {
-  NS_W, EW_W, SIDEWALK, NX, NZ, colX, rowZ, PITCH_X, PITCH_Z, NS_ROADS, EW_ROADS, PARK_Z1, EL_COL,
-} from './config.js';
+import { D } from './config.js';
 
 const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** "31st St & 30th Ave", "Crescent St · 24th Ave – 25th Ave", ... */
 export function describeLocation(x, z) {
-  if (z < PARK_Z1) return 'Astoria Park';
-  if (x < colX(0) - NS_W / 2) return 'East River Promenade';
+  const { nsW, ewW, sidewalk, NX, NZ, colX, rowZ, PITCH_X, PITCH_Z, nsRoads, ewRoads } = D;
+  if (D.parkZ1 !== null && z < D.parkZ1) return D.parkName;
+  if (D.riverX !== null && x < colX(0) - nsW / 2) return D.riverName;
   const i = clampI(Math.round((x - colX(0)) / PITCH_X), 0, NX - 1);
   const j = clampI(Math.round((z - rowZ(0)) / PITCH_Z), 0, NZ - 1);
-  const onStreet = Math.abs(x - colX(i)) < NS_W / 2 + SIDEWALK + 0.5;
-  const onAve = Math.abs(z - rowZ(j)) < EW_W / 2 + SIDEWALK + 0.5;
-  const el = onStreet && i === EL_COL ? '  ·  under the el' : '';
-  if (onStreet && onAve) return `${NS_ROADS[i]} & ${EW_ROADS[j]}${el}`;
+  const onStreet = Math.abs(x - colX(i)) < nsW / 2 + sidewalk + 0.5;
+  const onAve = Math.abs(z - rowZ(j)) < ewW / 2 + sidewalk + 0.5;
+  const el = D.el;
+  const under = (el.axis === 'ns' ? onStreet && i === el.index : onAve && j === el.index) ? `  ·  ${el.underLabel}` : '';
+  if (onStreet && onAve) return `${nsRoads[i]} & ${ewRoads[j]}${under}`;
   if (onStreet) {
     const j0 = Math.floor((z - rowZ(0)) / PITCH_Z);
-    const a = EW_ROADS[j0];
-    const b = EW_ROADS[j0 + 1];
-    return `${NS_ROADS[i]}  ·  ${a && b ? `${a} – ${b}` : `south of ${EW_ROADS[NZ - 1]}`}${el}`;
+    const a = ewRoads[j0];
+    const b = ewRoads[j0 + 1];
+    const between = a && b ? `${a} – ${b}` : j0 < 0 ? `north of ${ewRoads[0]}` : `south of ${ewRoads[NZ - 1]}`;
+    return `${nsRoads[i]}  ·  ${between}${under}`;
   }
   if (onAve) {
     const i0 = Math.floor((x - colX(0)) / PITCH_X);
-    const a = NS_ROADS[i0];
-    const b = NS_ROADS[i0 + 1];
-    return `${EW_ROADS[j]}  ·  ${a && b ? `${a} – ${b}` : `east of ${NS_ROADS[NX - 1]}`}`;
+    const a = nsRoads[i0];
+    const b = nsRoads[i0 + 1];
+    const between = a && b ? `${a} – ${b}` : i0 < 0 ? `west of ${nsRoads[0]}` : `east of ${nsRoads[NX - 1]}`;
+    return `${ewRoads[j]}  ·  ${between}${under}`;
   }
-  return 'Astoria';
+  const c = Math.floor((x - colX(0)) / PITCH_X);
+  const r = Math.floor((z - rowZ(0)) / PITCH_Z);
+  const pb = (D.parkBlocks || []).findIndex(([pc, pr]) => pc === c && pr === r);
+  if (pb >= 0) return D.parkBlockNames[pb];
+  return D.name;
 }
 
 export class HUD {
@@ -42,11 +48,25 @@ export class HUD {
       journal: document.getElementById('journal'),
       fps: document.getElementById('fps'),
       hud: document.getElementById('hud'),
+      district: document.getElementById('district'),
+      prompt: document.getElementById('prompt'),
     };
     this.lastLocation = '';
     this.lastClock = '';
     this.subTimer = null;
     this.toastTimer = null;
+  }
+
+  setDistrict(name) {
+    this.el.district.textContent = name;
+    this.lastLocation = '';
+  }
+
+  setPrompt(text) {
+    if (text === this.lastPrompt) return;
+    this.lastPrompt = text;
+    this.el.prompt.textContent = text || '';
+    this.el.prompt.classList.toggle('show', !!text);
   }
 
   setLocation(text) {
@@ -86,25 +106,30 @@ export class HUD {
     this.toastTimer = setTimeout(() => this.el.toast.classList.remove('show'), 1600);
   }
 
-  setJournal(entries) {
+  /** groups: [{ name, entries: [{title, text}], total }] */
+  setJournal(groups) {
     const j = this.el.journal;
     j.replaceChildren();
-    if (!entries.length) {
-      const p = document.createElement('p');
-      p.className = 'empty';
-      p.textContent = 'Nothing yet. Follow the blue lights.';
-      j.append(p);
-      return;
-    }
-    for (const e of entries) {
-      const item = document.createElement('div');
-      item.className = 'entry';
-      const h = document.createElement('h4');
-      h.textContent = e.title;
-      const p = document.createElement('p');
-      p.textContent = e.text;
-      item.append(h, p);
-      j.append(item);
+    for (const g of groups) {
+      const h = document.createElement('h5');
+      h.textContent = `${g.name}  ·  ${g.entries.length} / ${g.total}`;
+      j.append(h);
+      if (!g.entries.length) {
+        const p = document.createElement('p');
+        p.className = 'empty';
+        p.textContent = 'Nothing here yet. Follow the blue lights.';
+        j.append(p);
+      }
+      for (const e of g.entries) {
+        const item = document.createElement('div');
+        item.className = 'entry';
+        const t = document.createElement('h4');
+        t.textContent = e.title;
+        const p = document.createElement('p');
+        p.textContent = e.text;
+        item.append(t, p);
+        j.append(item);
+      }
     }
   }
 

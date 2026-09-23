@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Night Walker: Queens</title>
-    <meta name="description" content="A first-person night walk through rainy Astoria, Queens, built with three.js." />
+    <title>Night Walker NYC</title>
+    <meta name="description" content="A first-person night walk through New York City neighborhoods, built with three.js." />
   </head>
   <body>
     <div id="app"></div>
 
     <div id="hud">
       <div class="corner" id="where">
-        <div class="label">Astoria, Queens</div>
-        <div id="location">31st St</div>
+        <div class="label" id="district">Queens</div>
+        <div id="location"></div>
         <div id="clock">2:13 AM</div>
       </div>
       <div class="corner" id="tally">
@@ -26,17 +26,22 @@
         <div id="subtitle-text"></div>
       </div>
       <div id="toast"></div>
+      <div id="prompt"></div>
     </div>
 
     <div id="overlay">
       <div class="card">
         <div>
-          <div class="eyebrow">Astoria · Queens · 2 AM · raining</div>
+          <div class="eyebrow">New York City · 2 AM · raining</div>
           <h1>NIGHT<br />WALKER</h1>
           <p class="sub">
-            You can't sleep, so you walk. Follow the blue lights through Astoria to find eight memories:
-            under the el, along the river, down the side streets.
+            You can't sleep, so you walk. Follow the blue lights to find the memories hidden in each neighborhood.
+            When you want to go somewhere else, find a station and take the train.
           </p>
+        </div>
+        <div>
+          <h3>Neighborhood</h3>
+          <div id="picker"></div>
         </div>
         <button id="start">Click to walk</button>
         <div class="cols">
@@ -46,6 +51,7 @@
               <dt>WASD</dt><dd>walk</dd>
               <dt>Shift</dt><dd>hurry</dd>
               <dt>Mouse</dt><dd>look around</dd>
+              <dt>E</dt><dd>take the train (at a green-globe entrance)</dd>
               <dt>R</dt><dd>rain on / off</dd>
               <dt>Q</dt><dd>street reflections (performance)</dd>
               <dt>B</dt><dd>bloom</dd>
@@ -63,6 +69,16 @@
         </div>
       </div>
     </div>
+
+    <div id="travel">
+      <div class="travel-card">
+        <div class="eyebrow">Where to?</div>
+        <div id="map"></div>
+        <button id="travel-close">Stay here</button>
+      </div>
+    </div>
+
+    <div id="fade"><span></span></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { RIVER_X, EAST_LIMIT, SOUTH_LIMIT, PARK_Z0 } from './config.js';
+import { D } from './config.js';
 
 const EYE = 1.68;
 const RADIUS = 0.35;
@@ -18,12 +18,21 @@ export class Player {
     this.keys = {};
     this.vel = new THREE.Vector3();
     this.phase = 0;
-    this.ground = world.groundAt(camera.position.x, camera.position.z);
+    this.ground = 0;
+    this.atEdge = false;
     this.onRoad = false;
     this._fwd = new THREE.Vector3();
     addEventListener('keydown', (e) => (this.keys[e.code] = true));
     addEventListener('keyup', (e) => (this.keys[e.code] = false));
     addEventListener('blur', () => (this.keys = {}));
+  }
+
+  /** Place the player at a spot, looking at a target. */
+  spawn(x, z, look) {
+    this.ground = this.world.groundAt(x, z);
+    this.camera.position.set(x, this.ground + EYE, z);
+    this.camera.lookAt(look[0], look[1], look[2]);
+    this.vel.set(0, 0, 0);
   }
 
   get position() {
@@ -55,8 +64,13 @@ export class Player {
     p.x += this.vel.x * dt;
     p.z += this.vel.z * dt;
     this.world.collide(p, RADIUS);
-    p.x = Math.max(RIVER_X + 0.6, Math.min(EAST_LIMIT, p.x));
-    p.z = Math.max(PARK_Z0, Math.min(SOUTH_LIMIT, p.z));
+    const cx = Math.max(D.xMin, Math.min(D.xMax, p.x));
+    const cz = Math.max(D.zMin, Math.min(D.zMax, p.z));
+    // pushing against the edge of the neighborhood (not just brushing it)
+    const riverside = D.riverX !== null && cx === D.xMin;
+    this.atEdge = len > 0 && ((cx !== p.x && !riverside) || cz !== p.z);
+    p.x = cx;
+    p.z = cz;
 
     const g = this.world.groundAt(p.x, p.z);
     this.onRoad = g < 0.05;

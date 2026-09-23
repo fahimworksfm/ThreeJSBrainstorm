@@ -6,6 +6,7 @@ const KINDS = {
   sodium: { bulb: 0xffc07a, pool: 0xff9a40 },
   led: { bulb: 0xe6eeff, pool: 0x8da6d8 },
   warm: { bulb: 0xffe0b0, pool: 0xffc890 },
+  green: { bulb: 0x3dff7a, pool: 0x2aff66 }, // subway entrance globes
 };
 
 /**
