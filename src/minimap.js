@@ -52,7 +52,8 @@ export class Minimap {
       const sw = D.sidewalk;
       ctx.fillRect(b.x0 + sw, b.z0 + sw, b.x1 - b.x0 - 2 * sw, b.z1 - b.z0 - 2 * sw);
     }
-    // the elevated line
+    // the elevated line (dashed where it runs underground)
+    ctx.setLineDash(D.el.underground ? [10 / s, 8 / s] : []);
     ctx.strokeStyle = '#9b7fd1';
     ctx.lineWidth = 3 / s;
     ctx.beginPath();
@@ -66,6 +67,7 @@ export class Minimap {
       ctx.lineTo(pos.x + 1000, z);
     }
     ctx.stroke();
+    ctx.setLineDash([]);
     const dot = (x, z, r, color) => {
       ctx.fillStyle = color;
       ctx.beginPath();

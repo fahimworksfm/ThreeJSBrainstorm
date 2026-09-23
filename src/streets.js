@@ -36,8 +36,8 @@ export function buildStreets(layout, shared) {
     nsW: NS_W, ewW: EW_W, NX, NZ, colX, rowZ, PITCH_Z,
     nsRoads: NS_ROADS, ewRoads: EW_ROADS, commercialNS: COMMERCIAL_NS, commercialEW: COMMERCIAL_EW,
   } = D;
-  const elNS = D.el?.axis === 'ns' ? D.el.index : null;
-  const elEW = D.el?.axis === 'ew' ? D.el.index : null;
+  const elNS = D.el?.axis === 'ns' && !D.el.underground ? D.el.index : null;
+  const elEW = D.el?.axis === 'ew' && !D.el.underground ? D.el.index : null;
 
   // ---- sidewalks (blocks, promenade); UVs in world space so the flags tile evenly
   const swGeos = layout.blocks.map((b) => {

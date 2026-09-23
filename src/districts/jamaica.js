@@ -31,6 +31,7 @@ export default {
   condoChance: (c, r) => (c <= 1 && r >= 4 && r <= 6 ? 0.35 : 0.03),
   condoFloors: [10, 24],
   parkBlocks: [[2, 3]], // Rufus King Park
+  manor: true, // King Manor stands in it
   reserved: [{ c: 6, r: 3, part: 'south', depth: 30 }], // the old Valencia theater
 
   busRoute: 'Q44  SELECT BUS',

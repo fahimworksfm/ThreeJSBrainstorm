@@ -1,8 +1,10 @@
 import astoria from './astoria.js';
 import jamaica from './jamaica.js';
+import lic from './lic.js';
+import jacksonHeights from './jackson-heights.js';
 
 /** Playable neighborhoods. Add a district file here to add a place to the map. */
-export const DISTRICTS = { astoria, jamaica };
+export const DISTRICTS = { astoria, jamaica, lic, 'jackson-heights': jacksonHeights };
 
 /** The whole map, including places that aren't built yet. */
 export const BOROUGHS = [
@@ -11,8 +13,8 @@ export const BOROUGHS = [
     places: [
       { id: 'astoria' },
       { id: 'jamaica' },
-      { name: 'Long Island City' },
-      { name: 'Jackson Heights' },
+      { id: 'lic' },
+      { id: 'jackson-heights' },
       { name: 'Flushing' },
       { name: 'Rockaway Beach' },
     ],

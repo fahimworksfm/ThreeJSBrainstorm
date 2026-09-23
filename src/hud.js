@@ -12,7 +12,7 @@ export function describeLocation(x, z, opts = {}) {
   const onStreet = Math.abs(x - colX(i)) < nsW / 2 + sidewalk + 0.5;
   const onAve = Math.abs(z - rowZ(j)) < ewW / 2 + sidewalk + 0.5;
   const el = D.el;
-  const under = (el.axis === 'ns' ? onStreet && i === el.index : onAve && j === el.index) ? `  ·  ${el.underLabel}` : '';
+  const under = !el.underground && (el.axis === 'ns' ? onStreet && i === el.index : onAve && j === el.index) ? `  ·  ${el.underLabel}` : '';
   if (onStreet && onAve) return `${nsRoads[i]} & ${ewRoads[j]}${under}`;
   if (onStreet) {
     const j0 = Math.floor((z - rowZ(0)) / PITCH_Z);

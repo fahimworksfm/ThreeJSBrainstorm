@@ -124,6 +124,8 @@ export function buildElevated(shared, kit) {
   const VMAX = style.vmax;
   const ns = el.axis === 'ns';
 
+  if (el.underground) return buildSubwayEntrances(kit);
+
   const group = new THREE.Group();
   if (ns) group.position.x = D.colX(el.index);
   else {
@@ -402,4 +404,49 @@ export function buildElevated(shared, kit) {
   }
 
   return { group, update, colliders, rumbleAt, events, entrances };
+}
+
+/**
+ * A line that runs underground here: just the stair entrances on the sidewalk, with
+ * their railings, green globes and a sign, at each station's corners.
+ */
+function buildSubwayEntrances(kit) {
+  const el = D.el;
+  const group = new THREE.Group();
+  const rail = [];
+  const stairs = [];
+  const colliders = [];
+  const entrances = [];
+  const signs = new Map();
+  for (const st of el.stations) {
+    // stations sit under an avenue (ew) or street (ns) at a crossing
+    const i = el.axis === 'ns' ? el.index : st.at;
+    const j = el.axis === 'ns' ? st.at : el.index;
+    for (const [sx, sz] of [[1, 1], [-1, -1]]) {
+      const x = D.colX(i) + sx * (D.nsW / 2 + 2.3);
+      const z = D.rowZ(j) + sz * (D.ewW / 2 + 5);
+      // stairwell: a dark opening with railings on three sides
+      stairs.push(box(1.7, 0.05, 3.6, x, CURB + 0.01, z));
+      for (const dx of [-0.9, 0.9]) {
+        rail.push(box(0.06, 0.06, 3.6, x + dx, CURB + 1.0, z));
+        for (let k = -1.7; k <= 1.7; k += 0.425) rail.push(box(0.035, 1.0, 0.035, x + dx, CURB + 0.5, z + k));
+      }
+      rail.push(box(1.8, 0.06, 0.06, x, CURB + 1.0, z - sz * 1.8));
+      colliders.push({ x0: x - 0.95, x1: x + 0.95, z0: z - 1.85, z1: z + 1.85 });
+      entrances.push({ x: x, z: z + sz * 2.4, name: st.name });
+      for (const dx of [-0.9, 0.9]) kit.add(x + dx, z + sz * 1.8, 0, sz, { globe: true, height: 1.3, kind: 'green', pool: 2.5, y0: CURB });
+      const g = new THREE.PlaneGeometry(1.7, 0.32);
+      if (sz < 0) g.rotateY(Math.PI);
+      g.translate(x, CURB + 1.35, z + sz * 1.82);
+      if (!signs.has(st.name)) signs.set(st.name, []);
+      signs.get(st.name).push(g);
+    }
+  }
+  group.add(new THREE.Mesh(mergeGeometries(rail), new THREE.MeshStandardMaterial({ color: 0x1c3a26, roughness: 0.6 })));
+  group.add(new THREE.Mesh(mergeGeometries(stairs), new THREE.MeshBasicMaterial({ color: 0x050506 })));
+  for (const [name, geos] of signs) {
+    const tex = stationSignTexture(name, el.bullets, el.subtitle);
+    group.add(new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.9 })));
+  }
+  return { group, update() {}, colliders, rumbleAt: () => 0, events: { braking: false, horn: null }, entrances };
 }

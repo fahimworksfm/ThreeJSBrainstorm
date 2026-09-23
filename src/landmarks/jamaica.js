@@ -78,31 +78,34 @@ export function buildJamaicaLandmarks(layout, shared) {
     const mz = pz0 + 22;
     const mw = 22;
     const md = 10;
-    const mh = 7.8;
-    const white = new THREE.Color(1.25, 1.22, 1.15);
-    const house = facadeBox(mw, mh, md, mx, CURB + 0.6, mz, 0.25, 0.5, white);
-    const plinth = box(mw + 0.6, 0.6, md + 0.6, mx, CURB + 0.3, mz);
-    group.add(
-      new THREE.Mesh(
-        house,
-        new THREE.MeshStandardMaterial({
-          map: shared.facade.siding.map, emissiveMap: shared.facade.siding.emissiveMap, emissive: 0xffffff,
-          emissiveIntensity: 1.2, vertexColors: true, roughness: 0.9,
-        }),
-      ),
-    );
-    // a square prism turned on its edge; the lower half hides inside the house
-    const roof = new THREE.CylinderGeometry(1, 1, mw + 0.8, 4, 1, false, 0);
-    roof.rotateZ(Math.PI / 2);
-    roof.scale(1, 4.2, (md + 1.4) / 2);
-    roof.translate(mx, CURB + 0.6 + mh, mz);
-    const stone = [plinth];
-    for (const dx of [-mw / 2 + 2, mw / 2 - 2]) stone.push(box(1.2, 5, 1.2, mx + dx, CURB + mh + 2.2, mz));
-    for (let k = -2; k <= 2; k++) stone.push(box(0.35, 3.4, 0.35, mx + k * 2.4, CURB + 2.3, mz + md / 2 + 1.6));
-    stone.push(box(12.5, 0.3, 2.4, mx, CURB + 4.1, mz + md / 2 + 1.3));
-    group.add(new THREE.Mesh(roof, new THREE.MeshStandardMaterial({ color: 0x2b2a2c, roughness: 0.9, flatShading: true })));
-    group.add(new THREE.Mesh(mergeGeometries(stone), new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 0.9 })));
-    colliders.push({ x0: mx - mw / 2 - 0.3, x1: mx + mw / 2 + 0.3, z0: mz - md / 2 - 0.3, z1: mz + md / 2 + 2.8 });
+    const manor = !!D.manor;
+    if (manor) {
+      const mh = 7.8;
+      const white = new THREE.Color(1.25, 1.22, 1.15);
+      const house = facadeBox(mw, mh, md, mx, CURB + 0.6, mz, 0.25, 0.5, white);
+      const plinth = box(mw + 0.6, 0.6, md + 0.6, mx, CURB + 0.3, mz);
+      group.add(
+        new THREE.Mesh(
+          house,
+          new THREE.MeshStandardMaterial({
+            map: shared.facade.siding.map, emissiveMap: shared.facade.siding.emissiveMap, emissive: 0xffffff,
+            emissiveIntensity: 1.2, vertexColors: true, roughness: 0.9,
+          }),
+        ),
+      );
+      // a square prism turned on its edge; the lower half hides inside the house
+      const roof = new THREE.CylinderGeometry(1, 1, mw + 0.8, 4, 1, false, 0);
+      roof.rotateZ(Math.PI / 2);
+      roof.scale(1, 4.2, (md + 1.4) / 2);
+      roof.translate(mx, CURB + 0.6 + mh, mz);
+      const stone = [plinth];
+      for (const dx of [-mw / 2 + 2, mw / 2 - 2]) stone.push(box(1.2, 5, 1.2, mx + dx, CURB + mh + 2.2, mz));
+      for (let k = -2; k <= 2; k++) stone.push(box(0.35, 3.4, 0.35, mx + k * 2.4, CURB + 2.3, mz + md / 2 + 1.6));
+      stone.push(box(12.5, 0.3, 2.4, mx, CURB + 4.1, mz + md / 2 + 1.3));
+      group.add(new THREE.Mesh(roof, new THREE.MeshStandardMaterial({ color: 0x2b2a2c, roughness: 0.9, flatShading: true })));
+      group.add(new THREE.Mesh(mergeGeometries(stone), new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 0.9 })));
+      colliders.push({ x0: mx - mw / 2 - 0.3, x1: mx + mw / 2 + 0.3, z0: mz - md / 2 - 0.3, z1: mz + md / 2 + 2.8 });
+    }
 
     for (let z = pz0 + 8; z < pz1; z += 18) kit.add(pcx + 2.2, z, -1, 0, { globe: true, height: 4, kind: 'warm', pool: 7 });
     for (let x = px0 + 8; x < px1; x += 18) kit.add(x, pz1 - 14.2, 0, 1, { globe: true, height: 4, kind: 'warm', pool: 7 });
@@ -110,7 +113,7 @@ export function buildJamaicaLandmarks(layout, shared) {
       const x = range(px0 + 2, px1 - 2);
       const z = range(pz0 + 2, pz1 - 2);
       if (Math.abs(x - pcx) < 3.5 || Math.abs(z - (pz1 - 12)) < 3.5) continue;
-      if (Math.abs(x - mx) < mw / 2 + 4 && Math.abs(z - mz) < md / 2 + 6) continue;
+      if (manor && Math.abs(x - mx) < mw / 2 + 4 && Math.abs(z - mz) < md / 2 + 6) continue;
       trees.push([x, z, range(1.2, 2)]);
     }
   }

@@ -87,7 +87,7 @@ export class Traffic {
     this.parked = [];
 
     const { nsW: NS_W, ewW: EW_W, NX, NZ, colX, rowZ } = D;
-    const elNS = D.el?.axis === 'ns' ? D.el.index : null;
+    const elNS = D.el?.axis === 'ns' && !D.el.underground ? D.el.index : null;
     // two-way roads: drive on the right
     for (let i = 0; i < NX; i++) {
       for (const dir of [-1, 1]) {
