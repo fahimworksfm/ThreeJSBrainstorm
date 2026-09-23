@@ -84,9 +84,9 @@ function makeBusMaterials() {
 export class Traffic {
   /**
    * spec (real-map mode): { lanes: [{ pts, crossings: [{ s, axis, half }], busy }], parked: [{ x, z, rot }] }.
-   * Without it, lanes come from the district's street grid.
+   * Without it, lanes come from the district's street grid. extraParked: more parked cars (driveways).
    */
-  constructor(shared, audio, spec = null) {
+  constructor(shared, audio, spec = null, extraParked = []) {
     this.audio = audio;
     this.group = new THREE.Group();
     this.lanes = [];
@@ -103,6 +103,7 @@ export class Traffic {
       }
       for (const p of spec.parked) this.parked.push({ ...p, color: pick(BODY_COLORS) });
     } else this.gridLanes();
+    for (const p of extraParked) this.parked.push({ ...p, color: pick(BODY_COLORS) });
     for (const lane of this.lanes) {
       const span = lane.path.len;
       lane.cars.forEach((c, k) => (c.s = ((k + rand() * 0.5) * span) / lane.cars.length));
@@ -259,7 +260,7 @@ export class Traffic {
     });
     this.parked.forEach((p, n) => {
       const k = this.cars.length + n;
-      m.makeRotationY(p.rot).setPosition(p.x, 0, p.z);
+      m.makeRotationY(p.rot).setPosition(p.x, p.y ?? 0, p.z);
       for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail]) mesh.setMatrixAt(k, m);
       this.mSign.setMatrixAt(k, zero);
       this.mChecker.setMatrixAt(k, zero);

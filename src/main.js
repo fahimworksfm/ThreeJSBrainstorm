@@ -17,7 +17,8 @@ import { INK, lookAt, nightness, START_TIMES } from './look.js';
 
 import { CURB, D, activateDistrict } from './config.js';
 import { DISTRICTS, BOROUGHS } from './districts/index.js';
-import { reseed } from './random.js';
+import { reseed, chance } from './random.js';
+import { Pigeons } from './pigeons.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
   makeFacade, makeRadial, makeBeam, makeHeadlightBeam, makeNoise, makeStripes, makeStreak, FACADE_STYLES,
@@ -276,9 +277,14 @@ function buildGridWorld(def) {
   const kit = new LightKit();
   const elevated = buildElevated(shared, kit);
   const landmarks = def.landmarks(layout, shared);
-  const traffic = new Traffic(shared, audio);
+  const traffic = new Traffic(shared, audio, null, driveways(layout));
   // parked cars are solid too
-  const parked = traffic.parked.map((c) => ({ x0: c.x - 1, x1: c.x + 1, z0: c.z - 2.35, z1: c.z + 2.35 }));
+  const parked = traffic.parked.map((c) => {
+    const across = Math.abs(Math.sin(c.rot)) > 0.7; // driveway cars sit crosswise
+    const hx = across ? 2.35 : 1;
+    const hz = across ? 1 : 2.35;
+    return { x0: c.x - hx, x1: c.x + hx, z0: c.z - hz, z1: c.z + hz };
+  });
   // walkable roofs: flat-topped buildings, standing on the parapet lip
   const roofs = new ColliderGrid(
     layout.lots.filter((l) => l.kind !== 'house' && !l.outer).map((l) => ({ x0: l.x0, x1: l.x1, z0: l.z0, z1: l.z1, top: CURB + l.h + 0.225 })),
@@ -341,6 +347,21 @@ function buildRealWorld(def, data) {
   };
 }
 
+/** Cars in the side yards between neighboring houses, nose to the street. */
+function driveways(layout) {
+  const houses = layout.lots.filter((l) => l.kind === 'house' && !l.outer);
+  const byStart = new Map(houses.map((l) => [`${l.frontX}|${l.lotZ0.toFixed(2)}`, l]));
+  const out = [];
+  for (const l of houses) {
+    const next = byStart.get(`${l.frontX}|${l.lotZ1.toFixed(2)}`);
+    if (!next || next.z0 - l.z1 < 2.4 || !chance(0.45)) continue;
+    const nx = l.side;
+    const face = nx < 0 ? l.x0 : l.x1;
+    out.push({ x: face - nx * 1.4, y: CURB, z: (l.z1 + next.z0) / 2, rot: nx < 0 ? -Math.PI / 2 : Math.PI / 2 });
+  }
+  return out;
+}
+
 /** Comic rim light on everybody (hero, crowd) and every car. */
 function addRims() {
   const touch = (root, scale) => root?.traverse((o) => {
@@ -388,7 +409,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
   const memories = new Memories(shared, audio, hud, P.place ?? null);
   const peds = P.peds;
-  root.add(P.traffic.group, weather.group, memories.group, peds.group);
+  const pigeons = new Pigeons(peds);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -398,7 +420,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   scene.add(root);
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -1187,6 +1209,7 @@ function frame(now) {
   W.weather.update(dt, camera.position);
   W.memories.update(t, dt, camera.position);
   W.peds.update(dt, camera.position, player, settings.rain);
+  W.pigeons.update(t, dt, player);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl
