@@ -888,6 +888,28 @@ export function buildBuildings(layout, shared) {
     });
     mat.userData.neonBase = base.clone();
     mat.userData.flicker = entry.flicker;
+    if (!entry.flicker && chance(0.4)) {
+      // marquee chase: letters light one by one, hold, blink off, blink on
+      const seed = { value: rand() };
+      const along = entry.blade ? '1.0 - vMapUv.y' : 'vMapUv.x';
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = windTime;
+        shader.uniforms.uSeed = seed;
+        shader.fragmentShader = shader.fragmentShader
+          .replace('void main() {', 'uniform float uTime;\nuniform float uSeed;\nvoid main() {')
+          .replace(
+            '#include <map_fragment>',
+            `#include <map_fragment>
+            {
+              float p = fract(uTime / 5.0 + uSeed);
+              float at = clamp((${along} - 0.08) / 0.84, 0.0, 1.0);
+              float lit = p < 0.45 ? step(at, p / 0.4) : p < 0.8 ? 1.0 : p < 0.87 ? 0.0 : p < 0.93 ? 1.0 : p < 0.96 ? 0.0 : 1.0;
+              diffuseColor.rgb *= mix(0.07, 1.0, lit);
+            }`,
+          );
+      };
+      mat.customProgramCacheKey = () => `chase${entry.blade}`;
+    }
     neonMats.push({ mat, base, flicker: entry.flicker, on: true, timer: range(0, 3) });
     group.add(new THREE.Mesh(mergeGeometries(geos), mat));
   }

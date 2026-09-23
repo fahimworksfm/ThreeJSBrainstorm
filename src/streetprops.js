@@ -101,7 +101,8 @@ export function crateStack(x, z, nx, nz, rnd, y0) {
   return geos;
 }
 
-const LITTER = [0xf2efe4, 0xe8e2cc, 0xb8b4a8, 0xd8261e, 0xf2d024, 0x7a756a];
+const LITTER = [0xd8d4c8, 0xc8c0aa, 0x9a968c, 0xa8322a, 0xc8a830, 0x6a655a];
+const NEWSPRINT = [0xc8c4b8, 0xb8b2a2, 0xa8a498];
 
 /**
  * Litter on the pavement: paper scraps, flattened cups and newspaper pages, lying flat.
@@ -114,13 +115,14 @@ export function litter(x, z, nx, nz, reach, across, rnd, y0, count = 5) {
     const side = (rnd() - 0.5) * across;
     const px = x + nx * out - nz * side;
     const pz = z + nz * out + nx * side;
-    const s = rnd() < 0.2 ? 0.45 + rnd() * 0.25 : 0.1 + rnd() * 0.18; // now and then a whole newspaper page
+    const page = rnd() < 0.15; // now and then a whole newspaper page
+    const s = page ? 0.4 + rnd() * 0.2 : 0.08 + rnd() * 0.14;
     const g = new THREE.PlaneGeometry(s, s * (0.6 + rnd() * 0.5))
       .rotateX(-Math.PI / 2)
       .rotateY(rnd() * Math.PI)
       .translate(px, y0 + 0.015 + k * 0.001, pz);
     g.deleteAttribute('uv');
-    geos.push(colored(g, LITTER[Math.floor(rnd() * LITTER.length)]));
+    geos.push(colored(g, page ? NEWSPRINT[Math.floor(rnd() * NEWSPRINT.length)] : LITTER[Math.floor(rnd() * LITTER.length)]));
   }
   return geos;
 }
