@@ -270,6 +270,7 @@ export class Traffic {
     this._zero = zero;
     this._c = c;
     this._q = new THREE.Quaternion();
+    this._e = new THREE.Euler();
     this._p = new THREE.Vector3();
     this._s = new THREE.Vector3(1, 1, 1);
   }
@@ -326,6 +327,7 @@ export class Traffic {
           car.honked = false;
         }
         car.braking = target < car.v - 0.2;
+        const v0 = car.v;
         if (car.v < target) car.v = Math.min(target, car.v + 3 * dt);
         else car.v = Math.max(target, car.v - 8 * dt);
         car.s += car.v * dt;
@@ -333,6 +335,10 @@ export class Traffic {
           car.hidden = true;
           continue;
         }
+        // body pitch follows acceleration (nose dips when braking), roll follows turning
+        const accel = dt > 0 ? (car.v - v0) / dt : 0;
+        car.pitch = (car.pitch ?? 0) + (THREE.MathUtils.clamp(-accel * 0.012, -0.045, 0.06) - (car.pitch ?? 0)) * Math.min(1, dt * 6);
+        const heading0 = car.dx === undefined ? 0 : Math.atan2(car.dx, car.dz);
         path.at(car.s, tmp);
         car.x = tmp[0];
         car.z = tmp[1];
@@ -347,6 +353,8 @@ export class Traffic {
           const l = Math.hypot(car.dx, car.dz) || 1;
           car.dx /= l;
           car.dz /= l;
+          const turn = Math.atan2(Math.sin(Math.atan2(car.dx, car.dz) - heading0), Math.cos(Math.atan2(car.dx, car.dz) - heading0)) / Math.max(dt, 1e-3);
+          car.roll = (car.roll ?? 0) + (THREE.MathUtils.clamp(turn * car.v * 0.006, -0.05, 0.05) - (car.roll ?? 0)) * Math.min(1, dt * 5);
         }
       }
     }
@@ -373,7 +381,8 @@ export class Traffic {
         for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
         return;
       }
-      q.setFromAxisAngle(up, Math.atan2(car.dx, car.dz));
+      this._e.set(car.pitch ?? 0, Math.atan2(car.dx, car.dz), car.roll ?? 0, 'YXZ');
+      q.setFromEuler(this._e);
       p.set(car.x, 0, car.z);
       m.compose(p, q, s);
       for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mBeam]) mesh.setMatrixAt(k, m);

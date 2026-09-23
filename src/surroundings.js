@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { nearFade } from './fx.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB } from './config.js';
 import { rand, range } from './random.js';
@@ -30,6 +31,9 @@ export function buildTrees(positions) {
     crowns.setColorAt(i, col.setHSL(range(0.27, 0.35), 0.45, range(0.28, 0.4)));
   });
   crowns.userData.foliage = true;
+  // a tree between you and the hero fades away instead of filling the screen
+  nearFade(crowns.material, 5, 11);
+  nearFade(trunks.material, 1.5, 3);
   const g = new THREE.Group();
   g.add(trunks, crowns);
   return g;

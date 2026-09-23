@@ -135,6 +135,7 @@ export async function loadHero(urls = {}) {
     });
     // bone space is in the avatar's units (meters here); place behind the back
     pack.position.set(0, 0.05, -0.2);
+    pack.userData.rest = pack.position.clone();
     spine.add(pack);
   }
 
@@ -151,7 +152,7 @@ export async function loadHero(urls = {}) {
     a.setEffectiveWeight(name === 'Idle' ? 1 : 0);
     actions[name] = a;
   }
-  return { root, mixer, actions, bones, clips };
+  return { root, mixer, actions, bones, clips, pack: bones.Spine2?.children.find((c) => c.userData.rest) ?? null, sec: { look: 0, pitch: 0, lean: 0, bob: 0 } };
 }
 
 const _q = new THREE.Quaternion();
@@ -240,6 +241,59 @@ function retarget(sourceRoot, clip, targetRoot, targetBones, fps = 30) {
 }
 
 /** Blend idle/walk/run by speed and keep the footfalls in step with how fast he moves. */
+const _axis = new THREE.Vector3();
+const _qw = new THREE.Quaternion();
+const _qb = new THREE.Quaternion();
+const _qparent = new THREE.Quaternion();
+/** Add a world-space rotation to a bone on top of whatever the animation set. */
+function turnBone(bone, axis, angle) {
+  if (!bone || Math.abs(angle) < 1e-4) return;
+  bone.parent.updateWorldMatrix(true, false);
+  bone.parent.getWorldQuaternion(_qparent);
+  _qb.copy(_qparent).multiply(bone.quaternion); // bone world rotation
+  _qw.setFromAxisAngle(axis, angle).multiply(_qb);
+  bone.quaternion.copy(_qparent.invert().multiply(_qw));
+}
+
+/**
+ * Secondary motion on top of the clips: lean into turns, turn the head and shoulders toward
+ * where the camera looks, breathe when standing, and let the backpack bounce with each step.
+ * look/pitch are radians relative to the way he faces; turnRate is radians per second.
+ */
+export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t }) {
+  const s = hero.sec;
+  const k = Math.min(1, dt * 6);
+  // don't twist around to look straight behind; ease back to center instead
+  const lookable = Math.abs(look) < 2.2 ? THREE.MathUtils.clamp(look, -1.1, 1.1) : 0;
+  s.look += (lookable - s.look) * k;
+  s.pitch += (THREE.MathUtils.clamp(pitch, -0.6, 0.5) - s.pitch) * k;
+  s.lean += (THREE.MathUtils.clamp(-turnRate * speed * 0.035, -0.28, 0.28) - s.lean) * Math.min(1, dt * 8);
+  hero.root.updateMatrixWorld(true);
+  const fwd = _axis.set(0, 0, 1).applyQuaternion(hero.root.quaternion).clone();
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(hero.root.quaternion);
+  const up = new THREE.Vector3(0, 1, 0);
+  const b = hero.bones;
+  turnBone(b.Spine, fwd, s.lean);
+  turnBone(b.Spine1, up, s.look * 0.25);
+  turnBone(b.Neck, up, s.look * 0.3);
+  turnBone(b.Head, up, s.look * 0.3);
+  turnBone(b.Head, right, -s.pitch * 0.45);
+  // breathing and a slow weight shift when standing still
+  const still = 1 - THREE.MathUtils.clamp(speed / 1.2, 0, 1);
+  turnBone(b.Spine2, right, Math.sin(t * 1.7) * 0.025 * still);
+  turnBone(b.Spine, fwd, Math.sin(t * 0.45) * 0.03 * still);
+  // the pack bounces on each footfall and swings a little with the stride
+  if (hero.pack) {
+    const moving = THREE.MathUtils.clamp(speed / 2, 0, 1.4);
+    const bounce = Math.abs(Math.sin(phase)) * 0.018 * moving;
+    s.bob += (bounce - s.bob) * Math.min(1, dt * 18);
+    hero.pack.position.copy(hero.pack.userData.rest);
+    hero.pack.position.y += s.bob;
+    hero.pack.rotation.z = Math.sin(phase) * 0.05 * moving - s.lean * 0.4;
+    hero.pack.rotation.x = -s.bob * 3;
+  }
+}
+
 export function animateHero(hero, dt, speed) {
   const { actions } = hero;
   const walkW = THREE.MathUtils.clamp(speed / 1.6, 0, 1) * (1 - THREE.MathUtils.clamp((speed - 3.6) / 2.5, 0, 1));

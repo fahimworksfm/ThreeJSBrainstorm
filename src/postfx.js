@@ -179,3 +179,84 @@ export const GradeShader = {
       gl_FragColor = vec4(c, 1.0);
     }`,
 };
+
+/**
+ * Sun shafts: the bright sky is smeared toward the sun on screen, so light pours between the
+ * buildings and under the el at golden hour. One pass, depth-masked, half-cost on phones.
+ */
+export class GodRaysPass extends Pass {
+  constructor(camera, samples = 40) {
+    super();
+    this.camera = camera;
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: null },
+        tDepth: { value: null },
+        sun: { value: new THREE.Vector2(0.5, 0.5) },
+        color: { value: new THREE.Color(1, 0.75, 0.45) },
+        strength: { value: 0 },
+        aspect: { value: 1 },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tDepth;
+        uniform vec2 sun;
+        uniform vec3 color;
+        uniform float strength, aspect;
+        varying vec2 vUv;
+        const int N = ${samples};
+        float skyLight(vec2 uv) {
+          if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+          float open = step(0.99999, texture2D(tDepth, uv).x);
+          vec3 c = texture2D(tDiffuse, uv).rgb;
+          // only the bright part of the sky casts shafts, strongest around the sun itself
+          vec2 d = (uv - sun) * vec2(aspect, 1.0);
+          float halo = exp(-dot(d, d) * 9.0);
+          return open * (smoothstep(0.35, 1.2, max(c.r, max(c.g, c.b))) * 0.6 + halo);
+        }
+        void main() {
+          vec4 base = texture2D(tDiffuse, vUv);
+          vec2 dstep = (sun - vUv) / float(N) * 0.85;
+          vec2 uv = vUv;
+          float decay = 1.0;
+          float acc = 0.0;
+          // start at a per-pixel offset so the banding turns into grain
+          float j = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+          uv += dstep * j;
+          for (int i = 0; i < N; i++) {
+            acc += skyLight(uv) * decay;
+            decay *= 0.965;
+            uv += dstep;
+          }
+          acc /= float(N);
+          gl_FragColor = vec4(base.rgb + color * acc * strength, base.a);
+        }`,
+    });
+    this.fsQuad = new FullScreenQuad(this.material);
+    this._v = new THREE.Vector3();
+  }
+
+  /** Aim at the sun (a world-space direction); fades out when it's behind you. */
+  setSun(dir, strength, color) {
+    const v = this._v.copy(dir).multiplyScalar(4000).add(this.camera.position).project(this.camera);
+    const u = this.material.uniforms;
+    u.sun.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
+    const facing = this._v.copy(dir).dot(this.camera.getWorldDirection(new THREE.Vector3()));
+    const off = Math.max(Math.abs(v.x), Math.abs(v.y));
+    u.strength.value = strength * THREE.MathUtils.smoothstep(facing, 0.0, 0.35) * (1 - THREE.MathUtils.smoothstep(off, 1.2, 2.2));
+    u.color.value.copy(color);
+    u.aspect.value = this.camera.aspect;
+    this.enabled = u.strength.value > 0.01;
+  }
+
+  render(renderer, writeBuffer, readBuffer) {
+    const u = this.material.uniforms;
+    u.tDiffuse.value = readBuffer.texture;
+    u.tDepth.value = this.depthSource ? this.depthSource() : readBuffer.depthTexture;
+    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+    this.fsQuad.render(renderer);
+  }
+}

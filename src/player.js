@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { D } from './config.js';
-import { loadHero, animateHero, poseHeroRiding, pedalHero } from './hero.js';
+import { loadHero, animateHero, heroSecondary, poseHeroRiding, pedalHero } from './hero.js';
 import { buildGuy, poseGuy, buildBicycle, buildMotorcycle, buildSUV, buildCockpits, makeSpeedo } from './models.js';
 
 export const MODES = {
@@ -217,7 +217,15 @@ export class Player {
         this.world.collide(this.pos, cfg.radius);
       }
       const v = Math.hypot(this.vel.x, this.vel.z);
-      if (v > 0.3) this.facing = Math.atan2(this.vel.x, this.vel.z);
+      // turn smoothly toward where he's going instead of snapping, and remember how fast
+      this.turnRate = 0;
+      if (v > 0.3) {
+        const target = Math.atan2(this.vel.x, this.vel.z);
+        const d = Math.atan2(Math.sin(target - this.facing), Math.cos(target - this.facing));
+        const turn = d * Math.min(1, dt * 12);
+        this.facing += turn;
+        this.turnRate = dt > 0 ? turn / dt : 0;
+      }
       const before = Math.floor(this.phase / Math.PI);
       this.phase += v * dt * (sprint ? 1.55 : 1.9);
       if (Math.floor(this.phase / Math.PI) !== before && v > 0.8) this.audio.footstep(true, sprint);
@@ -344,7 +352,11 @@ export class Player {
       }
       h.root.position.set(this.pos.x, this.ground, this.pos.z);
       h.root.rotation.set(0, this.facing, 0);
-      animateHero(h, dt, Math.hypot(this.vel.x, this.vel.z));
+      const v = Math.hypot(this.vel.x, this.vel.z);
+      animateHero(h, dt, v);
+      // look where the camera looks (the camera looks down -z at yaw 0, the model faces +z)
+      const look = Math.atan2(Math.sin(this.yaw + Math.PI - this.facing), Math.cos(this.yaw + Math.PI - this.facing));
+      heroSecondary(h, dt, { speed: v, turnRate: this.turnRate ?? 0, look, pitch: this.pitch, phase: this.phase, t: performance.now() / 1000 });
     }
   }
 

@@ -5,7 +5,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { OutlinePass, GradeShader } from './postfx.js';
+import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
+import { RIM, rimLight } from './fx.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
@@ -139,7 +140,10 @@ let crowdExtras = null;
 loadMichelle()
   .then((m) => {
     crowdExtras = [m];
-    if (W && player.hero) W.peds.setSkinned([player.hero, m], LOW ? 6 : 12);
+    if (W && player.hero) {
+      W.peds.setSkinned([player.hero, m], LOW ? 6 : 12);
+      addRims();
+    }
   })
   .catch((e) => console.warn('Crowd character unavailable', e));
 /** Keep out of the river: step back to the nearest dry spot. */
@@ -307,6 +311,17 @@ function buildRealWorld(def, data) {
   };
 }
 
+/** Comic rim light on everybody (hero, crowd) and every car. */
+function addRims() {
+  const touch = (root, scale) => root?.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m.isMeshStandardMaterial) rimLight(m, scale);
+  });
+  touch(player.hero?.root, 1);
+  touch(W?.peds.group, 0.8);
+  touch(W?.traffic.group, 0.6);
+}
+
 async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const def = DISTRICTS[id] ?? DISTRICTS.astoria;
   const data = await fetchRealMap(def, onStatus);
@@ -386,6 +401,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const crowd = () => {
     const templates = [player.hero, ...(crowdExtras ?? [])];
     W.peds.setSkinned(templates, LOW ? 6 : 12);
+    addRims();
   };
   if (player.hero) crowd();
   else player.onHero = crowd;
@@ -399,6 +415,9 @@ let materialTimer = 0;
 let rainyNight = Math.random() < 0.5;
 let wasNight = false;
 const tmpColor = new THREE.Color();
+const skySun = new THREE.Vector3(0, 1, 0);
+const raysColor = new THREE.Color(1, 0.8, 0.5);
+let raysLevel = 0;
 
 function applyInk() {
   const u = outline.material.uniforms;
@@ -446,6 +465,15 @@ function applyTime(force = false) {
   g.highlightTint.value.set(...L.highlightTint);
   heroLight.intensity = nightness(minute) * 5;
   W.sky.set({ ...L.sky, amount: L.sky.amount * 0.45 });
+  // sun shafts: strongest with a low sun, gone at night
+  skySun.set(...L.sky.sunDir).normalize();
+  const low = skySun.y;
+  raysLevel = THREE.MathUtils.smoothstep(low, -0.04, 0.06) * (0.35 + 1.05 * (1 - THREE.MathUtils.smoothstep(low, 0.2, 0.6)));
+  raysColor.setRGB(...L.sun);
+  // rim light: warm sunlight by day, cool neon-blue at night
+  const nite = nightness(minute);
+  RIM.color.value.setRGB(...L.sun).lerp(tmpColor.setRGB(0.55, 0.7, 1.25), nite);
+  RIM.strength.value = 0.6 + nite * 0.15;
   W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount);
   W.road.setColor(tmpColor.setRGB(...L.road));
 
@@ -517,6 +545,9 @@ if (!LOW) {
 const outline = new OutlinePass(camera);
 if (ao) outline.depthSource = () => ao.beautyRenderTarget.depthTexture;
 composer.addPass(outline);
+const godRays = new GodRaysPass(camera, LOW ? 20 : 40);
+if (ao) godRays.depthSource = () => ao.beautyRenderTarget.depthTexture;
+composer.addPass(godRays);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.8, 0.55, 0.85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
@@ -954,6 +985,7 @@ function frame(now) {
   hud.setLocation((W.describe ?? describeLocation)(player.pos.x, player.pos.z, { roof: !!player.roof }));
   hud.setClock(minute * 6);
   grade.uniforms.time.value = t;
+  godRays.setSun(skySun, raysLevel * (settings.rain ? 0.3 : 1), raysColor);
   composer.render();
 
   frames++;
