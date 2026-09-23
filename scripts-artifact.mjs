@@ -17,6 +17,6 @@ writeFileSync('dist/game.html', out.replace('<script type="module">', '<script s
 const b64 = (f) => readFileSync(f).toString('base64');
 writeFileSync(
   'dist/models-embed.js',
-  `window.__NW_MODELS = { avatar: "${b64('dist/models/readyplayer.me.glb')}", motion: "${b64('dist/models/Soldier.glb')}" };\n`,
+  `window.__NW_MODELS = { avatar: "${b64('dist/models/readyplayer.me.glb')}", motion: "${b64('dist/models/Soldier.glb')}", michelle: "${b64('dist/models/Michelle.glb')}" };\n`,
 );
 console.log('bytes', out.length, 'script-close occurrences', (js.match(/<\/script/gi) || []).length);

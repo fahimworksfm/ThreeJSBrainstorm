@@ -43,7 +43,7 @@ export class OutlinePass extends Pass {
           vec4 base = texture2D(tDiffuse, vUv);
           float c = inv(vUv);
           // brush weight: heavy lines up close, fine lines in the distance
-          vec2 o = texel * width * mix(2.2, 1.0, smoothstep(4.0, 45.0, 1.0 / c));
+          vec2 o = texel * width * mix(1.7, 1.0, smoothstep(4.0, 30.0, 1.0 / c));
           float lap = inv(vUv + vec2(o.x, 0.0)) + inv(vUv - vec2(o.x, 0.0))
                     + inv(vUv + vec2(0.0, o.y)) + inv(vUv - vec2(0.0, o.y)) - 4.0 * c;
           float edge = smoothstep(threshold.x, threshold.y, abs(lap) / c);

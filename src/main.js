@@ -30,6 +30,7 @@ import { Memories } from './memories.js';
 import { CityAudio } from './audio.js';
 import { HUD, describeLocation } from './hud.js';
 import { Player, MODES, MODE_ORDER } from './player.js';
+import { loadMichelle } from './hero.js';
 import { Input, IS_TOUCH } from './input.js';
 import { ColliderGrid } from './collide.js';
 import { makeCityEnvironment } from './env.js';
@@ -128,6 +129,14 @@ const settings = {
 
 // ---------- the current neighborhood ----------
 let W = null;
+// extra characters for the sidewalk crowd, loaded in the background
+let crowdExtras = null;
+loadMichelle()
+  .then((m) => {
+    crowdExtras = [m];
+    if (W && player.hero) W.peds.setSkinned([player.hero, m], LOW ? 6 : 12);
+  })
+  .catch((e) => console.warn('Crowd character unavailable', e));
 const worldProxy = {
   groundAt: (x, z) => (W ? W.groundAt(x, z) : 0),
   collide: (p, r) => (W ? W.grid.collide(p, r) : false),
@@ -223,8 +232,12 @@ function loadDistrict(id, { arrive = false } = {}) {
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
   hud.setRide(MODES.walk.name, 'walk');
-  if (player.hero) peds.setSkinned(player.hero, LOW ? 6 : 12);
-  else player.onHero = (hero) => W.peds.setSkinned(hero, LOW ? 6 : 12);
+  const crowd = () => {
+    const templates = [player.hero, ...(crowdExtras ?? [])];
+    W.peds.setSkinned(templates, LOW ? 6 : 12);
+  };
+  if (player.hero) crowd();
+  else player.onHero = crowd;
   return W;
 }
 
@@ -341,7 +354,7 @@ let ao = null;
 if (!LOW) {
   ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
   Object.assign(ao.configuration, {
-    aoRadius: 3.2, distanceFalloff: 1.2, intensity: 2.6, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10,
+    aoRadius: 1.1, distanceFalloff: 0.5, intensity: 2.2, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10,
     halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, color: new THREE.Color(0.12, 0.06, 0.1),
   });
   composer.addPass(ao);

@@ -116,7 +116,9 @@ export class Pedestrians {
    * Upgrade the pedestrians closest to you to full skinned humans with motion-captured
    * walks. They take over from the instanced crowd figure at the same spot.
    */
-  setSkinned(template, count = 10) {
+  setSkinned(templates, count = 10) {
+    if (!Array.isArray(templates)) templates = [templates];
+    for (const s of this.skinned ?? []) this.group.remove(s.root);
     const JACKETS = [0x2b3a55, 0x7a2430, 0x2f4a36, 0x3d3d44, 0xc9a24a, 0x6a3f7a, 0xd8d2c4, 0x9a5a2a, 0x3f6f8f, 0xb5483a];
     const PANTS = [0x1f2533, 0x2c3a58, 0x121216, 0x6b5a45, 0x3a3a40, 0x4a3b2f];
     const SHOES = [0xf1f1ee, 0x1a1a1a, 0x6b4a2a, 0x8a3a24];
@@ -124,6 +126,7 @@ export class Pedestrians {
     const HAIRS = [0x14100e, 0x2a1a10, 0x3b2616, 0x6b4a2a, 0x8a8a8a];
     this.skinned = [];
     for (let k = 0; k < count; k++) {
+      const template = templates[k % templates.length];
       const root = cloneSkinned(template.root);
       const skin = SKINS[k % SKINS.length];
       root.traverse((o) => {
@@ -149,6 +152,7 @@ export class Pedestrians {
       });
       const mixer = new THREE.AnimationMixer(root);
       const walk = mixer.clipAction(template.clips.Walk);
+      root.userData.baseScale = root.scale.x;
       walk.play();
       walk.time = rand() * walk.getClip().duration;
       root.visible = false;
@@ -288,7 +292,7 @@ export class Pedestrians {
         s.root.visible = true;
         s.root.position.set(p.last.x, D.sidewalkY, p.last.z);
         s.root.rotation.y = Math.atan2(dx * p.dir, dz * p.dir);
-        s.root.scale.setScalar(p.height * 0.98);
+        s.root.scale.setScalar(p.height * 0.98 * (s.root.userData.baseScale ?? 1));
         s.walk.timeScale = p.speed / 1.5;
         s.mixer.update(dt);
       }

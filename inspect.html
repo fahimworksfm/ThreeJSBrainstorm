@@ -1,0 +1,24 @@
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+const dl = new DRACOLoader(); dl.setDecoderPath('/node_modules/three/examples/jsm/libs/draco/gltf/');
+const out = [];
+const r = new THREE.WebGLRenderer(); r.setSize(900, 500); document.body.append(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xdddddd);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 3));
+const cam = new THREE.PerspectiveCamera(35, 900/500, 0.1, 100); cam.position.set(0, 1.2, 4.5); cam.lookAt(0, 0.9, 0);
+let x = -1;
+for (const f of ['Michelle.glb', 'kira.glb']) {
+  const g = await new GLTFLoader().setDRACOLoader(dl).loadAsync('/public/models/' + f);
+  out.push(f + ' anims=' + g.animations.map(a => a.name).join(','));
+  const bones = []; g.scene.traverse(o => { if (o.isBone && bones.length < 12) bones.push(o.name); if (o.isMesh) out.push('  mesh ' + o.name + ' mat=' + o.material.name); });
+  out.push('  bones: ' + bones.join(' '));
+  const box = new THREE.Box3().setFromObject(g.scene); out.push('  size ' + box.getSize(new THREE.Vector3()).toArray().map(v=>v.toFixed(2)));
+  const s = 1.75 / box.getSize(new THREE.Vector3()).y; g.scene.scale.setScalar(s);
+  g.scene.position.x = x; x += 2; scene.add(g.scene);
+}
+r.render(scene, cam);
+window.done = out.join('\n');
+</script>

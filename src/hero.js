@@ -3,6 +3,51 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
+const norm = (name) => name.replace(/^mixamorig:?/, '');
+
+const loader = new GLTFLoader();
+const embedded = () => (typeof window !== 'undefined' ? window.__NW_MODELS : null);
+/** Load a model from the embedded bundle if there is one, else from its URL. */
+function loadModel(url, key) {
+  const e = embedded();
+  if (e?.[key]) {
+    const bin = Uint8Array.from(atob(e[key]), (c) => c.charCodeAt(0));
+    return loader.parseAsync(bin.buffer, '');
+  }
+  return loader.loadAsync(url);
+}
+
+let motionPromise = null;
+/** The shared motion-capture clips (Idle / Walk / Run), loaded once. */
+function loadMotion(url) {
+  motionPromise ??= loadModel(url ?? `${BASE}models/Soldier.glb`, 'motion');
+  return motionPromise;
+}
+
+/** A second character for the crowd: Michelle, a stylized Mixamo character from the three.js examples. */
+export async function loadMichelle() {
+  const [gltf, motion] = await Promise.all([loadModel(`${BASE}models/Michelle.glb`, 'michelle'), loadMotion()]);
+  const root = gltf.scene;
+  const bones = {};
+  root.traverse((o) => {
+    if (o.isBone) bones[norm(o.name)] = o;
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.frustumCulled = false;
+      o.material.roughness = 1;
+      o.material.metalness = 0;
+    }
+  });
+  // fit to a realistic height
+  root.updateMatrixWorld(true);
+  const h = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).y;
+  root.scale.setScalar(1.66 / h);
+  const clips = {};
+  for (const clip of motion.animations) {
+    if (['Idle', 'Walk', 'Run'].includes(clip.name)) clips[clip.name] = retarget(motion.scene, clip, root, bones);
+  }
+  return { root, bones, clips, kind: 'michelle' };
+}
 
 /**
  * The hero: a skinned human (Ready Player Me avatar from the three.js examples) dressed
@@ -11,19 +56,9 @@ const BASE = import.meta.env?.BASE_URL ?? '/';
  * over once the bone-name prefix is stripped.
  */
 export async function loadHero(urls = {}) {
-  const loader = new GLTFLoader();
-  // hosts that can't serve .glb get the models embedded as base64 in models-embed.js
-  const embedded = typeof window !== 'undefined' ? window.__NW_MODELS : null;
-  const load = (url, key) => {
-    if (embedded?.[key]) {
-      const bin = Uint8Array.from(atob(embedded[key]), (c) => c.charCodeAt(0));
-      return loader.parseAsync(bin.buffer, '');
-    }
-    return loader.loadAsync(url);
-  };
   const [avatar, motion] = await Promise.all([
-    load(urls.avatar ?? `${BASE}models/readyplayer.me.glb`, 'avatar'),
-    load(urls.motion ?? `${BASE}models/Soldier.glb`, 'motion'),
+    loadModel(urls.avatar ?? `${BASE}models/readyplayer.me.glb`, 'avatar'),
+    loadMotion(urls.motion),
   ]);
   const root = avatar.scene;
   const outfit = {
@@ -33,7 +68,7 @@ export async function loadHero(urls = {}) {
   };
   const bones = {};
   root.traverse((o) => {
-    if (o.isBone) bones[o.name] = o;
+    if (o.isBone) bones[norm(o.name)] = o;
     if (!o.isMesh) return;
     o.castShadow = true;
     o.receiveShadow = true;
@@ -142,12 +177,13 @@ function retarget(sourceRoot, clip, targetRoot, targetBones, fps = 30) {
 
   // target bones in parent-first order
   const order = [];
-  targetRoot.traverse((o) => o.isBone && src[o.name] && order.push(o));
+  targetRoot.traverse((o) => o.isBone && src[norm(o.name)] && order.push(o));
+  const key = (b) => norm(b.name);
   const restSrc = {};
   const restTgt = {};
   const restLocal = {};
   for (const b of order) {
-    restSrc[b.name] = src[b.name].getWorldQuaternion(new THREE.Quaternion());
+    restSrc[b.name] = src[key(b)].getWorldQuaternion(new THREE.Quaternion());
     restTgt[b.name] = b.getWorldQuaternion(new THREE.Quaternion());
     restLocal[b.name] = b.quaternion.clone();
   }
@@ -173,14 +209,14 @@ function retarget(sourceRoot, clip, targetRoot, targetBones, fps = 30) {
     mixer.setTime(t);
     sourceRoot.updateMatrixWorld(true);
     for (const b of order) {
-      const qa = src[b.name].getWorldQuaternion(new THREE.Quaternion());
+      const qa = src[key(b)].getWorldQuaternion(new THREE.Quaternion());
       // delta from rest, applied to the target's rest orientation
       const w = qa.multiply(restSrc[b.name].clone().invert()).multiply(restTgt[b.name]);
       world[b.name] = w;
       const parentWorld = world[b.parent.name] ?? b.parent.getWorldQuaternion(new THREE.Quaternion());
       _q.copy(parentWorld).invert().multiply(w);
       // the two rigs hold their heads differently: keep most of the target's own neck and head pose
-      const damp = { Spine: 0.15, Spine1: 0.1, Spine2: 0.1, Neck: 0, Head: 0 }[b.name];
+      const damp = { Spine: 0.15, Spine1: 0.1, Spine2: 0.1, Neck: 0, Head: 0 }[key(b)];
       if (damp !== undefined) {
         _q.slerpQuaternions(restLocal[b.name], _q.clone(), damp);
         world[b.name] = b.parent && world[b.parent.name] ? world[b.parent.name].clone().multiply(_q) : w;
@@ -195,9 +231,11 @@ function retarget(sourceRoot, clip, targetRoot, targetBones, fps = 30) {
     (hipRestLocal.lengthSq() ? _v : _v).toArray(hipPos, f * 3);
   }
   const tracks = order.map((b) => new THREE.QuaternionKeyframeTrack(`${b.name}.quaternion`, times, quats[b.name]));
-  tracks.push(new THREE.VectorKeyframeTrack('Hips.position', times, hipPos));
+  tracks.push(new THREE.VectorKeyframeTrack(`${hipsTgt.name}.position`, times, hipPos));
   action.stop();
+  mixer.uncacheRoot(sourceRoot);
   srcSkinned?.skeleton.pose();
+  sourceRoot.rotation.y = 0;
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
 }
 
