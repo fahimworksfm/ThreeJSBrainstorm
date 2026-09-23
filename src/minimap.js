@@ -108,3 +108,77 @@ export class Minimap {
     ctx.restore();
   }
 }
+
+/** A compass strip across the top of the screen, with markers for memories and stations. */
+export class Compass {
+  constructor(canvas) {
+    this.canvas = canvas;
+    const dpr = Math.min(devicePixelRatio, 2);
+    this.w = 360;
+    this.h = 34;
+    canvas.width = this.w * dpr;
+    canvas.height = this.h * dpr;
+    this.ctx = canvas.getContext('2d');
+    this.ctx.scale(dpr, dpr);
+  }
+
+  update(yaw, pos, world) {
+    const { ctx, w, h } = this;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(12,10,14,0.82)';
+    ctx.fillRect(0, 4, w, h - 8);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 5, w - 2, h - 10);
+    // heading: yaw 0 looks north (-z); compass angle grows clockwise
+    const heading = (-yaw * 180) / Math.PI;
+    const span = 140; // degrees visible
+    const xOf = (deg) => {
+      let d = ((deg - heading + 540) % 360) - 180;
+      return Math.abs(d) > span / 2 ? null : w / 2 + (d / span) * w;
+    };
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let deg = 0; deg < 360; deg += 15) {
+      const x = xOf(deg);
+      if (x === null) continue;
+      const major = deg % 90 === 0;
+      if (major) {
+        ctx.fillStyle = deg === 0 ? '#f5c518' : '#fff';
+        ctx.font = "18px Bangers, Impact, sans-serif";
+        ctx.fillText('NESW'[deg / 90], x, h / 2 + 1);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillRect(x - 1, h / 2 - (deg % 45 === 0 ? 5 : 3), 2, deg % 45 === 0 ? 10 : 6);
+      }
+    }
+    const mark = (x, z, color, shape) => {
+      const deg = (Math.atan2(x - pos.x, -(z - pos.z)) * 180) / Math.PI;
+      const sx = xOf(deg);
+      if (sx === null) return;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (shape === 'diamond') {
+        ctx.moveTo(sx, 6);
+        ctx.lineTo(sx + 6, 12);
+        ctx.lineTo(sx, 18);
+        ctx.lineTo(sx - 6, 12);
+      } else ctx.arc(sx, 12, 4.5, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+    if (world) {
+      for (const it of world.memories.items) if (!it.done) mark(it.g.position.x, it.g.position.z, '#f5c518', 'diamond');
+      for (const e of world.elevated.entrances) mark(e.x, e.z, '#2ecc71', 'dot');
+    }
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(w / 2 - 5, h);
+    ctx.lineTo(w / 2 + 5, h);
+    ctx.lineTo(w / 2, h - 7);
+    ctx.fill();
+  }
+}

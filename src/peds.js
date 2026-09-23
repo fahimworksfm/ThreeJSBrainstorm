@@ -37,6 +37,31 @@ function accessory(kind, color = 0x111111) {
     cuff.position.set(0, 0.105, -0.005);
     cuff.scale.set(1, 1, 1.08);
     g.add(b, cuff);
+  } else if (kind === 'afro') {
+    const a = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 2), mat);
+    a.scale.set(1.05, 0.95, 1.05);
+    a.position.set(0, 0.13, -0.03);
+    g.add(a);
+  } else if (kind === 'long') {
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.112, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
+    top.scale.set(1.02, 0.95, 1.1);
+    top.position.set(0, 0.105, -0.005);
+    const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.2, 4, 10), mat);
+    back.scale.set(1.15, 1, 0.55);
+    back.position.set(0, -0.02, -0.075);
+    g.add(top, back);
+  } else if (kind === 'bun') {
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
+    top.scale.set(1.0, 0.92, 1.08);
+    top.position.set(0, 0.105, -0.005);
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 8), mat);
+    bun.position.set(0, 0.2, -0.06);
+    g.add(top, bun);
+  } else if (kind === 'buzz') {
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.106, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
+    top.scale.set(0.99, 0.9, 1.06);
+    top.position.set(0, 0.1, -0.005);
+    g.add(top);
   } else if (kind === 'glasses') {
     const frame = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
     for (const x of [-0.035, 0.035]) {
@@ -228,6 +253,11 @@ export class Pedestrians {
       const head = boneOf('Head');
       if (template.kind !== 'michelle' && head) {
         const look = k % 5;
+        const hairColor = HAIRS[(k * 3) % HAIRS.length];
+        const style = ['short', 'afro', 'long', 'bun', 'buzz', 'short'][k % 6];
+        // swap the stock hair for this person's style
+        head.children.filter((c) => c.isMesh && !c.isSkinnedMesh).forEach((c) => (c.visible = style === 'short'));
+        if (style !== 'short' && look !== 1 && look !== 2) head.add(accessory(style, hairColor));
         if (look === 1) head.add(accessory('cap', CAPS[k % CAPS.length]));
         if (look === 2) head.add(accessory('beanie', CAPS[(k + 2) % CAPS.length]));
         if (k % 4 === 3) head.add(accessory('glasses'));

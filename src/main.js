@@ -34,7 +34,7 @@ import { loadMichelle } from './hero.js';
 import { Input, IS_TOUCH } from './input.js';
 import { ColliderGrid } from './collide.js';
 import { makeCityEnvironment } from './env.js';
-import { Minimap } from './minimap.js';
+import { Minimap, Compass } from './minimap.js';
 import './style.css';
 
 const params = new URLSearchParams(location.search);
@@ -119,6 +119,8 @@ for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.em
 const audio = new CityAudio();
 const hud = new HUD();
 const minimap = new Minimap(document.getElementById('minimap'));
+const compass = new Compass(document.getElementById('compass'));
+const staminaBar = document.querySelector('#stamina i');
 const settings = {
   startAt: START_TIMES[params.get('time')] ? params.get('time') : store.get('startAt', 'golden'),
   rainOverride: null, // R forces rain on or off; otherwise it rains on some nights
@@ -655,6 +657,39 @@ let last = performance.now();
 let frames = 0;
 let fpsTime = 0;
 let edgeCooldown = 0;
+let portraitDone = false;
+
+/** Snap the hero's face once for the HUD badge. */
+function renderPortrait() {
+  const head = player.hero?.bones.Head;
+  if (!head || !player.hero.root.visible) return false;
+  const size = 128;
+  const rt = new THREE.WebGLRenderTarget(size, size);
+  const cam = new THREE.PerspectiveCamera(28, 1, 0.05, 50);
+  const hp = head.getWorldPosition(new THREE.Vector3());
+  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(player.hero.root.getWorldQuaternion(new THREE.Quaternion()));
+  cam.position.copy(hp).addScaledVector(fwd, 0.62).add(new THREE.Vector3(0.12, 0.08, 0));
+  cam.lookAt(hp.x, hp.y + 0.06, hp.z);
+  const oldBg = scene.background;
+  scene.background = new THREE.Color(0xf5c518);
+  const fog = scene.fog;
+  scene.fog = null;
+  renderer.setRenderTarget(rt);
+  renderer.render(scene, cam);
+  renderer.setRenderTarget(null);
+  scene.background = oldBg;
+  scene.fog = fog;
+  const px = new Uint8Array(size * size * 4);
+  renderer.readRenderTargetPixels(rt, 0, 0, size, size, px);
+  rt.dispose();
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const img = new ImageData(size, size);
+  for (let y = 0; y < size; y++) img.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+  c.getContext('2d').putImageData(img, 0, 0);
+  document.getElementById('portrait').src = c.toDataURL();
+  return true;
+}
 let shadowFrame = 0;
 const camEuler = new THREE.Euler();
 
@@ -734,6 +769,10 @@ function frame(now) {
 
   camEuler.setFromQuaternion(camera.quaternion, 'YXZ');
   minimap.update(dt, pos, camEuler.y);
+  compass.update(camEuler.y, player.pos, W);
+  staminaBar.style.width = `${Math.round(player.stamina * 100)}%`;
+  staminaBar.parentElement.classList.toggle('low', player.stamina < 0.25);
+  if (player.hero && !portraitDone && frames > 5) portraitDone = renderPortrait();
   hud.setLocation(describeLocation(player.pos.x, player.pos.z, { roof: !!player.roof }));
   hud.setClock(minute * 6);
   grade.uniforms.time.value = t;

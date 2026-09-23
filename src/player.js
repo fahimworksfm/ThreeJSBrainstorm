@@ -43,6 +43,7 @@ export class Player {
     this.atEdge = false;
     this.facing = 0;
     this.bump = 0;
+    this.stamina = 1;
     this.roof = null; // the rooftop you're standing on, if any
 
     this.root = new THREE.Group();
@@ -184,7 +185,9 @@ export class Player {
     if (this.mode === 'walk') {
       this.yaw -= look.x * MOUSE;
       this.pitch = THREE.MathUtils.clamp(this.pitch - look.y * MOUSE, -1.45, 1.45);
-      const sprint = input.sprint;
+      // running drains stamina; walking or standing gets it back
+      const sprint = input.sprint && this.stamina > 0.02 && (axes.x || axes.y);
+      this.stamina = THREE.MathUtils.clamp(this.stamina + (sprint ? -0.11 : 0.18) * dt, 0, 1);
       const speed = sprint ? cfg.run : cfg.walk;
       const fx = -Math.sin(this.yaw);
       const fz = -Math.cos(this.yaw);
