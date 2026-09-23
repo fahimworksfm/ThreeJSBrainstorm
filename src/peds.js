@@ -286,9 +286,16 @@ export class Pedestrians {
       root.userData.baseScaleVec = root.scale.clone();
       walk.play();
       walk.time = rand() * walk.getClip().duration;
+      let idle = null;
+      if (template.clips.Idle) {
+        idle = mixer.clipAction(template.clips.Idle);
+        idle.play();
+        idle.time = rand() * idle.getClip().duration;
+        idle.setEffectiveWeight(0);
+      }
       root.visible = false;
       this.group.add(root);
-      this.skinned.push({ root, mixer, walk, umbrella, ped: null, rainy: k % 5 !== 4 });
+      this.skinned.push({ root, mixer, walk, idle, umbrella, ped: null, rainy: k % 5 !== 4 });
     }
   }
 
@@ -370,7 +377,15 @@ export class Pedestrians {
       const ddz = z - pz;
       const d = Math.hypot(ddx, ddz);
       const clear = fast ? 3.5 : 1.3;
-      let speed = p.speed;
+      // now and then people stop: to chat, check a phone, wait for somebody
+      p.stopIn = (p.stopIn ?? range(4, 40)) - dt;
+      if (p.stopIn <= 0) {
+        p.pause = p.talk ? range(5, 12) : range(1.5, 6);
+        p.stopIn = range(15, 60);
+      }
+      p.pause = Math.max(0, (p.pause ?? 0) - dt);
+      p.amp = (p.amp ?? 1) + ((p.pause > 0 ? 0 : 1) - (p.amp ?? 1)) * Math.min(1, dt * 5);
+      let speed = p.speed * p.amp;
       if (d < clear) {
         p.side += Math.sign(-dz * ddx + dx * ddz || 1) * dt * 3;
         speed *= 0.4;
@@ -390,7 +405,7 @@ export class Pedestrians {
       this.torso.setMatrixAt(i, m);
       this.head.setMatrixAt(i, m);
       this.hair.setMatrixAt(i, m);
-      const swing = Math.sin(p.phase) * 0.5;
+      const swing = Math.sin(p.phase) * 0.5 * p.amp;
       for (let s = 0; s < 2; s++) {
         const side = s ? 1 : -1;
         limb.makeRotationX(swing * side).setPosition(side * 0.1, 0.9, 0);
@@ -428,6 +443,11 @@ export class Pedestrians {
         s.root.scale.copy(s.root.userData.baseScaleVec).multiplyScalar(p.height * 0.98);
         s.umbrella.visible = this.raining && s.rainy;
         s.walk.timeScale = p.speed / 1.5;
+        // standing still: blend into the idle clip
+        if (s.idle) {
+          s.walk.setEffectiveWeight(p.amp);
+          s.idle.setEffectiveWeight(1 - p.amp);
+        }
         s.mixer.update(dt);
       }
     }

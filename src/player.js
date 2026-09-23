@@ -28,6 +28,9 @@ export class Player {
     this.view = 'chase'; // over the shoulder by default, C / View for first person
     this.pos = new THREE.Vector3();
     this.ground = 0;
+    this.air = 0; // height of a jump above the ground
+    this.vy = 0;
+    this.land = 0;
     this.yaw = 0;
     this.pitch = 0;
     this.lookOffset = 0; // free look while riding
@@ -282,6 +285,25 @@ export class Player {
     this.pos.x = cx;
     this.pos.z = cz;
 
+    // jumping, on foot only
+    const jump = this.input.takeJump();
+    if (this.mode === 'walk' && jump && this.air === 0 && this.vy === 0) {
+      this.vy = 4.4;
+      this.audio.footstep?.(true, true);
+    }
+    if (this.vy !== 0 || this.air > 0) {
+      this.air += this.vy * dt;
+      this.vy -= 12 * dt;
+      if (this.air <= 0) {
+        // touch down: a quick squash in the knees and the camera
+        this.land = Math.min(1, -this.vy / 6);
+        this.air = 0;
+        this.vy = 0;
+        this.audio.footstep?.(true, true);
+      }
+    }
+    this.land *= 1 - Math.min(1, dt * 7);
+
     const g = this.roof ? this.roof.top : this.world.groundAt(this.pos.x, this.pos.z);
     if (Math.abs(g - this.ground) > 0.05 && this.mode !== 'walk') this.bump = 0.06; // curb hop
     this.ground += (g - this.ground) * Math.min(1, dt * 14);
@@ -350,13 +372,16 @@ export class Player {
         h.root.traverse((o) => o.isSkinnedMesh && o.skeleton.pose());
         this.heroPose = null;
       }
-      h.root.position.set(this.pos.x, this.ground, this.pos.z);
+      h.root.position.set(this.pos.x, this.ground + this.air - this.land * 0.08, this.pos.z);
       h.root.rotation.set(0, this.facing, 0);
       const v = Math.hypot(this.vel.x, this.vel.z);
       animateHero(h, dt, v);
       // look where the camera looks (the camera looks down -z at yaw 0, the model faces +z)
       const look = Math.atan2(Math.sin(this.yaw + Math.PI - this.facing), Math.cos(this.yaw + Math.PI - this.facing));
-      heroSecondary(h, dt, { speed: v, turnRate: this.turnRate ?? 0, look, pitch: this.pitch, phase: this.phase, t: performance.now() / 1000 });
+      heroSecondary(h, dt, {
+        speed: v, turnRate: this.turnRate ?? 0, look, pitch: this.pitch, phase: this.phase, t: performance.now() / 1000,
+        air: this.air, vy: this.vy, land: this.land,
+      });
     }
   }
 
@@ -386,7 +411,7 @@ export class Player {
         z += -Math.sin(this.heading) * Math.sin(this.roll) * eye * -1;
         eye *= Math.cos(this.roll);
       }
-      cam.position.set(x + (Math.random() - 0.5) * shake, this.ground + eye + bob + this.bump + (Math.random() - 0.5) * shake, z);
+      cam.position.set(x + (Math.random() - 0.5) * shake, this.ground + this.air - this.land * 0.1 + eye + bob + this.bump + (Math.random() - 0.5) * shake, z);
       this.euler.set(this.pitch, this.yaw, this.mode === 'walk' ? 0 : this.roll, 'YXZ');
       cam.quaternion.setFromEuler(this.euler);
       return;
@@ -395,7 +420,7 @@ export class Player {
     const [dist, height] = cfg.chase;
     const yaw = this.yaw;
     const pitch = THREE.MathUtils.clamp(this.pitch, -0.6, 0.5);
-    const target = this.camTarget.set(this.pos.x, this.ground + (this.mode === 'suv' ? 1.6 : 1.4), this.pos.z);
+    const target = this.camTarget.set(this.pos.x, this.ground + this.air * 0.6 + (this.mode === 'suv' ? 1.6 : 1.4), this.pos.z);
     let d = dist * Math.cos(pitch * 0.8);
     const bx = Math.sin(yaw);
     const bz = Math.cos(yaw);

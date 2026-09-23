@@ -65,7 +65,7 @@ where you left it.
 | WASD / arrows | left thumb | walk / drive |
 | Mouse | right thumb | look around |
 | Shift | Run | hurry / boost |
-| Space | | brake |
+| Space | Jump | jump (on foot) / brake (riding) |
 | 1 2 3 4 | Ride | walk, bicycle, motorcycle, SUV |
 | C | View | third / first person |
 | E | Train | take the train at a green-globe entrance |

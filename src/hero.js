@@ -260,7 +260,7 @@ function turnBone(bone, axis, angle) {
  * where the camera looks, breathe when standing, and let the backpack bounce with each step.
  * look/pitch are radians relative to the way he faces; turnRate is radians per second.
  */
-export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t }) {
+export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t, air = 0, vy = 0, land = 0 }) {
   const s = hero.sec;
   const k = Math.min(1, dt * 6);
   // don't twist around to look straight behind; ease back to center instead
@@ -278,6 +278,17 @@ export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t
   turnBone(b.Neck, up, s.look * 0.3);
   turnBone(b.Head, up, s.look * 0.3);
   turnBone(b.Head, right, -s.pitch * 0.45);
+  // in the air: knees tuck on the way up, legs reach for the ground on the way down, arms out
+  s.air = (s.air ?? 0) + ((air > 0.02 ? 1 : 0) - (s.air ?? 0)) * Math.min(1, dt * 14);
+  if (s.air > 0.01 || land > 0.01) {
+    const tuck = s.air * THREE.MathUtils.clamp(0.6 + vy * 0.12, 0.2, 1) + land * 0.5;
+    for (const [side, sgn] of [['Left', 1], ['Right', -1]]) {
+      turnBone(b[`${side}UpLeg`], right, -tuck * (side === 'Left' ? 0.9 : 0.6));
+      turnBone(b[`${side}Leg`], right, tuck * 1.2);
+      turnBone(b[`${side}Arm`], fwd, sgn * s.air * 0.5);
+    }
+    turnBone(b.Spine, right, tuck * 0.15);
+  }
   // breathing and a slow weight shift when standing still
   const still = 1 - THREE.MathUtils.clamp(speed / 1.2, 0, 1);
   turnBone(b.Spine2, right, Math.sin(t * 1.7) * 0.025 * still);

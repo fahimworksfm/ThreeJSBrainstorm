@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
-import { RIM, rimLight } from './fx.js';
+import { RIM, rimLight, setWet } from './fx.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
@@ -487,6 +487,7 @@ function applyTime(force = false) {
     W.weather.setEnabled(rain);
     audio.setRain(rain);
     W.road.setReflections(rain && settings.reflections);
+    setWet(W.root, rain && settings.reflections);
   }
   W.wet = rain ? 1 : 0.05;
 
@@ -780,6 +781,7 @@ addEventListener('keydown', (e) => {
     case 'KeyQ':
       settings.reflections = !settings.reflections;
       W.road.setReflections(settings.reflections && settings.rain);
+      setWet(W.root, settings.reflections && settings.rain);
       store.set('reflections', settings.reflections);
       hud.toast(settings.reflections ? 'Street reflections on' : 'Street reflections off (faster)');
       break;

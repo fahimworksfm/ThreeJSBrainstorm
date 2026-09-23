@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { wetGround } from './fx.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB, D } from './config.js';
 import { LightKit } from './lightkit.js';
@@ -58,7 +59,7 @@ export function buildStreets(layout, shared) {
   group.add(
     new THREE.Mesh(
       sidewalks,
-      new THREE.MeshStandardMaterial({ map: makeSidewalk(), color: 0x9a9aa0, roughness: 0.55, metalness: 0.05 }),
+      wetGround(new THREE.MeshStandardMaterial({ map: makeSidewalk(), color: 0x9a9aa0, roughness: 0.55, metalness: 0.05 })),
     ),
   );
 

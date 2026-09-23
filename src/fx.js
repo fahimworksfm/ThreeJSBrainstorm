@@ -67,3 +67,23 @@ export function nearFade(material, near = 2.5, far = 6) {
   material.needsUpdate = true;
   return material;
 }
+
+/** Pavement that lets the wet-street reflection underneath show through when it rains. */
+export function wetGround(material) {
+  material.userData.wetGround = true;
+  return material;
+}
+
+/** Called when the weather changes: soaked pavement turns darker and mirror-like. */
+export function setWet(root, wet) {
+  root.traverse((o) => {
+    const m = o.material;
+    if (!m?.userData?.wetGround) return;
+    // draw before the additive lamp pools so they still glow on top
+    o.renderOrder = wet ? -1 : 0;
+    if (m.transparent === wet) return;
+    m.transparent = wet;
+    m.opacity = wet ? 0.72 : 1;
+    m.needsUpdate = true;
+  });
+}

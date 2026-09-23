@@ -44,6 +44,43 @@ export class Weather {
     this.splashes.frustumCulled = false;
     this.group.add(this.splashes);
 
+    // ripples: rings that open and fade where drops hit the ground
+    const R = (this.R = 160);
+    const ringTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(32, 32, 26, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(32, 32, 16, 0, Math.PI * 2);
+      ctx.stroke();
+      return new THREE.CanvasTexture(c);
+    })();
+    const ringGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    this.rings = new THREE.InstancedMesh(
+      ringGeo,
+      new THREE.MeshBasicMaterial({ map: ringTex, color: 0xb8c8e8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+      R,
+    );
+    this.rings.frustumCulled = false;
+    this.rings.renderOrder = 2;
+    this.ring = new Float32Array(R * 4); // x, y, z, age
+    this.ringLife = new Float32Array(R);
+    for (let i = 0; i < R; i++) {
+      this.ringLife[i] = range(0.35, 0.7);
+      this.ring[i * 4 + 3] = range(0, this.ringLife[i]);
+      this.rings.setColorAt(i, new THREE.Color(0, 0, 0));
+    }
+    this.group.add(this.rings);
+    this._rm = new THREE.Matrix4();
+    this._rc = new THREE.Color();
+
     // steam: per-particle size and alpha via a tiny shader
     this.emitters = steamSources;
     const PER = 36;
@@ -115,6 +152,7 @@ export class Weather {
     this.enabled = on;
     this.rain.visible = on;
     this.splashes.visible = on;
+    this.rings.visible = on;
   }
 
   setViewport(height, fov) {
@@ -169,6 +207,31 @@ export class Weather {
         sp[i * 3 + 2] = s[i4 + 2];
       }
       this.splashes.geometry.attributes.position.needsUpdate = true;
+
+      const rg = this.ring;
+      const m = this._rm;
+      const col = this._rc;
+      for (let i = 0; i < this.R; i++) {
+        const i4 = i * 4;
+        rg[i4 + 3] += dt;
+        const life = this.ringLife[i];
+        if (rg[i4 + 3] >= life) {
+          // more of them close to the camera, where you can see them
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.pow(Math.random(), 1.5) * 14;
+          rg[i4] = cx + Math.cos(a) * r;
+          rg[i4 + 2] = cz + Math.sin(a) * r;
+          rg[i4 + 1] = this.groundAt(rg[i4], rg[i4 + 2]) + 0.03;
+          rg[i4 + 3] = 0;
+        }
+        const k = rg[i4 + 3] / life;
+        const size = 0.08 + k * 0.42;
+        m.makeScale(size, 1, size).setPosition(rg[i4], rg[i4 + 1], rg[i4 + 2]);
+        this.rings.setMatrixAt(i, m);
+        this.rings.setColorAt(i, col.setScalar((1 - k) * (1 - k) * 0.8 * this.intensity));
+      }
+      this.rings.instanceMatrix.needsUpdate = true;
+      this.rings.instanceColor.needsUpdate = true;
     }
 
     for (let e = 0; e < this.emitters.length; e++) {

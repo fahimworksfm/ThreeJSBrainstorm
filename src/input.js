@@ -112,6 +112,14 @@ export class Input extends EventTarget {
     return !!(this.keys.ShiftLeft || this.keys.ShiftRight || this.run);
   }
 
+  /** Space on foot, or the Jump button: true once per press. */
+  takeJump() {
+    const pressed = (this.keys.Space && !this.spaceHeld) || this.jumpQueued;
+    this.spaceHeld = !!this.keys.Space;
+    this.jumpQueued = false;
+    return !!pressed;
+  }
+
   get brake() {
     return !!this.keys.Space;
   }
@@ -133,6 +141,7 @@ export class Input extends EventTarget {
       <div class="joy"><div class="knob"></div></div>
       <div class="buttons">
         <button data-act="action" class="act hidden">Train</button>
+        <button data-act="jump">Jump</button>
         <button data-act="run">Run</button>
         <button data-act="camera">View</button>
         <button data-act="vehicle" class="big">Ride</button>
@@ -203,7 +212,8 @@ export class Input extends EventTarget {
         if (act === 'run') {
           this.run = !this.run;
           b.classList.toggle('on', this.run);
-        } else if (act === 'pause') this.pause();
+        } else if (act === 'jump') this.jumpQueued = true;
+        else if (act === 'pause') this.pause();
         else this.emit('button', act);
       });
     }
