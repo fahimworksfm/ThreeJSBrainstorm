@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // Low-poly, flat-colored models: they take the ink outlines and cel banding well.
 const std = (color, roughness = 0.75, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -19,6 +20,17 @@ function tube(a, b, r, mat, segs = 8) {
   return m;
 }
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
+
+/** A rounded limb (capsule) from a to b. */
+function limb(a, b, r, mat) {
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const len = Math.max(0.01, dir.length() - r);
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 10), mat);
+  m.position.copy(a).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+const rbox = (w, h, d, r, mat, x = 0, y = 0, z = 0) => mesh(new RoundedBoxGeometry(w, h, d, 3, r), mat, x, y, z);
 
 // olive bomber, cream tee, dark jeans, white sneakers, brown backpack
 const COLORS = {
@@ -51,17 +63,17 @@ export function buildGuy() {
   const hips = new THREE.Group();
   hips.position.y = 0.95;
   root.add(hips);
-  hips.add(mesh(new THREE.BoxGeometry(0.34, 0.2, 0.21), jeans, 0, 0.02, 0));
+  hips.add(rbox(0.34, 0.22, 0.22, 0.08, jeans, 0, 0.02, 0));
   const torso = new THREE.Group();
   torso.position.y = 0.1;
   hips.add(torso);
-  torso.add(mesh(new THREE.BoxGeometry(0.44, 0.5, 0.25), jacket, 0, 0.28, 0));
-  torso.add(mesh(new THREE.BoxGeometry(0.45, 0.07, 0.26), rib, 0, 0.03, 0)); // ribbed waistband
-  torso.add(mesh(new THREE.BoxGeometry(0.16, 0.44, 0.01), tee, 0, 0.28, 0.126)); // open jacket, tee showing
+  torso.add(rbox(0.46, 0.52, 0.27, 0.11, jacket, 0, 0.28, 0));
+  torso.add(rbox(0.45, 0.08, 0.26, 0.035, rib, 0, 0.03, 0)); // ribbed waistband
+  torso.add(rbox(0.16, 0.42, 0.02, 0.008, tee, 0, 0.29, 0.133)); // open jacket, tee showing
   torso.add(mesh(new THREE.BoxGeometry(0.24, 0.05, 0.2), rib, 0, 0.55, 0)); // collar
   // backpack with straps
-  torso.add(mesh(new THREE.BoxGeometry(0.32, 0.4, 0.15), pack, 0, 0.3, -0.2));
-  torso.add(mesh(new THREE.BoxGeometry(0.26, 0.15, 0.06), pack, 0, 0.18, -0.29));
+  torso.add(rbox(0.34, 0.42, 0.17, 0.06, pack, 0, 0.3, -0.21));
+  torso.add(rbox(0.27, 0.16, 0.08, 0.03, pack, 0, 0.18, -0.31));
   torso.add(mesh(new THREE.BoxGeometry(0.34, 0.05, 0.16), strap, 0, 0.49, -0.2));
   for (const s of [-1, 1]) torso.add(mesh(new THREE.BoxGeometry(0.05, 0.42, 0.02), strap, s * 0.12, 0.3, 0.13));
   torso.add(mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.09, 8), skin, 0, 0.57, 0));
@@ -84,25 +96,25 @@ export function buildGuy() {
     const sh = new THREE.Group();
     sh.position.set(s * 0.27, 0.46, 0);
     torso.add(sh);
-    sh.add(tube(v(0, 0, 0), v(0, -0.3, 0), 0.062, jacket));
+    sh.add(limb(v(0, 0, 0), v(0, -0.3, 0), 0.066, jacket));
     const el = new THREE.Group();
     el.position.y = -0.3;
     sh.add(el);
-    el.add(tube(v(0, 0, 0), v(0, -0.25, 0), 0.055, jacket));
-    el.add(mesh(new THREE.SphereGeometry(0.052, 8, 6), skin, 0, -0.29, 0));
+    el.add(limb(v(0, 0, 0), v(0, -0.25, 0), 0.058, jacket));
+    el.add(rbox(0.07, 0.1, 0.05, 0.022, skin, 0, -0.3, 0));
     shoulders.push(sh);
     elbows.push(el);
 
     const hip = new THREE.Group();
     hip.position.set(s * 0.1, -0.02, 0);
     hips.add(hip);
-    hip.add(tube(v(0, 0, 0), v(0, -0.44, 0), 0.08, jeans));
+    hip.add(limb(v(0, 0, 0), v(0, -0.44, 0), 0.085, jeans));
     const kn = new THREE.Group();
     kn.position.y = -0.44;
     hip.add(kn);
-    kn.add(tube(v(0, 0, 0), v(0, -0.42, 0), 0.068, jeans));
-    kn.add(mesh(new THREE.BoxGeometry(0.12, 0.08, 0.28), shoe, 0, -0.44, 0.06));
-    kn.add(mesh(new THREE.BoxGeometry(0.125, 0.03, 0.29), sole, 0, -0.48, 0.06));
+    kn.add(limb(v(0, 0, 0), v(0, -0.42, 0), 0.072, jeans));
+    kn.add(rbox(0.12, 0.09, 0.28, 0.04, shoe, 0, -0.44, 0.06));
+    kn.add(rbox(0.13, 0.03, 0.29, 0.012, sole, 0, -0.485, 0.06));
     legs.push(hip);
     knees.push(kn);
   }
@@ -445,4 +457,52 @@ export function buildCockpits(speedo) {
 
   for (const g of [bike, moto, suv]) g.visible = false;
   return { bike, moto, suv, bikeBars, motoBars, suvWheel };
+}
+
+/**
+ * A 70s-90s sedan from its side profile: sloped hood and trunk, a cabin, wheel arches.
+ * Returns body and glass geometries, car pointing +z, 4.7 m long, 1.84 m wide.
+ */
+export function sedanGeometry() {
+  const W = 1.84;
+  const arch = (s, cz) => {
+    // walk the wheel arch as a half circle, from front to back along the underside
+    for (let k = 0; k <= 8; k++) {
+      const a = (k / 8) * Math.PI;
+      s.lineTo(cz + Math.cos(a) * 0.42, 0.34 + Math.sin(a) * 0.42);
+    }
+  };
+  const body = new THREE.Shape();
+  body.moveTo(2.35, 0.3);
+  body.lineTo(2.38, 0.62);
+  body.lineTo(2.25, 0.82);
+  body.lineTo(1.05, 0.95); // hood
+  body.lineTo(0.42, 1.4); // windshield
+  body.lineTo(-0.85, 1.42); // roof
+  body.lineTo(-1.55, 1.0); // rear window
+  body.lineTo(-2.28, 0.94); // trunk
+  body.lineTo(-2.38, 0.62);
+  body.lineTo(-2.35, 0.3);
+  arch(body, -1.45);
+  body.lineTo(1.05, 0.3);
+  arch(body, 1.45);
+  body.lineTo(2.35, 0.3);
+  const bodyGeo = new THREE.ExtrudeGeometry(body, {
+    depth: W - 0.16, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.07, bevelSegments: 2, curveSegments: 4,
+  });
+  // shape x runs along the car: rotate so it points +z and center the width
+  bodyGeo.rotateY(-Math.PI / 2);
+  bodyGeo.translate((W - 0.16) / 2, 0, 0);
+
+  const glass = new THREE.Shape();
+  glass.moveTo(1.0, 0.97);
+  glass.lineTo(0.4, 1.36);
+  glass.lineTo(-0.83, 1.38);
+  glass.lineTo(-1.48, 1.0);
+  glass.lineTo(1.0, 0.97);
+  const glassGeo = new THREE.ExtrudeGeometry(glass, { depth: W - 0.08, bevelEnabled: false });
+  glassGeo.rotateY(-Math.PI / 2);
+  glassGeo.translate((W - 0.08) / 2, 0.005, 0);
+  // drop the uv/extra attributes differences between the two
+  return { body: bodyGeo, glass: glassGeo };
 }

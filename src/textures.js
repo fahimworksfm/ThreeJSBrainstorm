@@ -49,6 +49,10 @@ export function makeFacade(style) {
   const ce = makeCanvas(W, H);
   const m = cm.getContext('2d');
   const e = ce.getContext('2d');
+  const ch = makeCanvas(W, H);
+  const hgt = ch.getContext('2d'); // relief: 128 = wall plane, brighter = sticks out
+  hgt.fillStyle = 'rgb(128,128,128)';
+  hgt.fillRect(0, 0, W, H);
   m.fillStyle = s.wall;
   m.fillRect(0, 0, W, H);
   // painterly variation in the wall
@@ -60,6 +64,8 @@ export function makeFacade(style) {
     // brick courses as fine, faint lines: at this texel size real bricks would look like blocks
     m.fillStyle = 'rgba(70,25,12,0.14)';
     for (let y = 0; y < H; y += 2) m.fillRect(0, y, W, 1);
+    hgt.fillStyle = 'rgb(118,118,118)';
+    for (let y = 0; y < H; y += 2) hgt.fillRect(0, y, W, 1);
   } else if (s.siding) {
     for (let y = 0; y < H; y += 4) {
       m.fillStyle = s.mortar;
@@ -76,6 +82,8 @@ export function makeFacade(style) {
       // a thin stone band at every floor line
       m.fillStyle = 'rgba(255,240,215,0.12)';
       m.fillRect(0, row * CELL + CELL - 2, W, 2);
+      hgt.fillStyle = 'rgb(150,150,150)';
+      hgt.fillRect(0, row * CELL + CELL - 2, W, 2);
     }
     for (let col = 0; col < TILE_COLS; col++) {
       const x = col * CELL + s.mx;
@@ -88,7 +96,14 @@ export function makeFacade(style) {
         m.fillRect(x - 2, y - 3, w + 4, 3);
         m.fillRect(x - 1, y - 1, w + 2, h + 2);
         m.fillRect(x - 2, y + h + 1, w + 4, 2);
+        hgt.fillStyle = 'rgb(205,205,205)'; // lintel and sill stick out, the frame a little less
+        hgt.fillRect(x - 2, y - 3, w + 4, 3);
+        hgt.fillRect(x - 2, y + h + 1, w + 4, 2);
+        hgt.fillStyle = 'rgb(170,170,170)';
+        hgt.fillRect(x - 1, y - 1, w + 2, h + 2);
       }
+      hgt.fillStyle = s.curtain ? 'rgb(110,110,110)' : 'rgb(40,40,40)'; // glass sits back in the wall
+      hgt.fillRect(x, y, w, h);
       // glass: sky at the top, deep blue below, a diagonal glint
       const g = m.createLinearGradient(0, y, 0, y + h);
       g.addColorStop(0, s.curtain ? '#9fc3de' : '#8fb0cc');
@@ -138,6 +153,8 @@ export function makeFacade(style) {
         const ay = y + h - 7;
         m.fillStyle = '#d7d6d0';
         m.fillRect(ax, ay, aw, 6);
+        hgt.fillStyle = 'rgb(235,235,235)';
+        hgt.fillRect(ax, ay, aw, 6);
         m.fillStyle = '#8b8b88';
         for (let k = 1; k < aw - 1; k += 2) m.fillRect(ax + k, ay + 1, 1, 4);
         e.fillStyle = '#000';
@@ -145,7 +162,38 @@ export function makeFacade(style) {
       }
     }
   }
-  return { map: canvasTexture(cm), emissiveMap: canvasTexture(ce) };
+  return { map: canvasTexture(cm), emissiveMap: canvasTexture(ce), normalMap: heightToNormal(ch, 3) };
+}
+
+/** Turn a grayscale height canvas into a tangent-space normal map (tiles seamlessly). */
+export function heightToNormal(canvas, strength = 2) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const src = canvas.getContext('2d').getImageData(0, 0, W, H).data;
+  const out = new ImageData(W, H);
+  const h = (x, y) => src[(((y + H) % H) * W + ((x + W) % W)) * 4] / 255;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      // canvas y runs down, texture v runs up
+      const dx = (h(x + 1, y) - h(x - 1, y)) * strength;
+      const dy = (h(x, y + 1) - h(x, y - 1)) * strength;
+      let nx = -dx;
+      let ny = dy;
+      let nz = 1;
+      const l = Math.hypot(nx, ny, nz);
+      nx /= l;
+      ny /= l;
+      nz /= l;
+      const i = (y * W + x) * 4;
+      out.data[i] = (nx * 0.5 + 0.5) * 255;
+      out.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+      out.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+      out.data[i + 3] = 255;
+    }
+  }
+  const c = makeCanvas(W, H);
+  c.getContext('2d').putImageData(out, 0, 0);
+  return canvasTexture(c, { srgb: false });
 }
 
 /** Ground-floor shops: 8 storefronts in one strip. */
@@ -429,10 +477,10 @@ export function makeAsphalt() {
     ctx.fillStyle = `rgba(40,38,36,${range(0.08, 0.18)})`;
     ctx.fillRect(rand() * 400, rand() * 400, range(40, 160), range(30, 120));
   }
-  ctx.strokeStyle = 'rgba(25,22,20,0.75)';
+  ctx.strokeStyle = 'rgba(35,30,28,0.55)';
   ctx.lineCap = 'round';
-  for (let k = 0; k < 14; k++) {
-    ctx.lineWidth = range(1, 2.5);
+  for (let k = 0; k < 7; k++) {
+    ctx.lineWidth = range(0.6, 1.3);
     ctx.beginPath();
     let x = rand() * 512;
     let y = rand() * 512;

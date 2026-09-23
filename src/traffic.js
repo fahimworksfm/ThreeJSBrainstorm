@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { D } from './config.js';
 import { isSignalized, signalState } from './signals.js';
+import { sedanGeometry } from './models.js';
 import { rand, range, pick, chance } from './random.js';
 
-const BODY_COLORS = [0x0b0c0f, 0x1a1c20, 0x2a2d33, 0x6b6e73, 0xb8bbbf, 0x3a0d10, 0x0f1d33, 0x223322];
+const BODY_COLORS = [0x3f5a3c, 0xc9a24a, 0x8a2a24, 0xd9d0b4, 0x6f8aa8, 0x3a3d44, 0x1d1e22, 0xb8bcc2, 0x6b7a3a, 0xa0522d, 0x2f4f6f];
 const BORO_TAXI = 0x7cc242;
 const YELLOW_CAB = 0xf2b705;
 
@@ -86,20 +87,23 @@ export class Traffic {
   buildMeshes(shared) {
     const N = this.cars.length + this.parked.length;
     this.count = N;
-    const body = new THREE.BoxGeometry(1.9, 0.75, 4.6);
-    body.translate(0, 0.72, 0);
-    const cabin = new THREE.BoxGeometry(1.7, 0.6, 2.4);
-    cabin.translate(0, 1.4, -0.2);
+    const sedan = sedanGeometry();
+    const body = sedan.body;
+    const cabin = sedan.glass;
     const wheels = [];
-    for (const [x, z] of [[-0.85, 1.45], [0.85, 1.45], [-0.85, -1.45], [0.85, -1.45]]) {
-      const w = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 7);
+    for (const [x, z] of [[-0.82, 1.45], [0.82, 1.45], [-0.82, -1.45], [0.82, -1.45]]) {
+      const w = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 12);
       w.rotateZ(Math.PI / 2);
       w.translate(x, 0.34, z);
       wheels.push(w);
+      const hub = new THREE.CylinderGeometry(0.2, 0.2, 0.28, 10);
+      hub.rotateZ(Math.PI / 2);
+      hub.translate(x, 0.34, z);
+      wheels.push(hub);
     }
-    const head = mergeGeometries([0.62, -0.62].map((x) => new THREE.BoxGeometry(0.4, 0.16, 0.05).translate(x, 0.8, 2.31)));
-    const tail = mergeGeometries([0.66, -0.66].map((x) => new THREE.BoxGeometry(0.34, 0.14, 0.05).translate(x, 0.85, -2.31)));
-    const roofSign = new THREE.BoxGeometry(0.8, 0.26, 0.3).translate(0, 1.83, -0.2);
+    const head = mergeGeometries([0.6, -0.6].map((x) => new THREE.BoxGeometry(0.38, 0.14, 0.06).translate(x, 0.7, 2.4)));
+    const tail = mergeGeometries([0.66, -0.66].map((x) => new THREE.BoxGeometry(0.34, 0.16, 0.06).translate(x, 0.75, -2.42)));
+    const roofSign = new THREE.BoxGeometry(0.8, 0.26, 0.3).translate(0, 1.55, -0.2);
     const beam = new THREE.PlaneGeometry(3.2, 11);
     beam.rotateX(-Math.PI / 2);
     beam.translate(0, 0.04, 2.3 + 5.5);
@@ -114,8 +118,8 @@ export class Traffic {
       return m;
     };
     this.mBody = inst(body, new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.7 }));
-    this.mCabin = inst(cabin, new THREE.MeshStandardMaterial({ color: 0x07090c, roughness: 0.1, metalness: 0.9 }));
-    this.mWheels = inst(mergeGeometries(wheels), new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.9 }));
+    this.mCabin = inst(cabin, new THREE.MeshStandardMaterial({ color: 0x2a3a4e, roughness: 0.3 }));
+    this.mWheels = inst(mergeGeometries(wheels), new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 }));
     this.mHead = inst(head, new THREE.MeshBasicMaterial({ color: 0xffffff }));
     this.mTail = inst(tail, new THREE.MeshBasicMaterial({ color: 0xffffff }));
     this.mSign = inst(roofSign, new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.6, 1.6) }));
@@ -133,7 +137,7 @@ export class Traffic {
     const checkerTex = new THREE.CanvasTexture(checkerCanvas);
     checkerTex.colorSpace = THREE.SRGBColorSpace;
     checkerTex.magFilter = THREE.NearestFilter;
-    const checker = mergeGeometries([-1, 1].map((sx) => new THREE.BoxGeometry(0.02, 0.16, 3.4).translate(sx * 0.96, 0.95, -0.1)));
+    const checker = mergeGeometries([-1, 1].map((sx) => new THREE.BoxGeometry(0.02, 0.14, 2.2).translate(sx * 1.0, 0.78, -0.2)));
     this.mChecker = inst(checker, new THREE.MeshStandardMaterial({ map: checkerTex, roughness: 0.5 }));
     this.mBeam = inst(
       beam,

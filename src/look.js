@@ -9,7 +9,7 @@ import * as THREE from 'three';
 // Constant across the day: the "drawing" part of the look.
 export const INK = {
   outline: { strength: 1, width: 1.8, color: [0.06, 0.04, 0.05], threshold: [0.025, 0.075], fade: [320, 1100] },
-  bands: 4,
+  bands: 0, // shading bands now come from the lights themselves (toon.js)
   shadowDots: 0.3,
   matte: true,
   env: 0.12,

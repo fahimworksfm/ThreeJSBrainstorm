@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { D } from './config.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rand, range, pick } from './random.js';
 
 const SKIN = [0x3b2519, 0x5a3a26, 0x7a4e32, 0x8d5a3b, 0xa8744f, 0xc68e64, 0xe0b08a, 0xf1c9a5];
 const TOPS = [0x2b3a55, 0x7a2430, 0x2f4a36, 0x3d3d44, 0xc9a24a, 0x6a3f7a, 0xd8d2c4, 0x1c1c20, 0x9a5a2a, 0x3f6f8f, 0xb5483a, 0x556b2f];
 const BOTTOMS = [0x1f2533, 0x2c3a58, 0x121216, 0x6b5a45, 0x3a3a40, 0x4a3b2f];
+const HAIR = [0x14100e, 0x2a1a10, 0x3b2616, 0x6b4a2a, 0x8a8a8a, 0xb88a4a];
 const VIEW = 120;
 
 /**
@@ -27,17 +29,25 @@ export class Pedestrians {
         peds.push({
           rect, per, s: rand() * per, dir: rand() < 0.5 ? 1 : -1, speed: range(1.0, 1.7),
           phase: rand() * 6.28, side: 0, pause: 0,
-          skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), height: range(0.9, 1.08), talk: rand() < 0.18,
+          skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), hair: pick(HAIR), height: range(0.9, 1.08), talk: rand() < 0.18,
         });
       }
     }
     this.peds = peds;
     const N = Math.max(1, peds.length);
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-    const torsoGeo = new THREE.BoxGeometry(0.4, 0.56, 0.22).translate(0, 1.2, 0);
-    const headGeo = new THREE.SphereGeometry(0.11, 10, 8).scale(0.95, 1.12, 1).translate(0, 1.64, 0);
-    const legGeo = new THREE.BoxGeometry(0.14, 0.86, 0.15).translate(0, -0.43, 0);
-    const armGeo = new THREE.BoxGeometry(0.09, 0.6, 0.1).translate(0, -0.3, 0);
+    // rounded bodies: capsule torso with shoulders, capsule limbs, a head with hair
+    const torsoGeo = new THREE.CapsuleGeometry(0.2, 0.34, 4, 12).scale(1, 1, 0.62).translate(0, 1.2, 0);
+    const headGeo = mergeGeometries([
+      new THREE.SphereGeometry(0.11, 14, 10).scale(0.94, 1.12, 1).translate(0, 1.64, 0),
+      new THREE.CylinderGeometry(0.05, 0.055, 0.1, 8).translate(0, 1.5, 0),
+    ]);
+    const hairGeo = new THREE.SphereGeometry(0.118, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(0.96, 1.05, 1.02).translate(0, 1.67, -0.01);
+    const legGeo = mergeGeometries([
+      new THREE.CapsuleGeometry(0.078, 0.7, 4, 8).translate(0, -0.42, 0),
+      new THREE.BoxGeometry(0.12, 0.08, 0.26).translate(0, -0.84, 0.05),
+    ]);
+    const armGeo = new THREE.CapsuleGeometry(0.058, 0.5, 4, 8).translate(0, -0.3, 0);
     const make = (geo, count) => {
       const m = new THREE.InstancedMesh(geo, mat, count);
       m.frustumCulled = false;
@@ -47,12 +57,14 @@ export class Pedestrians {
     };
     this.torso = make(torsoGeo, N);
     this.head = make(headGeo, N);
+    this.hair = make(hairGeo, N);
     this.legs = make(legGeo, N * 2);
     this.arms = make(armGeo, N * 2);
     const c = new THREE.Color();
     peds.forEach((p, i) => {
       this.torso.setColorAt(i, c.set(p.top));
       this.head.setColorAt(i, c.set(p.skin));
+      this.hair.setColorAt(i, c.set(p.hair));
       for (let s = 0; s < 2; s++) {
         this.legs.setColorAt(i * 2 + s, c.set(p.bottom));
         this.arms.setColorAt(i * 2 + s, c.set(p.top));
@@ -61,6 +73,7 @@ export class Pedestrians {
     this.m = new THREE.Matrix4();
     this.limb = new THREE.Matrix4();
     this.tmp = new THREE.Matrix4();
+    this.tilt = new THREE.Matrix4();
     this.q = new THREE.Quaternion();
     this.p = new THREE.Vector3();
     this.sc = new THREE.Vector3();
@@ -138,6 +151,7 @@ export class Pedestrians {
       if (!near) {
         this.torso.setMatrixAt(i, zero);
         this.head.setMatrixAt(i, zero);
+        this.hair.setMatrixAt(i, zero);
         for (let s = 0; s < 2; s++) {
           this.legs.setMatrixAt(i * 2 + s, zero);
           this.arms.setMatrixAt(i * 2 + s, zero);
@@ -169,16 +183,17 @@ export class Pedestrians {
       p.last.z = z;
       this.torso.setMatrixAt(i, m);
       this.head.setMatrixAt(i, m);
+      this.hair.setMatrixAt(i, m);
       const swing = Math.sin(p.phase) * 0.5;
       for (let s = 0; s < 2; s++) {
         const side = s ? 1 : -1;
         limb.makeRotationX(swing * side).setPosition(side * 0.1, 0.9, 0);
         this.legs.setMatrixAt(i * 2 + s, this.tmp.multiplyMatrices(m, limb));
-        limb.makeRotationX(-swing * side * 0.8).setPosition(side * 0.25, 1.45, 0);
+        limb.makeRotationX(-swing * side * 0.8).multiply(this.tilt.makeRotationZ(side * 0.08)).setPosition(side * 0.24, 1.45, 0);
         this.arms.setMatrixAt(i * 2 + s, this.tmp.multiplyMatrices(m, limb));
       }
     });
-    for (const mesh of [this.torso, this.head, this.legs, this.arms]) mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of [this.torso, this.head, this.hair, this.legs, this.arms]) mesh.instanceMatrix.needsUpdate = true;
     // hand out the bubbles to the nearest talkers
     let b = 0;
     for (const p of this.peds) {

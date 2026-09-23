@@ -27,10 +27,13 @@ export class Input extends EventTarget {
     addEventListener('keyup', (e) => (this.keys[e.code] = false));
     addEventListener('blur', () => (this.keys = {}));
     document.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement !== this.dom) return;
+      const dragging = this.dragLook && this.active && (e.buttons & 1);
+      if (document.pointerLockElement !== this.dom && !dragging) return;
       this.lookX += e.movementX;
       this.lookY += e.movementY;
     });
+    // some embeds (sandboxed iframes) refuse pointer lock: fall back to click-and-drag to look
+    document.addEventListener('pointerlockerror', () => this.fallback());
     document.addEventListener('pointerlockchange', () => {
       if (this.touch) return;
       const locked = document.pointerLockElement === this.dom;
@@ -55,8 +58,24 @@ export class Input extends EventTarget {
       }
       return;
     }
-    const p = this.dom.requestPointerLock?.();
-    p?.catch?.(() => {});
+    if (this.dragLook || !this.dom.requestPointerLock) {
+      this.fallback();
+      return;
+    }
+    try {
+      const p = this.dom.requestPointerLock();
+      p?.catch?.(() => this.fallback());
+    } catch {
+      this.fallback();
+    }
+  }
+
+  fallback() {
+    this.dragLook = true;
+    if (!this.active) {
+      this.active = true;
+      this.emit('start');
+    }
   }
 
   pause() {
@@ -65,6 +84,13 @@ export class Input extends EventTarget {
         this.active = false;
         document.body.classList.remove('playing');
         this.joy.x = this.joy.y = 0;
+        this.emit('pause');
+      }
+      return;
+    }
+    if (this.dragLook) {
+      if (this.active) {
+        this.active = false;
         this.emit('pause');
       }
       return;

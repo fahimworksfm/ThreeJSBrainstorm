@@ -215,6 +215,8 @@ export function buildBuildings(layout, shared) {
     const glassy = style === 'glass' || style === 'office';
     const mat = new THREE.MeshStandardMaterial({
       map: tex.map,
+      normalMap: tex.normalMap,
+      normalScale: new THREE.Vector2(1.4, 1.4),
       emissiveMap: tex.emissiveMap,
       emissive: 0xffffff,
       emissiveIntensity: 1.35,

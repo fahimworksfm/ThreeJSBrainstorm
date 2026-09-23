@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import './toon.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, GradeShader } from './postfx.js';
+import { N8AOPass } from 'n8ao';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
 
 import { CURB, D, activateDistrict } from './config.js';
@@ -313,14 +316,28 @@ function updateMaterials(L, first) {
 const target = new THREE.WebGLRenderTarget(innerWidth * pixelRatio, innerHeight * pixelRatio, { type: THREE.HalfFloatType, samples: quality.samples });
 target.depthTexture = new THREE.DepthTexture(innerWidth * pixelRatio, innerHeight * pixelRatio);
 const composer = new EffectComposer(renderer, target);
-composer.addPass(new RenderPass(scene, camera));
+// desktop: N8AO renders the scene and adds soft contact shadows; phones use a plain render pass
+let ao = null;
+if (!LOW) {
+  ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
+  Object.assign(ao.configuration, {
+    aoRadius: 3.2, distanceFalloff: 1.2, intensity: 2.6, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10,
+    halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, color: new THREE.Color(0.12, 0.06, 0.1),
+  });
+  composer.addPass(ao);
+} else {
+  composer.addPass(new RenderPass(scene, camera));
+}
 const outline = new OutlinePass(camera);
+if (ao) outline.depthSource = () => ao.beautyRenderTarget.depthTexture;
 composer.addPass(outline);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.8, 0.55, 0.85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const grade = new ShaderPass(GradeShader);
 composer.addPass(grade);
+const smaa = new SMAAPass();
+composer.addPass(smaa);
 
 let baseFov = 72;
 function resize() {
@@ -492,6 +509,9 @@ input.addEventListener('button', (e) => {
 
 addEventListener('keydown', (e) => {
   switch (e.code) {
+    case 'Escape':
+      if (input.dragLook && input.active) input.pause();
+      break;
     case 'KeyE':
       if (W.nearEntrance && input.active) openTravel();
       break;
