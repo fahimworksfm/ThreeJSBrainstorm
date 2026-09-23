@@ -332,7 +332,9 @@ function updateMaterials(L, first) {
       m.userData.baseColor ??= m.color.clone();
       m.userData.baseEmissive ??= m.emissiveIntensity;
       m.color.copy(m.userData.baseColor).multiplyScalar(m.userData.storefront ? Math.min(L.albedo, 1.1) : L.albedo);
-      m.emissiveIntensity = m.userData.baseEmissive * (m.userData.storefront ? 0.5 + L.windows * 0.6 : L.windows);
+      // office floors are mostly lit at once: keep glass towers from glaring at night
+      const glow = m.userData.storefront ? 0.5 + L.windows * 0.6 : m.userData.glassy ? Math.min(L.windows, 0.55) : L.windows;
+      m.emissiveIntensity = m.userData.baseEmissive * glow;
     } else if (m.blending === THREE.AdditiveBlending && m.map === shared.pool) {
       m.userData.baseOpacity ??= m.opacity;
       m.opacity = m.userData.baseOpacity * L.pools;
@@ -671,7 +673,7 @@ function frame(now) {
   W.traffic.update(t, dt, player, camera);
   W.weather.update(dt, camera.position);
   W.memories.update(t, dt, camera.position);
-  W.peds.update(dt, camera.position, player);
+  W.peds.update(dt, camera.position, player, settings.rain);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     sun.target.position.set(player.pos.x, 0, player.pos.z);

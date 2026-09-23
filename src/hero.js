@@ -290,3 +290,12 @@ export function poseHeroRiding(hero, mode) {
     aim(hero, `${side}ForeArm`, `${side}Hand`, mode === 'suv' ? [-s * 0.3, 0.1, 1] : [-s * 0.05, -0.25, 1]);
   }
 }
+
+/** Legs follow the pedals around the crank (bike), knees rise and fall in turn. */
+export function pedalHero(hero, phase) {
+  for (const [side, s, off] of [['Left', 1, 0], ['Right', -1, Math.PI]]) {
+    const p = phase + off;
+    aim(hero, `${side}UpLeg`, `${side}Leg`, [s * 0.1, -0.35 + Math.sin(p) * 0.3, 1]);
+    aim(hero, `${side}Leg`, `${side}Foot`, [0, -1, 0.15 + Math.cos(p) * 0.35]);
+  }
+}

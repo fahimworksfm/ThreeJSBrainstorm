@@ -320,6 +320,7 @@ export function buildBuildings(layout, shared) {
       roughness: glassy ? 0.35 : 0.9,
       metalness: glassy ? 0.5 : 0,
     });
+    mat.userData.glassy = glassy;
     group.add(new THREE.Mesh(mergeGeometries(geos), mat));
   }
 

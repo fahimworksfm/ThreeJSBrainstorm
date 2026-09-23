@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { D } from './config.js';
-import { loadHero, animateHero, poseHeroRiding } from './hero.js';
+import { loadHero, animateHero, poseHeroRiding, pedalHero } from './hero.js';
 import { buildGuy, poseGuy, buildBicycle, buildMotorcycle, buildSUV, buildCockpits, makeSpeedo } from './models.js';
 
 export const MODES = {
@@ -331,6 +331,7 @@ export class Player {
         poseHeroRiding(h, this.mode);
         this.heroPose = this.mode;
       }
+      if (this.mode === 'bike' && chase) pedalHero(h, this.phase * 0.5);
     } else {
       if (h.root.parent !== this.root) this.root.add(h.root);
       if (this.heroPose) {

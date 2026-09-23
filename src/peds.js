@@ -14,6 +14,73 @@ const VIEW = 120;
  * Sidewalk crowds: each person loops around their block at their own pace, arms and legs
  * swinging. Everything is four InstancedMeshes, so a few hundred people cost four draw calls.
  */
+const CAPS = [0x1b2a4a, 0xb3261e, 0x1e1e22, 0x2f4a36, 0xc9a24a, 0x6a3f7a];
+const UMBRELLAS = [0x1b1b1f, 0x1b1b1f, 0xb3261e, 0x1d4f9e, 0x2f4a36, 0x6a3f7a, 0xe1a22b];
+
+/** Head accessories, in head-bone space (meters, +y up, +z forward). */
+function accessory(kind, color = 0x111111) {
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 1 });
+  const g = new THREE.Group();
+  if (kind === 'cap') {
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.112, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
+    dome.scale.set(1, 0.85, 1.08);
+    dome.position.set(0, 0.11, 0);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.012, 16, 1, false, -Math.PI / 2, Math.PI), mat);
+    brim.scale.set(1, 1, 1.5);
+    brim.position.set(0, 0.11, 0.08);
+    g.add(dome, brim);
+  } else if (kind === 'beanie') {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.116, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mat);
+    b.scale.set(1, 1.1, 1.08);
+    b.position.set(0, 0.1, -0.005);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.118, 0.118, 0.04, 16, 1, true), mat);
+    cuff.position.set(0, 0.105, -0.005);
+    cuff.scale.set(1, 1, 1.08);
+    g.add(b, cuff);
+  } else if (kind === 'glasses') {
+    const frame = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
+    for (const x of [-0.035, 0.035]) {
+      const lens = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.004, 6, 16), frame);
+      lens.position.set(x, 0.075, 0.1);
+      g.add(lens);
+    }
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.005, 0.005), frame);
+    bridge.position.set(0, 0.078, 0.1);
+    g.add(bridge);
+  } else if (kind === 'beard') {
+    const beard = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.5), mat);
+    beard.scale.set(1.1, 0.9, 0.9);
+    beard.position.set(0, 0.045, 0.045);
+    g.add(beard);
+  }
+  g.traverse((o) => {
+    if (o.isMesh) o.castShadow = true;
+  });
+  return g;
+}
+
+/** An open umbrella held just above the right shoulder (in the walker's root space). */
+function makeUmbrella(color) {
+  const g = new THREE.Group();
+  const canopy = new THREE.Mesh(
+    new THREE.ConeGeometry(0.62, 0.28, 8, 1, true),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.7, side: THREE.DoubleSide }),
+  );
+  canopy.position.set(0, 2.08, 0);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.05, 6), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  pole.position.set(0, 1.55, 0);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 5, 10, Math.PI), pole.material);
+  handle.position.set(0.03, 1.03, 0);
+  handle.rotation.z = Math.PI;
+  g.add(canopy, pole, handle);
+  g.position.set(-0.18, 0, 0.12);
+  g.rotation.z = 0.08;
+  g.traverse((o) => {
+    if (o.isMesh) o.castShadow = true;
+  });
+  return g;
+}
+
 export class Pedestrians {
   constructor() {
     this.group = new THREE.Group();
@@ -150,14 +217,38 @@ export class Pedestrians {
       root.traverse((o) => {
         if (o.isGroup && o.parent?.isBone && o.parent.name === 'Spine2') o.visible = k % 3 === 0;
       });
+      // variety: build, headwear, glasses, beards
+      const boneOf = (name) => {
+        let b = null;
+        root.traverse((o) => {
+          if (!b && o.isBone && o.name.replace(/^mixamorig:?/, '') === name) b = o;
+        });
+        return b;
+      };
+      const head = boneOf('Head');
+      if (template.kind !== 'michelle' && head) {
+        const look = k % 5;
+        if (look === 1) head.add(accessory('cap', CAPS[k % CAPS.length]));
+        if (look === 2) head.add(accessory('beanie', CAPS[(k + 2) % CAPS.length]));
+        if (k % 4 === 3) head.add(accessory('glasses'));
+        if (k % 3 === 1) head.add(accessory('beard', HAIRS[k % HAIRS.length]));
+      }
+      const girth = [1, 1.12, 0.92, 1.06, 0.96][k % 5];
+      root.scale.set(root.scale.x * girth, root.scale.y, root.scale.z * girth);
+      // an umbrella for rainy nights
+      const umbrella = makeUmbrella(UMBRELLAS[k % UMBRELLAS.length]);
+      umbrella.visible = false;
+      root.add(umbrella);
+      umbrella.scale.divide(root.scale); // keep true size whatever the body scale
       const mixer = new THREE.AnimationMixer(root);
       const walk = mixer.clipAction(template.clips.Walk);
       root.userData.baseScale = root.scale.x;
+      root.userData.baseScaleVec = root.scale.clone();
       walk.play();
       walk.time = rand() * walk.getClip().duration;
       root.visible = false;
       this.group.add(root);
-      this.skinned.push({ root, mixer, walk, ped: null });
+      this.skinned.push({ root, mixer, walk, umbrella, ped: null, rainy: k % 5 !== 4 });
     }
   }
 
@@ -210,7 +301,8 @@ export class Pedestrians {
     return [x0, z1 - s, 0, -1];
   }
 
-  update(dt, cam, player) {
+  update(dt, cam, player, raining = false) {
+    this.raining = raining;
     const { m, limb, q, p: pos, sc, zero } = this;
     const up = new THREE.Vector3(0, 1, 0);
     const px = player.pos.x;
@@ -292,7 +384,8 @@ export class Pedestrians {
         s.root.visible = true;
         s.root.position.set(p.last.x, D.sidewalkY, p.last.z);
         s.root.rotation.y = Math.atan2(dx * p.dir, dz * p.dir);
-        s.root.scale.setScalar(p.height * 0.98 * (s.root.userData.baseScale ?? 1));
+        s.root.scale.copy(s.root.userData.baseScaleVec).multiplyScalar(p.height * 0.98);
+        s.umbrella.visible = this.raining && s.rainy;
         s.walk.timeScale = p.speed / 1.5;
         s.mixer.update(dt);
       }
