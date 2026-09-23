@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { D } from './config.js';
+import { loadHero, animateHero, poseHeroRiding } from './hero.js';
 import { buildGuy, poseGuy, buildBicycle, buildMotorcycle, buildSUV, buildCockpits, makeSpeedo } from './models.js';
 
 export const MODES = {
-  walk: { name: 'On foot', eye: 1.68, radius: 0.35, walk: 3.6, run: 7.5, chase: [2.7, 2.05] },
+  walk: { name: 'On foot', eye: 1.68, radius: 0.35, walk: 3.6, run: 7.5, chase: [3.2, 2.35] },
   bike: { name: 'Bicycle', eye: 1.72, radius: 0.5, max: 9, accel: 2.6, brake: 6, reverse: 1.5, wheelbase: 1.05, steerMax: 0.6, lean: 0.35, chase: [4.2, 2.3] },
   moto: { name: 'Motorcycle', eye: 1.45, radius: 0.6, max: 27, accel: 7.5, brake: 11, reverse: 2, wheelbase: 1.45, steerMax: 0.42, lean: 0.55, chase: [4.8, 2.1] },
   suv: { name: 'SUV', eye: 1.78, radius: 1.2, max: 23, accel: 5, brake: 10, reverse: 5, wheelbase: 2.9, steerMax: 0.55, lean: 0, chase: [7.5, 3.2] },
@@ -58,6 +59,16 @@ export class Player {
     this.root.traverse((o) => {
       if (o.isMesh && !o.material.transparent && !o.material.isMeshBasicMaterial) o.castShadow = o.receiveShadow = true;
     });
+    // swap in the skinned, motion-captured hero once he has loaded
+    this.hero = null;
+    this.heroPose = null;
+    loadHero()
+      .then((hero) => {
+        this.hero = hero;
+        this.root.add(hero.root);
+        this.guy.root.visible = false;
+      })
+      .catch((err) => console.warn('Hero model unavailable, using the built-in figure', err));
     this.speedo = makeSpeedo();
     this.cockpits = buildCockpits(this.speedo);
     camera.add(this.cockpits.bike, this.cockpits.moto, this.cockpits.suv);
@@ -274,7 +285,8 @@ export class Player {
   updateModels(dt) {
     const veh = this.vehicles[this.mode];
     const chase = this.view === 'chase';
-    this.guy.root.visible = chase;
+    this.guy.root.visible = chase && !this.hero;
+    if (this.hero) this.updateHero(dt, veh, chase);
     for (const [id, c] of Object.entries(this.cockpits)) {
       if (id === 'bike' || id === 'moto' || id === 'suv') c.visible = !chase && this.mode === id;
     }
@@ -302,6 +314,31 @@ export class Player {
       this.guy.root.rotation.set(0, this.facing, 0);
       const v = Math.hypot(this.vel.x, this.vel.z);
       poseGuy(this.guy, 'walk', this.phase, v / 3.6, this.input.sprint && v > 4);
+    }
+  }
+
+  updateHero(dt, veh, chase) {
+    const h = this.hero;
+    h.root.visible = chase;
+    if (veh) {
+      // sit on the seat: hips land where the rider's hips go
+      const seat = { bike: [0, -0.1, -0.22], moto: [0, -0.06, -0.35], suv: [-0.45, -0.34, -0.25] }[this.mode];
+      if (h.root.parent !== veh.root) veh.root.add(h.root);
+      h.root.position.set(...seat);
+      h.root.rotation.set(0, 0, 0);
+      if (this.heroPose !== this.mode) {
+        poseHeroRiding(h, this.mode);
+        this.heroPose = this.mode;
+      }
+    } else {
+      if (h.root.parent !== this.root) this.root.add(h.root);
+      if (this.heroPose) {
+        h.root.traverse((o) => o.isSkinnedMesh && o.skeleton.pose());
+        this.heroPose = null;
+      }
+      h.root.position.set(this.pos.x, this.ground, this.pos.z);
+      h.root.rotation.set(0, this.facing, 0);
+      animateHero(h, dt, Math.hypot(this.vel.x, this.vel.z));
     }
   }
 
