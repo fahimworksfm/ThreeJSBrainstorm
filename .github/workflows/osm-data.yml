@@ -1,0 +1,52 @@
+# Downloads each neighborhood's OpenStreetMap data (streets, buildings, named shops) into public/osm/
+# and commits it, so deploys ship real maps without waiting on the Overpass servers.
+# Runs when this file or the fetcher changes, on the 1st of every month, or by hand.
+name: OSM data
+
+on:
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: Re-download every neighborhood, not just missing ones
+        type: boolean
+        default: true
+  schedule:
+    - cron: '0 6 1 * *'
+  push:
+    paths:
+      - .github/workflows/osm-data.yml
+      - scripts/fetch-osm.mjs
+      - src/osm/fetch.js
+
+permissions:
+  contents: write
+
+concurrency:
+  group: osm-data
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch from Overpass
+        run: |
+          # download into a scratch folder; keep the old file for any neighborhood that fails
+          mkdir -p /tmp/osm public/osm
+          if [ "${{ github.event_name == 'workflow_dispatch' && !inputs.refresh }}" = "true" ]; then cp public/osm/*.json /tmp/osm/ 2>/dev/null || true; fi
+          node scripts/fetch-osm.mjs /tmp/osm
+          cp /tmp/osm/*.json public/osm/ 2>/dev/null || true
+      - name: Commit
+        run: |
+          git config user.name "osm-data bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/osm
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "Update OpenStreetMap data ($(ls public/osm | wc -l) neighborhoods)"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

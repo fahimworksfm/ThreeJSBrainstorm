@@ -137,8 +137,38 @@ function paintedSign(signs, name) {
   });
 }
 
+const plain = (w) => w.replace(/_/g, ' ').toUpperCase();
+const CUISINE = (c) => c?.split(/[;,]/).slice(0, 2).map((x) => plain(x.trim())).join(' · ');
+
+/** How a real shop's sign looks, from its OpenStreetMap trade: colors, lettering, a second line, an icon. */
+function signStyle(poi) {
+  const t = poi.trade ?? '';
+  const cu = CUISINE(poi.cuisine);
+  let st;
+  if (/^(pharmacy|chemist)$/.test(t)) st = { bg: '#1f7a3a', fg: '#ffffff', sub: 'PHARMACY', icon: 'cross', font: 'Oswald' };
+  else if (/^(convenience|supermarket|greengrocer|deli|grocery|food)$/.test(t)) st = { bg: '#f2c230', fg: '#b3121b', sub: t === 'supermarket' ? 'SUPERMARKET' : 'GROCERY · DELI' };
+  else if (t === 'restaurant') st = { bg: '#7a1f1a', fg: '#fff3d6', sub: cu ? `${cu} CUISINE` : 'RESTAURANT', font: 'Georgia' };
+  else if (t === 'fast_food') st = { bg: '#d8261e', fg: '#ffe08a', sub: cu || 'TAKE OUT', font: 'Bangers' };
+  else if (/^(cafe|coffee|tea)$/.test(t)) st = { bg: '#3b2618', fg: '#f1e0c0', sub: cu || 'COFFEE', font: 'Georgia' };
+  else if (/^(bakery|pastry|confectionery)$/.test(t)) st = { bg: '#efe6d2', fg: '#8a3a1a', sub: 'BAKERY', font: 'Georgia' };
+  else if (/^(bar|pub|nightclub|alcohol|wine)$/.test(t)) st = { bg: '#1a1a1c', fg: '#e8c547', sub: t === 'alcohol' ? 'WINE & LIQUOR' : plain(t) };
+  else if (/^(bank|bureau_de_change|money_transfer|money_lender)$/.test(t)) st = { bg: '#1d3a6b', fg: '#ffffff', sub: plain(t), font: 'Oswald' };
+  else if (/^(laundry|dry_cleaning)$/.test(t)) st = { bg: '#e8f2fa', fg: '#1d4f9e', sub: t === 'laundry' ? 'LAUNDROMAT' : 'DRY CLEANING' };
+  else if (/^(hairdresser|barber|beauty|cosmetics|nails)$/.test(t)) st = { bg: '#f4f1e8', fg: '#b3121b', sub: t === 'hairdresser' ? 'HAIR SALON' : plain(t) };
+  else if (/^(clothes|shoes|fashion|jewelry|boutique|bag)$/.test(t)) st = { bg: '#6b2a5a', fg: '#ffe6f2', sub: plain(t), font: 'Georgia' };
+  else if (/^(mobile_phone|electronics|computer)$/.test(t)) st = { bg: '#0f6b6b', fg: '#f1f7e8', sub: t === 'mobile_phone' ? 'CELL PHONES' : plain(t), font: 'Oswald' };
+  else if (/^(dentist|doctors|clinic|optician)$/.test(t)) st = { bg: '#ffffff', fg: '#1d4f9e', sub: t === 'dentist' ? 'DENTAL' : plain(t), icon: t === 'optician' ? null : 'cross', font: 'Oswald' };
+  else {
+    // anything else: a board color picked from the name, the trade underneath
+    const [bg, fg] = BOARD_COLORS[[...poi.name].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOARD_COLORS.length];
+    st = { bg, fg, sub: t && t !== 'yes' ? plain(t) : '' };
+  }
+  if (poi.allNight) st.sub = st.sub ? `${st.sub} · OPEN 24 HRS` : 'OPEN 24 HRS';
+  return st;
+}
+
 /** One texture with a painted sign board per row: bold letters, a thin border, a shadow. */
-function makeSignAtlas(names, signs = null) {
+function makeSignAtlas(names, signs = null, info = null) {
   const rows = names.length;
   const c = document.createElement('canvas');
   c.width = 1024;
@@ -151,6 +181,11 @@ function makeSignAtlas(names, signs = null) {
     if (painted) {
       // stretched to the row; the board geometry takes the painting's own shape, which undoes the stretch
       ctx.drawImage(painted.image, 0, y, 1024, 128);
+      return;
+    }
+    const poi = info?.get(name);
+    if (poi) {
+      realSign(ctx, y, name, signStyle(poi));
       return;
     }
     ctx.fillStyle = bg;
@@ -171,6 +206,38 @@ function makeSignAtlas(names, signs = null) {
   tex.anisotropy = 8;
   // rows are flipped by the texture's flipY: canvas row k lives at v in [(rows-1-k)/rows, (rows-k)/rows]
   return { tex, count: rows };
+}
+
+/** A real shop's board: its name large, its trade (and hours) small underneath, an icon at the left. */
+function realSign(ctx, y, name, st) {
+  const face = { Oswald: '"Oswald", "Arial Narrow", sans-serif', Georgia: 'Georgia, "Times New Roman", serif', Bangers: '"Bangers", Impact, sans-serif' }[st.font] ?? '"Arial Black", Impact, sans-serif';
+  ctx.fillStyle = st.bg;
+  ctx.fillRect(0, y, 1024, 128);
+  ctx.strokeStyle = st.fg;
+  ctx.lineWidth = 5;
+  ctx.strokeRect(9, y + 9, 1006, 110);
+  let left = 40;
+  if (st.icon === 'cross') {
+    ctx.fillStyle = st.fg;
+    ctx.fillRect(52, y + 38, 52, 52);
+    ctx.fillStyle = st.bg;
+    ctx.fillRect(70, y + 44, 16, 40);
+    ctx.fillRect(58, y + 56, 40, 16);
+    left = 120;
+  }
+  const mid = (left + 984) / 2;
+  const span = 984 - left;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${st.sub ? 66 : 84}px ${face}`;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillText(name, mid + 3, y + (st.sub ? 52 : 70), span);
+  ctx.fillStyle = st.fg;
+  ctx.fillText(name, mid, y + (st.sub ? 49 : 66), span);
+  if (st.sub) {
+    ctx.font = `bold 26px ${face}`;
+    ctx.fillText(st.sub.split('').join('\u200A'), mid, y + 100, span); // a little letter spacing
+  }
 }
 
 /** Six striped awning fabrics stacked in one texture. */
@@ -787,7 +854,10 @@ export function buildBuildings(layout, shared) {
   // painted signs join the made-up neighborhood; on the real map only a matching real shop gets one
   const painted = (shared.signs ?? []).map((sg) => sg.name);
   const boardNames = layout.signNames?.length ? layout.signNames : [...generic, ...painted];
-  const boards = makeSignAtlas(boardNames, shared.signs);
+  // what each real shop is (trade, cuisine, hours), for its sign's look
+  const info = new Map();
+  for (const f of layout.faces) for (const p of f.pois ?? []) if (!info.has(p.name)) info.set(p.name, p.poi);
+  const boards = makeSignAtlas(boardNames, shared.signs, info);
   // real shops (OpenStreetMap) get their own name; other storefronts get a generic trade word
   const slotOf = new Map(boardNames.map((n, i) => [n, i]));
   const realNames = new Set(layout.faces.flatMap((f) => (f.pois ?? []).map((p) => p.name)));
@@ -834,9 +904,11 @@ export function buildBuildings(layout, shared) {
     }
     // painted sign board over each shop, with a striped awning on many of them
     const faceAng = Math.atan2(f.nx, f.nz);
-    for (let off = -f.w / 2 + 0.3; off < f.w / 2 - 3; ) {
-      const bw = Math.min(range(5.5, 9), f.w / 2 - 0.3 - off);
-      if (bw < 3) break;
+    // a narrow shopfront still gets one board if a real shop is mapped there
+    const single = f.w < 6.6 && f.w >= 2.6 && (f.pois ?? []).some((p) => !usedPois.has(p.poi));
+    for (let off = single ? -(f.w - 0.4) / 2 : -f.w / 2 + 0.3; single ? off < 0 : off < f.w / 2 - 3; ) {
+      const bw = single ? f.w - 0.4 : Math.min(range(5.5, 9), f.w / 2 - 0.3 - off);
+      if (bw < (single ? 2 : 3)) break;
       const center = off + bw / 2;
       let stand = false;
       const tx = f.x - f.nz * center + f.nx * 0.12;

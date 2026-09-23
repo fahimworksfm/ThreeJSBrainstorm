@@ -13,6 +13,7 @@ export const KEEP_TAGS = new Set([
   'highway', 'name', 'building', 'height', 'building:levels', 'min_height', 'building:min_level', 'shop', 'amenity',
   'roof:shape', 'leisure', 'landuse', 'natural', 'waterway', 'railway', 'bridge', 'tunnel', 'layer', 'covered', 'area',
   'service', 'access', 'oneway', 'junction', 'lanes', 'width', 'footway', 'type',
+  'cuisine', 'opening_hours', 'brand', // shop signs
 ]);
 
 /** Shrink an Overpass response: fewer tags, fewer digits. */
@@ -41,6 +42,9 @@ export function bboxAround(lat, lon, radius) {
   return [lat - dLat, lon - dLon, lat + dLat, lon + dLon];
 }
 
+/** Amenities that hang a sign over the sidewalk. */
+export const AMENITIES = 'restaurant|cafe|bar|fast_food|pharmacy|bank|pub|ice_cream|laundry|dentist|doctors|clinic|cinema|theatre|post_office|library|nightclub|bureau_de_change|money_transfer';
+
 export function query([s, w, n, e]) {
   const b = `${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)}`;
   return `[out:json][timeout:90];
@@ -60,7 +64,9 @@ export function query([s, w, n, e]) {
   node["natural"="tree"](${b});
   node["railway"~"^(station|subway_entrance)$"](${b});
   node["shop"]["name"](${b});
-  node["amenity"~"^(restaurant|cafe|bar|fast_food|pharmacy|bank|pub)$"]["name"](${b});
+  way["shop"]["name"](${b});
+  node["amenity"~"^(${AMENITIES})$"]["name"](${b});
+  way["amenity"~"^(${AMENITIES})$"]["name"](${b});
 );
 out body;
 >;

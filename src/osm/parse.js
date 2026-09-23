@@ -1,5 +1,5 @@
 // Turns raw Overpass JSON into a city model in local meters: streets, buildings, parks, water.
-import { makeProjection, dominantAngle, signedArea, bounds, hash01, normName } from './geo.js';
+import { makeProjection, dominantAngle, signedArea, bounds, hash01, normName, centroid } from './geo.js';
 
 const DRIVE = {
   motorway: 20, trunk: 18, primary: 17, secondary: 15, tertiary: 13, unclassified: 10.5, residential: 10.5,
@@ -130,6 +130,7 @@ export function parseOSM(data, center) {
       id, pts, holes: holes.map(W).filter((hp) => hp.length >= 3), area, h, minH: minH > 0 ? minH : 0, levels,
       type: t.building, name: t.name, shop: !!t.shop || /retail|commercial/.test(t.building ?? ''), amenity: t.amenity,
       roofShape: t['roof:shape'], rand: hash01(id),
+      poiTags: t.name && (t.shop || t.amenity) ? t : null,
     });
   };
   for (const w of ways.values()) {
@@ -203,6 +204,13 @@ export function parseOSM(data, center) {
   const stations = [];
   const entrances = [];
   const pois = [];
+  // what a sign needs to know: the name, the trade, the cuisine, whether it never closes
+  const poiOf = (p, t) => ({
+    p, name: t.name, kind: t.shop ? 'shop' : t.amenity, trade: t.shop ?? t.amenity, cuisine: t.cuisine, brand: t.brand,
+    allNight: /24\/7/.test(t.opening_hours ?? ''),
+  });
+  // shops mapped as a whole building outline sign from the middle of it
+  for (const b of buildings) if (b.poiTags) pois.push(poiOf(centroid(b.pts), b.poiTags));
   for (const n of nodes.values()) {
     const t = n.tags;
     if (!t) continue;
@@ -212,7 +220,7 @@ export function parseOSM(data, center) {
     if (t.natural === 'tree') trees.push(p);
     if (t.railway === 'station') stations.push({ p, name: t.name ?? 'Station' });
     if (t.railway === 'subway_entrance') entrances.push({ p, name: t.name });
-    if (t.name && (t.shop || t.amenity)) pois.push({ p, name: t.name, kind: t.shop ? 'shop' : t.amenity });
+    if (t.name && (t.shop || t.amenity)) pois.push(poiOf(p, t));
   }
 
   const all = [];
