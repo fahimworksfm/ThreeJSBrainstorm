@@ -8,7 +8,8 @@ import { rand, range } from './random.js';
  * Street trees drawn like the reference panels: a real trunk that forks into branches, under
  * a big, lumpy canopy of leaf clusters. Modeled once (about 9 m tall) and instanced.
  */
-export function buildTrees(positions) {
+/** leaves: optional { autumn, summer } leaf-cluster textures (texture pack) for leaf cards over the crowns. */
+export function buildTrees(positions, leaves = null) {
   const wood = [];
   const up = new THREE.Vector3(0, 1, 0);
   const limb = (from, to, r0, r1) => {
@@ -33,7 +34,9 @@ export function buildTrees(positions) {
     [1.1, 6.9, 1.4, 1.2], [-1.2, 7.1, -0.2, 1.15], [0.6, 7.5, -0.6, 1.05], [2.2, 6.4, -0.8, 1.0], [-2.1, 5.7, -0.4, 0.95],
     [0.2, 5.4, 1.8, 1.0], [-0.3, 7.9, 0.5, 0.85],
   ];
-  const crownGeo = mergeGeometries(blobs.map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, 1).scale(1, 0.85, 1).translate(x, y, z)));
+  // with drawn leaves, the blobs shrink into a dark core and leaf cards make the silhouette
+  const core = leaves ? 0.72 : 1;
+  const crownGeo = mergeGeometries(blobs.map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r * core, 1).scale(1, 0.85, 1).translate(x, y, z)));
   const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x2a1d15, roughness: 1 }), positions.length);
   const crowns = new THREE.InstancedMesh(
     crownGeo,
@@ -55,11 +58,42 @@ export function buildTrees(positions) {
     crowns.setColorAt(i, col.setHSL(range(0.27, 0.35), 0.45, range(0.28, 0.4)));
   });
   crowns.userData.foliage = true;
+  let cards = null;
+  if (leaves) {
+    // four leaf cards per cluster, spread over its surface and turned outward
+    const quads = [];
+    const out = new THREE.Vector3();
+    let seed = 1;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (const [x, y, z, r] of blobs) {
+      for (let k = 0; k < 4; k++) {
+        out.set(rnd() - 0.5, (rnd() - 0.3) * 0.8, rnd() - 0.5).normalize();
+        const g = new THREE.PlaneGeometry(r * 2.3, r * 2.3);
+        g.rotateZ(rnd() * 6.28);
+        g.lookAt(out);
+        quads.push(g.translate(x + out.x * r * 0.55, y + out.y * r * 0.45, z + out.z * r * 0.55));
+      }
+    }
+    cards = new THREE.InstancedMesh(
+      mergeGeometries(quads),
+      new THREE.MeshStandardMaterial({ map: leaves.autumn ?? leaves.summer, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }),
+      positions.length,
+    );
+    for (let i = 0; i < positions.length; i++) {
+      crowns.getMatrixAt(i, m);
+      cards.setMatrixAt(i, m);
+      cards.setColorAt(i, col.setScalar(range(0.82, 1)));
+    }
+    cards.userData.leaves = leaves;
+    crowns.userData.cards = cards;
+    nearFade(cards.material, 5, 11);
+  }
   // a tree between you and the hero fades away instead of filling the screen
   nearFade(crowns.material, 5, 11);
   nearFade(trunks.material, 1.5, 3);
   const g = new THREE.Group();
   g.add(trunks, crowns);
+  if (cards) g.add(cards);
   return g;
 }
 
@@ -67,11 +101,18 @@ const AUTUMN = [0xd9822b, 0xe3a531, 0xc4542a, 0xe8c547, 0xb86420, 0x9aa03a, 0xd0
 /** Recolor tree crowns: summer greens or autumn oranges. */
 export function setFoliage(crowns, kind) {
   const c = new THREE.Color();
+  const cards = crowns.userData.cards;
+  if (cards) {
+    const L = cards.userData.leaves;
+    cards.material.map = (kind === 'autumn' ? L.autumn : L.summer) ?? L.autumn ?? L.summer;
+    cards.material.needsUpdate = true;
+  }
   for (let i = 0; i < crowns.count; i++) {
     const h = (Math.sin(i * 12.9898) * 43758.5453) % 1;
     const r = Math.abs(h);
     if (kind === 'autumn') c.set(AUTUMN[Math.floor(r * AUTUMN.length)]).multiplyScalar(0.85 + r * 0.25);
     else c.setHSL(0.27 + r * 0.08, 0.45, 0.28 + r * 0.12);
+    if (cards) c.multiplyScalar(0.45); // shadowed inside of the crown
     crowns.setColorAt(i, c);
   }
   crowns.instanceColor.needsUpdate = true;

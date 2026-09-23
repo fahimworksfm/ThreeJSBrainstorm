@@ -127,3 +127,46 @@ pack['asphalt'] = ground('Match_dark_grey_city_asphalt_2K_20260923164253.jpeg', 
 pack['roof'] = ground('Flat_tar-paper_rooftop_texture_2K_20260923164625.jpeg', 'roof', 1024, 8)
 json.dump(pack, open(OUT + 'pack.json', 'w'), indent=2)
 print(json.dumps(pack, indent=1))
+
+
+def leaves(src, out_autumn, out_summer):
+    """Key out the green-screen, crop to the cluster, and make a summer copy by shifting hues to green."""
+    im = Image.open(SRC + src).convert('RGB')
+    a = np.asarray(im).astype(np.float32)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    screen = (g > 120) & (g > r * 1.35) & (g > b * 1.35)
+    alpha = np.where(screen, 0, 255).astype(np.uint8)
+    alpha = np.asarray(Image.fromarray(alpha).filter(ImageFilter.MinFilter(3)))  # eat the green fringe
+    ys, xs = np.nonzero(alpha)
+    y0, y1, x0, x1 = ys.min(), ys.max(), xs.min(), xs.max()
+    rgba = np.dstack([a, alpha]).astype(np.uint8)[y0:y1 + 1, x0:x1 + 1]
+    side = max(rgba.shape[:2])
+    sq = np.zeros((side, side, 4), np.uint8)
+    oy, ox = (side - rgba.shape[0]) // 2, (side - rgba.shape[1]) // 2
+    sq[oy:oy + rgba.shape[0], ox:ox + rgba.shape[1]] = rgba
+    au = Image.fromarray(sq, 'RGBA').resize((1024, 1024), Image.LANCZOS)
+    au.save(OUT + out_autumn, optimize=True)
+    hsv = np.asarray(au.convert('RGB').convert('HSV')).astype(np.float32)
+    hsv[..., 0] = (0.22 + (hsv[..., 0] / 255 - 0.08) * 0.6).clip(0.16, 0.36) * 255
+    hsv[..., 1] *= 0.9
+    hsv[..., 2] *= 0.8
+    su = Image.fromarray(hsv.clip(0, 255).astype(np.uint8), 'HSV').convert('RGB')
+    su.putalpha(au.getchannel('A'))
+    su.save(OUT + out_summer, optimize=True)
+    return {'file': out_autumn}, {'file': out_summer}
+
+
+pack['leaves-autumn'], pack['leaves-summer'] = leaves('Autumn_leaves_cluster_art_matching_2K_20260923171123.jpeg', 'leaves-autumn.png', 'leaves-summer.png')
+json.dump(pack, open(OUT + 'pack.json', 'w'), indent=2)
+
+
+def sign(src, key, name):
+    """A painted shop sign board: kept whole, 1024 px wide; the game fits the board to its shape."""
+    im = Image.open(SRC + src).convert('RGB')
+    im = im.resize((1024, round(1024 * im.height / im.width)), Image.LANCZOS)
+    im.save(OUT + f'{key}.jpg', quality=90)
+    return {'file': f'{key}.jpg', 'name': name}
+
+
+pack['sign-himalayan-heights'] = sign('Himalayan_Heights_restaurant_sign_2K_20260923171147.jpeg', 'sign-himalayan-heights', 'HIMALAYAN HEIGHTS RESTAURANT')
+json.dump(pack, open(OUT + 'pack.json', 'w'), indent=2)

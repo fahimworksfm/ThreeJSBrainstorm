@@ -127,8 +127,18 @@ const BOARD_COLORS = [
   ['#efe6d2', '#8a1f1a'], ['#6b2a5a', '#ffe6f2'], ['#0f6b6b', '#f1f7e8'], ['#e46a1c', '#fff8e8'],
 ];
 
+const normName = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+/** The painted sign (texture pack) for a board name, if there is one. Names may be cut to 22 letters. */
+function paintedSign(signs, name) {
+  const n = normName(name);
+  return signs?.find((s) => {
+    const k = normName(s.name);
+    return n && (k === n || k.startsWith(n) || n.startsWith(k));
+  });
+}
+
 /** One texture with a painted sign board per row: bold letters, a thin border, a shadow. */
-function makeSignAtlas(names) {
+function makeSignAtlas(names, signs = null) {
   const rows = names.length;
   const c = document.createElement('canvas');
   c.width = 1024;
@@ -137,6 +147,12 @@ function makeSignAtlas(names) {
   names.forEach((name, i) => {
     const [bg, fg] = BOARD_COLORS[i % BOARD_COLORS.length];
     const y = i * 128;
+    const painted = paintedSign(signs, name);
+    if (painted) {
+      // stretched to the row; the board geometry takes the painting's own shape, which undoes the stretch
+      ctx.drawImage(painted.image, 0, y, 1024, 128);
+      return;
+    }
     ctx.fillStyle = bg;
     ctx.fillRect(0, y, 1024, 128);
     ctx.strokeStyle = fg;
@@ -153,7 +169,7 @@ function makeSignAtlas(names) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
-  // rows are flipped by the texture's flipY: slot k lives at v in [k/rows, (k+1)/rows] from the bottom
+  // rows are flipped by the texture's flipY: canvas row k lives at v in [(rows-1-k)/rows, (rows-k)/rows]
   return { tex, count: rows };
 }
 
@@ -768,19 +784,26 @@ export function buildBuildings(layout, shared) {
   const litterGeos = [];
   const propColliders = [];
   const generic = D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE'];
-  const boardNames = layout.signNames?.length ? layout.signNames : generic;
-  const boards = makeSignAtlas(boardNames);
+  // painted signs join the made-up neighborhood; on the real map only a matching real shop gets one
+  const painted = (shared.signs ?? []).map((sg) => sg.name);
+  const boardNames = layout.signNames?.length ? layout.signNames : [...generic, ...painted];
+  const boards = makeSignAtlas(boardNames, shared.signs);
   // real shops (OpenStreetMap) get their own name; other storefronts get a generic trade word
   const slotOf = new Map(boardNames.map((n, i) => [n, i]));
   const realNames = new Set(layout.faces.flatMap((f) => (f.pois ?? []).map((p) => p.name)));
   const genericSlots = boardNames.map((n, i) => (realNames.has(n) ? -1 : i)).filter((i) => i >= 0);
   const usedPois = new Set();
-  const signSlot = (f, tx, tz, bw) => {
+  const paintedBoards = []; // where the texture pack's painted signs went up
+  const paintedUse = new Map();
+  const realBoards = []; // boards carrying a real (mapped) shop's name
+  const signSlot = (f, center, bw) => {
+    // a shop's map point is often mid-building, so match along the facade and ignore depth
     let best = null;
-    let bd = Math.max(7, bw);
+    let bd = bw / 2 + 6;
     for (const p of f.pois ?? []) {
       if (usedPois.has(p.poi) || !slotOf.has(p.name)) continue;
-      const d = Math.hypot(p.x - tx, p.z - tz);
+      const along = (p.x - f.x) * -f.nz + (p.z - f.z) * f.nx;
+      const d = Math.abs(along - center);
       if (d < bd) {
         bd = d;
         best = p;
@@ -788,10 +811,21 @@ export function buildBuildings(layout, shared) {
     }
     if (best) {
       usedPois.add(best.poi);
+      realBoards.push({ name: best.name, x: f.x - f.nz * center, z: f.z + f.nx * center, nx: f.nx, nz: f.nz });
       return slotOf.get(best.name);
     }
     const pool = genericSlots.length ? genericSlots : boardNames.map((_, i) => i);
-    return pool[Math.floor(rand() * pool.length)];
+    let slot = pool[Math.floor(rand() * pool.length)];
+    // a painted sign is one particular shop: up to two in a neighborhood, then plain trade words
+    if (paintedSign(shared.signs, boardNames[slot])) {
+      const used = (paintedUse.get(slot) ?? 0) + 1;
+      paintedUse.set(slot, used);
+      if (used > 2) {
+        const plain = pool.filter((i) => !paintedSign(shared.signs, boardNames[i]));
+        if (plain.length) slot = plain[Math.floor(rand() * plain.length)];
+      }
+    }
+    return slot;
   };
   for (const f of layout.faces) {
     if (!f.shop) {
@@ -807,10 +841,18 @@ export function buildBuildings(layout, shared) {
       let stand = false;
       const tx = f.x - f.nz * center + f.nx * 0.12;
       const tz = f.z + f.nx * center + f.nz * 0.12;
-      const board = new THREE.PlaneGeometry(bw - 0.3, 0.9);
-      const slot = signSlot(f, tx, tz, bw);
+      const slot = signSlot(f, center, bw);
+      const art = paintedSign(shared.signs, boardNames[slot]);
+      let bh = 0.9;
+      let bwid = bw - 0.3;
+      if (art) {
+        bh = Math.min(1.6, bwid / art.aspect);
+        bwid = bh * art.aspect;
+        paintedBoards.push({ x: tx, z: tz, nx: f.nx, nz: f.nz });
+      }
+      const board = new THREE.PlaneGeometry(bwid, bh);
       const uv = board.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / boards.count);
+      for (let i = 0; i < uv.count; i++) uv.setY(i, (boards.count - 1 - slot + uv.getY(i)) / boards.count); // canvas row slot, flipped by flipY
       boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
       if (chance(0.65)) {
         const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7, Math.max(1, Math.round(bw / 2)), 2);
@@ -970,5 +1012,5 @@ export function buildBuildings(layout, shared) {
     }
   }
 
-  return { group, update, fireEscapes, colliders: propColliders, realSigns: usedPois.size };
+  return { group, update, fireEscapes, colliders: propColliders, realSigns: usedPois.size, realBoards, paintedBoards };
 }

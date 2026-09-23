@@ -401,7 +401,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const root = new THREE.Group();
   const sky = buildSky(shared);
   const clouds = buildClouds();
-  root.add(...P.parts, P.kit.build(shared.pool), sky.mesh, clouds.group, buildTrees(P.trees));
+  root.add(...P.parts, P.kit.build(shared.pool), sky.mesh, clouds.group, buildTrees(P.trees, shared.leaves ?? null));
 
   const road = buildRoad(shared.noise, D.roadRect, reflectSize(), shared.asphalt ?? null);
   road.setReflections(settings.reflections);
@@ -957,7 +957,7 @@ loadTexturePack(shared)
     console.info(`texture pack: ${n} hand-drawn sheets`);
     // keep them across neighborhood changes
     for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.emissiveMap);
-    for (const t of [shared.storefront?.map, shared.storefront?.emissiveMap, shared.sidewalk, shared.asphalt, shared.roof]) if (t) sharedTextures.add(t);
+    for (const t of [shared.storefront?.map, shared.storefront?.emissiveMap, shared.sidewalk, shared.asphalt, shared.roof, ...Object.values(shared.leaves ?? {})]) if (t) sharedTextures.add(t);
   })
   .then(() => loadDistrict(firstDistrict, { onStatus: (text) => (fade.querySelector('span').textContent = text) }))
   .then(() => {

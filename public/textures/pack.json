@@ -42,5 +42,15 @@
     "file": "roof.jpg",
     "meters": 8,
     "mean": 0.057
+  },
+  "leaves-autumn": {
+    "file": "leaves-autumn.png"
+  },
+  "leaves-summer": {
+    "file": "leaves-summer.png"
+  },
+  "sign-himalayan-heights": {
+    "file": "sign-himalayan-heights.jpg",
+    "name": "HIMALAYAN HEIGHTS RESTAURANT"
   }
 }

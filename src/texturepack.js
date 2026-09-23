@@ -54,6 +54,18 @@ export async function loadTexturePack(shared, base = './textures/') {
         }
         shared.storefront = { map, emissiveMap };
         n++;
+      } else if (key.startsWith('sign-')) {
+        // a painted shop sign; boards with this name show the painting instead of lettering
+        const map = await load(e.file);
+        (shared.signs ??= []).push({ name: e.name, image: map.image, aspect: map.image.width / map.image.height });
+        map.dispose();
+        n++;
+      } else if (key.startsWith('leaves-')) {
+        // a leaf cluster on a transparent background, for the tree crowns' leaf cards
+        const map = await load(e.file);
+        map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
+        (shared.leaves ??= {})[key.slice(7)] = map;
+        n++;
       } else if (key === 'sidewalk' || key === 'asphalt' || key === 'roof') {
         const map = await load(e.file);
         // sidewalk UVs run 1 unit per 3 m; the sheet covers e.meters meters
