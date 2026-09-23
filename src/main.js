@@ -628,9 +628,11 @@ function resize() {
   composer.setPixelRatio(pixelRatio);
   camera.aspect = w / h;
   // portrait phones: widen the vertical FOV so you still see a sensible slice of street
-  const minHorizontal = THREE.MathUtils.degToRad(68);
+  // (the cinematic camera settles for a narrower slice, like a phone held up to film the street)
+  const cine = gfx.camera !== 'classic';
+  const minHorizontal = THREE.MathUtils.degToRad(cine ? 48 : 68);
   const needed = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect));
-  baseFov = THREE.MathUtils.clamp(needed, settings.fov ?? 72, 110);
+  baseFov = THREE.MathUtils.clamp(needed, settings.fov ?? 58, cine ? 88 : 110);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
   composer.setSize(w, h);
@@ -887,7 +889,10 @@ addEventListener('keydown', (e) => {
 });
 
 // ---------- settings ----------
-const gfx = { ...DEFAULTS, ...(LOW ? { preset: 'low', ...PRESETS.low } : {}), ...store.get('gfx', {}) };
+const savedGfx = store.get('gfx', {});
+// v2: the cinematic camera came with a narrower default view; older saves keep their other choices
+if ((savedGfx.v ?? 1) < 2) delete savedGfx.fov;
+const gfx = { ...DEFAULTS, ...(LOW ? { preset: 'low', ...PRESETS.low } : {}), ...savedGfx, v: 2 };
 settings.realMap = params.has('realmap') ? params.get('realmap') !== '0' : gfx.realMap;
 function applyGfx() {
   quality.maxRatio = Math.min(devicePixelRatio, gfx.ratio);
@@ -919,6 +924,7 @@ function applyGfx() {
   POSE_STEP.value = gfx.twos ? 1 / 12 : 0;
   LOOK.sensitivity = gfx.sensitivity;
   settings.fov = gfx.fov;
+  player.cinematic = gfx.camera !== 'classic';
   audio.setVolume(gfx.volume);
   document.body.classList.toggle('panels', !!gfx.panels);
   resize();

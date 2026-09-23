@@ -694,3 +694,20 @@ body.touch #pausebtn { display: none; }
 #hud #herohud { gap: 0; }
 body.touch #hud #herohud #badge { width: 48px; height: 48px; }
 #hud #herohud #portrait { width: calc(100% - 8px); height: calc(100% - 8px); left: 4px; top: 4px; }
+
+/* tall phone screens: a small map in the corner and a compact mission card, the picture comes first */
+@media (orientation: portrait) and (max-width: 600px) {
+  #hud #radar, body.touch #hud #radar { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); right: max(12px, env(safe-area-inset-right)); left: auto; width: 31vw; }
+  #hud #radar #minimap, body.touch #hud #radar #minimap { width: calc(31vw - 6px); height: calc(31vw - 6px); }
+  #hud #info #location { font-size: 11px; max-width: 31vw; padding: 4px 14px 3px 7px; }
+  #hud #info #sublocation { display: none; }
+  #mission, body.touch #mission { max-width: 52vw; padding: 4px 8px; }
+  #hud #district, body.touch #hud #district { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #hud #objective, body.touch #hud #objective { font-size: 11px; white-space: nowrap; }
+  #hint, body.touch #hint { display: none; }
+  #hud #compass, body.touch #hud #compass { display: none; }
+  #hud #herohud #badge, body.touch #hud #herohud #badge { width: 42px; height: 42px; }
+  #hud #hbars > div, body.touch #hud #hbars > div { width: 22vw; }
+  #hud #hbars > #progress, body.touch #hud #hbars > #progress { width: 18vw; }
+  #dial { transform: scale(0.72); transform-origin: left bottom; }
+}

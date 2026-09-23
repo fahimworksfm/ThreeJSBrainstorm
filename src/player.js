@@ -466,7 +466,9 @@ export class Player {
       return;
     }
     // chase camera: behind and above, pulled in so it never ends up inside a building
-    const [dist, height] = cfg.chase;
+    // cinematic: on foot, a little lower and further back, looking down the street rather than at your feet
+    const cine = this.cinematic && this.mode === 'walk';
+    const [dist, height] = cine ? [3.7, 1.95] : cfg.chase;
     const yaw = this.yaw;
     const pitch = THREE.MathUtils.clamp(this.pitch, -0.6, 0.5);
     const target = this.camTarget.set(this.pos.x, this.ground + this.air * 0.6 + (this.mode === 'suv' ? 1.6 : 1.4), this.pos.z);
@@ -488,6 +490,7 @@ export class Player {
     if (snap) this.camPos.copy(want);
     else this.camPos.lerp(want, 1 - Math.exp(-dt * 10));
     cam.position.copy(this.camPos);
-    cam.lookAt(target.x - bx * 2, target.y + 0.3, target.z - bz * 2);
+    if (cine) cam.lookAt(target.x - bx * 9, target.y + 0.15 - pitch * 6, target.z - bz * 9);
+    else cam.lookAt(target.x - bx * 2, target.y + 0.3, target.z - bz * 2);
   }
 }

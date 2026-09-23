@@ -12,7 +12,7 @@ export const INK = {
   bands: 0, // shading bands now come from the lights themselves (toon.js)
   shadowDots: 0.45,
   hatch: 0.8,
-  printShift: 0.0022, // Spider-Verse style misregistered color plates
+  printShift: 0.0014, // Spider-Verse style misregistered color plates, kept subtle
   matte: true,
   env: 0.12,
 };
@@ -22,13 +22,14 @@ const GOLDEN = {
     top: [0.3, 0.46, 0.8], horizon: [1.0, 0.68, 0.34], cloud: [1.0, 0.93, 0.8], shade: [0.8, 0.6, 0.62],
     sun: [1.0, 0.8, 0.5], sunDir: [-0.8, 0.16, 0.35], sharp: 1, amount: 0.7, stars: 0,
   },
-  fog: [0.92, 0.7, 0.48, 0.0016],
-  hemiSky: [0.85, 0.83, 0.93], hemiGround: [0.76, 0.56, 0.4], hemi: 1.6,
-  sun: [1.0, 0.8, 0.56], sunI: 3.1, sunDir: [-0.7, 0.62, 0.32],
-  road: [0.36, 0.33, 0.31],
-  exposure: 1.0, albedo: 1.15, windows: 0.3, pools: 0.03, neon: 0.5,
-  bloom: [0.25, 0.35, 0.95],
-  saturation: 1.2, contrast: 1.05, shadowTint: [0.98, 0.94, 1.0], highlightTint: [1.08, 1.0, 0.88],
+  fog: [0.95, 0.72, 0.46, 0.0022],
+  hemiSky: [0.85, 0.8, 0.9], hemiGround: [0.78, 0.56, 0.4], hemi: 1.5,
+  // a low sun for long shadows, warm honey light, lilac shade: the look of the reference paintings
+  sun: [1.0, 0.78, 0.52], sunI: 3.3, sunDir: [-0.72, 0.42, 0.34],
+  road: [0.38, 0.33, 0.3],
+  exposure: 1.02, albedo: 1.12, windows: 0.3, pools: 0.03, neon: 0.5,
+  bloom: [0.3, 0.4, 0.9],
+  saturation: 1.08, contrast: 1.04, shadowTint: [0.96, 0.88, 1.02], highlightTint: [1.12, 1.0, 0.8],
 };
 const DUSK = {
   sky: {
