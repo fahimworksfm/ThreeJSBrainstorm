@@ -101,7 +101,54 @@ export class Player {
     return Math.max(0, Math.min(1, (s - 7) / 16));
   }
 
+  /** How much open space (meters, up to 3) around a point, looking along 8 directions. */
+  clearance(px, pz) {
+    let best = 3;
+    for (let a = 0; a < 8; a++) {
+      const cx = Math.cos((a / 8) * Math.PI * 2);
+      const cz = Math.sin((a / 8) * Math.PI * 2);
+      for (let d = 0.3; d < best; d += 0.3) {
+        if (this.world.inside(px + cx * d, pz + cz * d, 0)) {
+          best = d;
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Nudge a spawn point out of tight spots: pick the nearby sidewalk spot with the most room
+   * around it and a clear line for the chase camera behind it.
+   */
+  roomyNear(x, z, lookYaw) {
+    if (this.clearance(x, z) >= 2.9) return [x, z];
+    const bx = Math.sin(lookYaw);
+    const bz = Math.cos(lookYaw);
+    let best = [x, z];
+    let bestScore = -Infinity;
+    for (let ox = -3; ox <= 3; ox += 0.5) {
+      for (let oz = -3; oz <= 3; oz += 0.5) {
+        const px = x + ox;
+        const pz = z + oz;
+        if (this.world.inside(px, pz, 0.4)) continue;
+        let camClear = 0;
+        for (let s = 0.5; s <= 3.5; s += 0.5) {
+          if (this.world.inside(px + bx * s, pz + bz * s, 0.4)) break;
+          camClear = s;
+        }
+        const score = this.clearance(px, pz) + camClear * 0.5 - Math.hypot(ox, oz) * 0.25 + (this.world.groundAt(px, pz) > 0.05 ? 0.5 : 0);
+        if (score > bestScore) {
+          bestScore = score;
+          best = [px, pz];
+        }
+      }
+    }
+    return best;
+  }
+
   spawn(x, z, look) {
+    [x, z] = this.roomyNear(x, z, Math.atan2(-(look[0] - x), -(look[2] - z)));
     this.pos.set(x, 0, z);
     this.ground = this.world.groundAt(x, z);
     this.yaw = Math.atan2(-(look[0] - x), -(look[2] - z));
@@ -431,6 +478,11 @@ export class Player {
       }
     }
     const want = new THREE.Vector3(target.x + bx * d, target.y + height - 1.2 - pitch * dist * 0.6, target.z + bz * d);
+    // a slow handheld drift, strongest when standing still, so the frame never feels frozen
+    const tt = performance.now() / 1000;
+    const still = this.mode === 'walk' ? 1 - Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 3) : 0.3;
+    want.x += (Math.sin(tt * 0.53) * 0.05 + Math.sin(tt * 1.31) * 0.02) * (0.4 + still);
+    want.y += (Math.sin(tt * 0.71) * 0.035 + Math.sin(tt * 1.9) * 0.01) * (0.4 + still);
     if (snap) this.camPos.copy(want);
     else this.camPos.lerp(want, 1 - Math.exp(-dt * 10));
     cam.position.copy(this.camPos);

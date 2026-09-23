@@ -246,7 +246,7 @@ const _qw = new THREE.Quaternion();
 const _qb = new THREE.Quaternion();
 const _qparent = new THREE.Quaternion();
 /** Add a world-space rotation to a bone on top of whatever the animation set. */
-function turnBone(bone, axis, angle) {
+export function turnBone(bone, axis, angle) {
   if (!bone || Math.abs(angle) < 1e-4) return;
   bone.parent.updateWorldMatrix(true, false);
   bone.parent.getWorldQuaternion(_qparent);

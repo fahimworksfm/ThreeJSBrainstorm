@@ -3,6 +3,7 @@ import { D } from './config.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { rand, range, pick } from './random.js';
+import { turnBone } from './hero.js';
 
 const SKIN = [0x3b2519, 0x5a3a26, 0x7a4e32, 0x8d5a3b, 0xa8744f, 0xc68e64, 0xe0b08a, 0xf1c9a5];
 const TOPS = [0x2b3a55, 0x7a2430, 0x2f4a36, 0x3d3d44, 0xc9a24a, 0x6a3f7a, 0xd8d2c4, 0x1c1c20, 0x9a5a2a, 0x3f6f8f, 0xb5483a, 0x556b2f];
@@ -111,7 +112,16 @@ export class Pedestrians {
   constructor(routes = null) {
     this.group = new THREE.Group();
     const peds = [];
-    const person = () => ({
+    const person = () => {
+      const r = rand();
+      const prop = r < 0.07 ? 'dog' : r < 0.11 ? 'stroller' : r < 0.26 ? 'phone' : null;
+      return {
+        prop, dogColor: pick([0x6b4a2a, 0x1c1a18, 0xe8e2d4, 0xb88a4a, 0x8a8a8a]),
+        ...basePerson(),
+        ...(prop === 'dog' || prop === 'stroller' ? { speed: range(0.8, 1.15) } : {}),
+      };
+    };
+    const basePerson = () => ({
       dir: rand() < 0.5 ? 1 : -1, speed: range(1.0, 1.7), phase: rand() * 6.28, side: 0, pause: 0,
       skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), hair: pick(HAIR), height: range(0.9, 1.08), talk: rand() < 0.18,
     });
@@ -163,6 +173,50 @@ export class Pedestrians {
     this.hair = make(hairGeo, N);
     this.legs = make(legGeo, N * 2);
     this.arms = make(armGeo, N * 2);
+
+    // what people carry along: dogs on walks, strollers, phones glowing in their hands
+    const dogGeo = mergeGeometries([
+      new THREE.CapsuleGeometry(0.11, 0.3, 4, 8).rotateX(Math.PI / 2).translate(0, 0.34, 0),
+      new THREE.SphereGeometry(0.1, 10, 8).translate(0, 0.46, 0.25),
+      new THREE.CapsuleGeometry(0.045, 0.08, 3, 6).rotateX(Math.PI / 2).translate(0, 0.43, 0.36),
+      new THREE.ConeGeometry(0.035, 0.08, 4).translate(-0.05, 0.56, 0.23),
+      new THREE.ConeGeometry(0.035, 0.08, 4).translate(0.05, 0.56, 0.23),
+      new THREE.CylinderGeometry(0.02, 0.012, 0.22, 5).rotateX(-0.7).translate(0, 0.44, -0.27),
+      ...[[-0.07, 0.15], [0.07, 0.15], [-0.07, -0.15], [0.07, -0.15]].map(([x, z]) => new THREE.CylinderGeometry(0.03, 0.025, 0.26, 5).translate(x, 0.13, z)),
+    ].map((g) => (g.index ? g.toNonIndexed() : g)));
+    const strollerGeo = mergeGeometries([
+      new THREE.BoxGeometry(0.46, 0.3, 0.62).translate(0, 0.5, 0),
+      new THREE.SphereGeometry(0.32, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(0.75, 0.9, 0.55).translate(0, 0.62, -0.14),
+      new THREE.CylinderGeometry(0.02, 0.02, 0.6, 5).rotateX(-0.5).translate(0, 0.82, -0.42),
+      new THREE.CylinderGeometry(0.02, 0.02, 0.44, 5).rotateZ(Math.PI / 2).translate(0, 1.07, -0.55),
+      ...[[-0.2, 0.22], [0.2, 0.22], [-0.2, -0.24], [0.2, -0.24]].map(([x, z]) => new THREE.CylinderGeometry(0.08, 0.08, 0.04, 10).rotateZ(Math.PI / 2).translate(x, 0.08, z)),
+    ].map((g) => (g.index ? g.toNonIndexed() : g)));
+    const phoneGeo = new THREE.BoxGeometry(0.075, 0.14, 0.012);
+    const count = (k) => Math.max(1, peds.filter((p) => p.prop === k).length);
+    const propMesh = (geo, material, n) => {
+      const m = new THREE.InstancedMesh(geo, material, n);
+      m.frustumCulled = false;
+      m.castShadow = true;
+      for (let i = 0; i < n; i++) m.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0));
+      this.group.add(m);
+      return m;
+    };
+    this.dogs = propMesh(dogGeo, new THREE.MeshStandardMaterial({ roughness: 0.9 }), count('dog'));
+    this.strollers = propMesh(strollerGeo, new THREE.MeshStandardMaterial({ roughness: 0.8 }), count('stroller'));
+    // the screen glow is what you notice at night
+    this.phones = propMesh(phoneGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 1.1, 1.6) }), count('phone'));
+    const STROLLERS = [0x1d2f4f, 0x7a2430, 0x2f4a36, 0x333338, 0xc9a24a];
+    const slot = { dog: 0, stroller: 0, phone: 0 };
+    const cc = new THREE.Color();
+    for (const p of peds) {
+      if (!p.prop) continue;
+      p.propIdx = slot[p.prop]++;
+      if (p.prop === 'dog') this.dogs.setColorAt(p.propIdx, cc.set(p.dogColor));
+      if (p.prop === 'stroller') this.strollers.setColorAt(p.propIdx, cc.set(pick(STROLLERS)));
+    }
+    this.propM = new THREE.Matrix4();
+    this._axis = new THREE.Vector3();
+    this.propL = new THREE.Matrix4();
     const c = new THREE.Color();
     peds.forEach((p, i) => {
       this.torso.setColorAt(i, c.set(p.top));
@@ -295,7 +349,10 @@ export class Pedestrians {
       }
       root.visible = false;
       this.group.add(root);
-      this.skinned.push({ root, mixer, walk, idle, umbrella, ped: null, rainy: k % 5 !== 4 });
+      this.skinned.push({
+        root, mixer, walk, idle, umbrella, ped: null, rainy: k % 5 !== 4,
+        arms: ['Left', 'Right'].map((side) => [boneOf(`${side}Arm`), boneOf(`${side}ForeArm`)]),
+      });
     }
   }
 
@@ -349,6 +406,28 @@ export class Pedestrians {
     return [x0, z1 - s, 0, -1];
   }
 
+  propMesh(p) {
+    return p.prop === 'dog' ? this.dogs : p.prop === 'stroller' ? this.strollers : this.phones;
+  }
+
+  /** Dog trotting at your side, stroller out in front, phone in hand. */
+  placeProp(p, x, z, q, dt) {
+    const L = this.propL;
+    const M = this.propM;
+    M.compose(this.p.set(x, D.sidewalkY, z), q, this.sc.set(1, 1, 1));
+    if (p.prop === 'dog') {
+      // the dog trots twice as fast as you step, and sniffs around when you stop
+      p.dogPhase = (p.dogPhase ?? 0) + dt * (4 + 10 * p.amp);
+      const sniff = (1 - p.amp) * Math.sin(p.dogPhase * 0.2) * 0.5;
+      L.makeRotationY(sniff).setPosition(0.55, Math.abs(Math.sin(p.dogPhase)) * 0.035 * p.amp, 0.75);
+    } else if (p.prop === 'stroller') {
+      L.makeTranslation(0, 0, 0.78);
+    } else {
+      L.makeRotationX(-0.5).setPosition(0.12, 1.3 * p.height, 0.38);
+    }
+    this.propMesh(p).setMatrixAt(p.propIdx, M.multiply(L));
+  }
+
   update(dt, cam, player, raining = false) {
     this.raining = raining;
     const { m, limb, q, p: pos, sc, zero } = this;
@@ -368,6 +447,7 @@ export class Pedestrians {
           this.legs.setMatrixAt(i * 2 + s, zero);
           this.arms.setMatrixAt(i * 2 + s, zero);
         }
+        if (p.prop) this.propMesh(p).setMatrixAt(p.propIdx, zero);
         return;
       }
       p.hidden = false;
@@ -410,11 +490,14 @@ export class Pedestrians {
         const side = s ? 1 : -1;
         limb.makeRotationX(swing * side).setPosition(side * 0.1, 0.9, 0);
         this.legs.setMatrixAt(i * 2 + s, this.tmp.multiplyMatrices(m, limb));
-        limb.makeRotationX(-swing * side * 0.8).multiply(this.tilt.makeRotationZ(side * 0.08)).setPosition(side * 0.24, 1.45, 0);
+        // phone people hold the right arm up in front of them
+        const armSwing = p.prop === 'phone' && side > 0 ? -1.25 : p.prop === 'stroller' ? -0.9 : -swing * side * 0.8;
+        limb.makeRotationX(armSwing).multiply(this.tilt.makeRotationZ(side * 0.08)).setPosition(side * 0.24, 1.45, 0);
         this.arms.setMatrixAt(i * 2 + s, this.tmp.multiplyMatrices(m, limb));
       }
+      if (p.prop) this.placeProp(p, x, z, q, dt);
     });
-    for (const mesh of [this.torso, this.head, this.hair, this.legs, this.arms]) mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of [this.torso, this.head, this.hair, this.legs, this.arms, this.dogs, this.strollers, this.phones]) mesh.instanceMatrix.needsUpdate = true;
     // skinned stand-ins for the nearest pedestrians
     if (this.skinned) {
       this.assignTimer = (this.assignTimer ?? 0) - dt;
@@ -449,6 +532,15 @@ export class Pedestrians {
           s.idle.setEffectiveWeight(1 - p.amp);
         }
         s.mixer.update(dt);
+        if (p.prop === 'phone' || p.prop === 'stroller') {
+          // arms forward: one hand up to the phone, or both on the stroller handle
+          const right = this._axis.set(1, 0, 0).applyQuaternion(s.root.quaternion);
+          const arms = p.prop === 'phone' ? [s.arms[0]] : s.arms;
+          for (const [upper, fore] of arms) {
+            turnBone(upper, right, p.prop === 'phone' ? -0.55 : -0.9);
+            turnBone(fore, right, p.prop === 'phone' ? -1.5 : -0.3);
+          }
+        }
       }
     }
     // hand out the bubbles to the nearest talkers
