@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Night Walker: Queens</title>
+    <meta name="description" content="A first-person night walk through rainy Astoria, Queens, built with three.js." />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="hud">
+      <div class="corner" id="where">
+        <div class="label">Astoria, Queens</div>
+        <div id="location">31st St</div>
+        <div id="clock">2:13 AM</div>
+      </div>
+      <div class="corner" id="tally">
+        <div class="label">Memories</div>
+        <div id="count">0 / 8</div>
+        <div id="fps"></div>
+      </div>
+      <div id="crosshair"></div>
+      <div id="subtitle">
+        <div id="subtitle-title"></div>
+        <div id="subtitle-text"></div>
+      </div>
+      <div id="toast"></div>
+    </div>
+
+    <div id="overlay">
+      <div class="card">
+        <div>
+          <div class="eyebrow">Astoria · Queens · 2 AM · raining</div>
+          <h1>NIGHT<br />WALKER</h1>
+          <p class="sub">
+            You can't sleep, so you walk. Follow the blue lights through Astoria to find eight memories:
+            under the el, along the river, down the side streets.
+          </p>
+        </div>
+        <button id="start">Click to walk</button>
+        <div class="cols">
+          <div>
+            <h3>Controls</h3>
+            <dl class="keys">
+              <dt>WASD</dt><dd>walk</dd>
+              <dt>Shift</dt><dd>hurry</dd>
+              <dt>Mouse</dt><dd>look around</dd>
+              <dt>R</dt><dd>rain on / off</dd>
+              <dt>Q</dt><dd>street reflections (performance)</dd>
+              <dt>B</dt><dd>bloom</dd>
+              <dt>M</dt><dd>mute</dd>
+              <dt>H</dt><dd>hide HUD</dd>
+              <dt>F</dt><dd>show fps</dd>
+              <dt>Esc</dt><dd>pause, open journal</dd>
+            </dl>
+          </div>
+          <div>
+            <h3>Journal</h3>
+            <div id="journal"></div>
+            <button id="reset">Clear journal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
