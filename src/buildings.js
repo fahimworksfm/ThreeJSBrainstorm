@@ -348,6 +348,27 @@ export function buildBuildings(layout, shared) {
     }),
   );
 
+  // ---- cornice brackets under the rooflines, pilasters between the shops
+  const trimGeos = [];
+  for (const f of layout.faces) {
+    const lot = f.lot;
+    if (lot.outer || lot.kind === 'house' || lot.kind === 'condo' || f.w < 5) continue;
+    const ang = Math.atan2(f.nx, f.nz);
+    const top = CURB + lot.h;
+    if (['brick', 'stone', 'deco'].includes(lot.style) && chance(0.7)) {
+      for (let o = -f.w / 2 + 0.5; o <= f.w / 2 - 0.4; o += 1.25) {
+        trimGeos.push(place(new THREE.BoxGeometry(0.22, 0.42, 0.34).translate(o, top - 0.55, 0.17), f.x, 0, f.z, ang));
+      }
+    }
+    if (f.shop) {
+      for (let o = -f.w / 2 + 0.15; o <= f.w / 2; o += Math.max(4.5, f.w / Math.ceil(f.w / 7))) {
+        trimGeos.push(place(new THREE.BoxGeometry(0.35, 4.7, 0.16).translate(o, CURB + 2.35, 0.08), f.x, 0, f.z, ang));
+      }
+      trimGeos.push(place(new THREE.BoxGeometry(f.w, 0.18, 0.3).translate(0, CURB + 4.65, 0.15), f.x, 0, f.z, ang));
+    }
+  }
+  addMerged(trimGeos, new THREE.MeshStandardMaterial({ color: 0xd8ccb2, roughness: 0.9 }));
+
   // ---- fire escapes on the walk-ups
   const fireEscapes = [];
   for (const f of layout.faces) {

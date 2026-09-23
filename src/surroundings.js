@@ -12,7 +12,7 @@ export function buildTrees(positions) {
   const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x1d1612, roughness: 1 }), positions.length);
   const crowns = new THREE.InstancedMesh(
     crownGeo,
-    new THREE.MeshStandardMaterial({ color: 0x1a3321, roughness: 1, flatShading: true }),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }),
     positions.length,
   );
   const m = new THREE.Matrix4();
@@ -21,13 +21,13 @@ export function buildTrees(positions) {
   const p = new THREE.Vector3();
   const col = new THREE.Color();
   positions.forEach(([x, z, sc, y = CURB], i) => {
-    const h = 3 * sc;
+    const h = 3.6 * sc;
     m.compose(p.set(x, y, z), q.identity(), s.set(sc, h, sc));
     trunks.setMatrixAt(i, m);
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28);
-    m.compose(p.set(x, y + h + 1.0 * sc, z), q, s.set(1.9 * sc, 1.6 * sc, 1.9 * sc));
+    m.compose(p.set(x, y + h + 1.2 * sc, z), q, s.set(2.2 * sc, 2.0 * sc, 2.2 * sc));
     crowns.setMatrixAt(i, m);
-    crowns.setColorAt(i, col.setHSL(range(0.28, 0.38), 0.4, range(0.6, 1.1)));
+    crowns.setColorAt(i, col.setHSL(range(0.27, 0.35), 0.45, range(0.28, 0.4)));
   });
   crowns.userData.foliage = true;
   const g = new THREE.Group();
@@ -42,8 +42,8 @@ export function setFoliage(crowns, kind) {
   for (let i = 0; i < crowns.count; i++) {
     const h = (Math.sin(i * 12.9898) * 43758.5453) % 1;
     const r = Math.abs(h);
-    if (kind === 'autumn') c.set(AUTUMN[Math.floor(r * AUTUMN.length)]).multiplyScalar(0.55 + r * 0.25);
-    else c.setHSL(0.28 + r * 0.1, 0.4, 0.6 + r * 0.5);
+    if (kind === 'autumn') c.set(AUTUMN[Math.floor(r * AUTUMN.length)]).multiplyScalar(0.85 + r * 0.25);
+    else c.setHSL(0.27 + r * 0.08, 0.45, 0.28 + r * 0.12);
     crowns.setColorAt(i, c);
   }
   crowns.instanceColor.needsUpdate = true;

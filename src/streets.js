@@ -128,7 +128,7 @@ export function buildStreets(layout, shared) {
       // street trees: dense on side streets, sparser on shopping streets
       for (let z = b.z0 + 5; z < b.z1 - 5; z += e.shops ? 13 : 7.5) {
         if (lampZ.some((lz) => Math.abs(lz - z) < 3)) continue;
-        if (chance(e.shops ? 0.4 : 0.6)) trees.push([e.x - e.nx * 0.8, z, range(1.1, 1.6)]);
+        if (chance(e.shops ? 0.4 : 0.6)) trees.push([e.x - e.nx * 0.8, z, range(1.35, 1.9)]);
       }
     }
     for (const [z, nz, road] of [[b.z0 + 0.5, -1, b.r], [b.z1 - 0.5, 1, b.r + 1]]) {
@@ -294,6 +294,86 @@ export function buildStreets(layout, shared) {
   add(cartMetal, new THREE.MeshStandardMaterial({ color: 0xc9cdd3, roughness: 0.5 }));
   add(cartGlass, new THREE.MeshStandardMaterial({ color: 0xf2d9a8, emissive: 0xffc070, emissiveIntensity: 0.25, roughness: 0.4 }));
   add(umbrellas, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }));
+
+  // ---- trash bags at the curb, newspaper boxes, bus shelters, sidewalk grates
+  const bags = [];
+  const boxes = [];
+  const shelter = [];
+  const shelterGlass = [];
+  const grates = [];
+  const tint = (g, hex) => {
+    const n = g.attributes.position.count;
+    const c = new THREE.Color(hex);
+    const arr = new Float32Array(n * 3);
+    for (let v = 0; v < n; v++) arr.set([c.r, c.g, c.b], v * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    g.deleteAttribute('uv');
+    return g;
+  };
+  for (const b of layout.blocks) {
+    if (b.outer || b.park) continue;
+    // a pile of bags on one or two curbs
+    for (let k = 0; k < (chance(0.5) ? 2 : 1); k++) {
+      const alongX = chance(0.5);
+      const t = range(0.2, 0.8);
+      const x = alongX ? b.x0 + t * (b.x1 - b.x0) : chance(0.5) ? b.x0 + 0.7 : b.x1 - 0.7;
+      const z = alongX ? (chance(0.5) ? b.z0 + 0.7 : b.z1 - 0.7) : b.z0 + t * (b.z1 - b.z0);
+      const n = Math.floor(range(3, 8));
+      for (let i = 0; i < n; i++) {
+        const r = range(0.28, 0.42);
+        const g = new THREE.IcosahedronGeometry(r, 1).scale(1, 0.8, 1).toNonIndexed();
+        g.translate(x + range(-0.7, 0.7), CURB + r * 0.7 + (i > 4 ? 0.4 : 0), z + range(-0.7, 0.7));
+        bags.push(tint(g, pick([0x1a1a1c, 0x1a1a1c, 0x22302a, 0xe8e6de, 0x3a3a3e])));
+      }
+    }
+  }
+  for (let i = 0; i < NX; i++) {
+    for (let j = 0; j < NZ; j++) {
+      if (!(COMMERCIAL_NS.has(i) || COMMERCIAL_EW.has(j))) continue;
+      // newspaper boxes in a row near the corner
+      if (chance(0.6)) {
+        const x = colX(i) - NS_W / 2 - 0.9;
+        const z0 = rowZ(j) - EW_W / 2 - 3.5;
+        for (let k = 0; k < Math.floor(range(2, 5)); k++) {
+          const g = new THREE.BoxGeometry(0.5, 1.05, 0.45).toNonIndexed();
+          g.translate(x, CURB + 0.52, z0 - k * 0.55);
+          boxes.push(tint(g, pick([0xc0392b, 0x1d4f9e, 0xf2c230, 0x1e7a44, 0xf4f1e8, 0x6b2a5a])));
+        }
+      }
+      // sidewalk grates
+      if (chance(0.5)) {
+        const g = new THREE.PlaneGeometry(1.4, 3.2).rotateX(-Math.PI / 2);
+        g.translate(colX(i) + NS_W / 2 + 2.2, CURB + 0.012, rowZ(j) + EW_W / 2 + range(8, 20));
+        grates.push(g);
+      }
+    }
+  }
+  // bus shelters on the busy avenues
+  for (let j = 0; j < NZ; j++) {
+    if (!COMMERCIAL_EW.has(j)) continue;
+    for (let i = 0; i < NX - 1; i += 2) {
+      const x = (colX(i) + colX(i + 1)) / 2 + range(-10, 10);
+      const z = rowZ(j) + EW_W / 2 + 1.1;
+      shelter.push(new THREE.BoxGeometry(4.2, 0.12, 1.6).translate(x, CURB + 2.5, z + 0.5));
+      for (const dx of [-2, 2]) shelter.push(new THREE.BoxGeometry(0.08, 2.5, 0.08).translate(x + dx, CURB + 1.25, z + 1.2));
+      shelter.push(new THREE.BoxGeometry(2.6, 0.1, 0.4).translate(x, CURB + 0.5, z + 1.1));
+      shelterGlass.push(new THREE.PlaneGeometry(4, 2.2).translate(x, CURB + 1.3, z + 1.25));
+      shelterGlass.push(new THREE.PlaneGeometry(1.4, 2.2).rotateY(Math.PI / 2).translate(x - 2, CURB + 1.3, z + 0.55));
+      colliders.push({ x0: x - 2.1, x1: x + 2.1, z0: z + 1.1, z1: z + 1.35 });
+    }
+  }
+  add(bags, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: true }));
+  add(boxes, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+  add(shelter, new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: 0.6 }));
+  add(shelterGlass, new THREE.MeshStandardMaterial({ color: 0x9fc3de, transparent: true, opacity: 0.28, roughness: 0.2, side: THREE.DoubleSide }));
+  const grateCanvas = document.createElement('canvas');
+  grateCanvas.width = grateCanvas.height = 64;
+  const gc = grateCanvas.getContext('2d');
+  gc.fillStyle = '#2a2a2c';
+  gc.fillRect(0, 0, 64, 64);
+  gc.fillStyle = '#0c0c0d';
+  for (let y = 4; y < 64; y += 8) gc.fillRect(4, y, 56, 4);
+  add(grates, new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(grateCanvas), roughness: 0.5 }));
 
   // ---- fallen leaves along the curbs
   const leafCanvas = document.createElement('canvas');
