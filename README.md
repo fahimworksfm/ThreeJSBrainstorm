@@ -99,6 +99,8 @@ where you left it.
 - **Williamsburg (Brooklyn)**: the L at Bedford Ave, murals, the waterfront.
 - **Fordham (the Bronx)**: the 4 train over Jerome Ave, Fordham Road, the Grand Concourse.
 - **St. George (Staten Island)**: the ferry terminal, Borough Hall, the harbor.
+- **Harlem, Chinatown, the Lower East Side, Bed-Stuy, Coney Island, Mott Haven, City Island**: the rest of the map,
+  from the Apollo to the Cyclone. City Island has no subway, so you ride the Bx29 bus.
 
 The train map lists all five boroughs; places that aren't built yet are marked "coming soon".
 
@@ -109,6 +111,12 @@ OpenStreetMap's free Overpass API, in the player's browser: real street layout a
 street network, every building footprint with its real height where it's mapped, parks, water, traffic lights,
 and shop names on the sign boards. Traffic drives the real streets, crowds loop the real blocks, and the el
 follows the real street it runs over. The download (a few MB) is cached in the browser.
+
+**Fast loads on Vercel/Netlify/Render:** `npm run build` also downloads every neighborhood's map once
+(`scripts/fetch-osm.mjs`) into `dist/osm/`, trimmed to the tags the game uses, so players load it straight from the
+site in a second or two instead of queuing at the public Overpass servers. If a download fails at build time, that
+neighborhood falls back to the live download (which asks two or three Overpass servers at once and takes the
+fastest). `npm run build:app` skips the map downloads.
 
 If OpenStreetMap can't be reached (offline, a blocked network, or the claude.ai preview, which blocks outside
 data), the game uses its drawn street grid instead. **O** switches between the two. You can also ship a copy of the data

@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB, D } from './config.js';
 import { range } from './random.js';
 import { facadeBox } from './buildings.js';
+import { buildBusStops } from './busstop.js';
 
 export const TRACK_OFFSET = 2.2;
 export const ACCEL = 1.2;
@@ -412,6 +413,22 @@ export function buildElevated(shared, kit) {
  */
 function buildSubwayEntrances(kit) {
   const el = D.el;
+  if (el.bus) {
+    // no subway here: bus stops on the corners instead
+    const stops = [];
+    for (const st of el.stations) {
+      const i = el.axis === 'ns' ? el.index : st.at;
+      const j = el.axis === 'ns' ? st.at : el.index;
+      for (const [sx, sz] of [[1, 1], [-1, -1]]) {
+        const x = D.colX(i) + sx * (D.nsW / 2 + 1.2);
+        const z = D.rowZ(j) + sz * (D.ewW / 2 + 6);
+        // the shelter faces the street it's on (the pole side points at the curb, -x or +x)
+        stops.push({ x, z, ang: sx > 0 ? -Math.PI / 2 : Math.PI / 2, name: st.name });
+      }
+    }
+    const b = buildBusStops(stops, el.route ?? 'BUS', kit);
+    return { group: b.group, update() {}, colliders: b.colliders, rumbleAt: () => 0, events: { braking: false, horn: null }, entrances: b.entrances };
+  }
   const group = new THREE.Group();
   const rail = [];
   const stairs = [];

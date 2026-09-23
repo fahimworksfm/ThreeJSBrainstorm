@@ -7,6 +7,7 @@ import { range } from '../random.js';
 import { facadeBox } from '../buildings.js';
 import { STYLES, TRACK_OFFSET, ACCEL, box, latticeTexture, trainWindowTexture, stationSignTexture } from '../elevated.js';
 import { Path, resample } from './geo.js';
+import { buildBusStops } from '../busstop.js';
 
 /** Smooth a polyline with a moving average (ends stay put). */
 function smooth(pts, k) {
@@ -82,6 +83,20 @@ export function buildViaduct({ line, stations, crossings, streetW, shared, kit, 
   };
   const crossHalf = 7;
 
+  if (el.underground && el.bus) {
+    const stops = [];
+    for (const st of stations) {
+      for (const side of [1, -1]) {
+        const [wx, wz] = toWorld(side * (streetW / 2 + 1.2), st.s + side * (crossHalf + 6));
+        const [x, z] = spot(wx, wz);
+        // face the shelter's pole toward the street's centerline
+        const [cx, cz] = toWorld(0, st.s + side * (crossHalf + 6));
+        stops.push({ x, z, ang: Math.atan2(cx - x, cz - z), name: st.name });
+      }
+    }
+    const b = buildBusStops(stops, el.route ?? 'BUS', kit);
+    return { group: b.group, update() {}, colliders: b.colliders, rumbleAt: () => 0, events: { braking: false, horn: null }, entrances: b.entrances, path };
+  }
   if (el.underground) {
     // stair entrances on the corners at each station
     const rail = [];

@@ -188,6 +188,15 @@ const FETCH_RADIUS = LOW ? 600 : 760;
 const osmCache = new Map();
 settings.realMap = params.has('realmap') ? params.get('realmap') !== '0' : store.get('realMap', true);
 
+const bar = document.querySelector('#load-card .bar i');
+/** The comic title card shown while a neighborhood loads. */
+function showCard(def) {
+  document.getElementById('load-boro').textContent = def.borough;
+  document.getElementById('load-name').textContent = def.name;
+  document.getElementById('load-blurb').textContent = def.blurb;
+  fade.classList.add('card');
+}
+
 async function fetchRealMap(def, onStatus) {
   if (!settings.realMap || !def.ll) return null;
   if (osmCache.has(def.id)) return osmCache.get(def.id);
@@ -198,17 +207,29 @@ async function fetchRealMap(def, onStatus) {
     controller.abort();
   };
   fade.classList.add('fetching');
+  let mb = 0;
+  const onBytes = (n) => {
+    const now = n / 1e6;
+    if (now - mb < 0.05) return;
+    mb = now;
+    // most neighborhoods are 2-8 MB; fill toward a soft guess so the bar keeps moving
+    fade.classList.add('known');
+    bar.style.width = `${Math.min(96, (1 - Math.exp(-now / 4)) * 100)}%`;
+    onStatus(`Loading real streets · ${now.toFixed(1)} MB`);
+  };
   try {
     const data = await loadOSM({
-      id: def.id, lat: def.ll[0], lon: def.ll[1], radius: FETCH_RADIUS, override: params.get('osm'), onStatus, signal: controller.signal,
+      id: def.id, lat: def.ll[0], lon: def.ll[1], radius: FETCH_RADIUS, override: params.get('osm'), onStatus, onBytes, signal: controller.signal,
     });
+    bar.style.width = '100%';
     osmCache.set(def.id, data);
     return data;
   } catch (e) {
     console.warn('OpenStreetMap unavailable, using the drawn map', e);
     return null;
   } finally {
-    fade.classList.remove('fetching');
+    fade.classList.remove('fetching', 'known');
+    bar.style.width = '';
   }
 }
 
@@ -562,10 +583,13 @@ function renderMenus() {
   const picker = document.getElementById('picker');
   picker.replaceChildren();
   for (const b of BOROUGHS) {
-    for (const p of b.places) {
-      if (!p.id) continue;
-      picker.append(placeButton(p, (id) => id !== W.def.id && goTo(id, false)));
-    }
+    const playable = b.places.filter((p) => p.id);
+    if (!playable.length) continue;
+    const h = document.createElement('h4');
+    h.className = 'boro';
+    h.textContent = b.name;
+    picker.append(h);
+    for (const p of playable) picker.append(placeButton(p, (id) => id !== W.def.id && goTo(id, false)));
   }
   // title screen: what time to start
   const timePicker = document.getElementById('styles');
@@ -605,12 +629,13 @@ function goTo(id, arrive) {
     closeTravel(false);
     input.start();
   }
-  fade.querySelector('span').textContent = arrive ? `Taking ${W.def.el.ride} to ${def.name}…` : `${def.name}, ${def.borough}`;
+  fade.querySelector('span').textContent = arrive ? `Taking ${W.def.el.ride} to ${def.name}…` : '';
+  showCard(def);
   fade.classList.add('show');
   // give the fade a frame to paint before the heavy rebuild
   setTimeout(async () => {
     await loadDistrict(id, { arrive, onStatus: (text) => (fade.querySelector('span').textContent = text) });
-    setTimeout(() => fade.classList.remove('show'), 350);
+    setTimeout(() => fade.classList.remove('show', 'card'), 350);
   }, 450);
 }
 
@@ -746,6 +771,7 @@ addEventListener('keydown', (e) => {
 applyInk();
 const firstDistrict = params.get('district') || store.get('district', 'astoria');
 fade.querySelector('span').textContent = settings.realMap ? 'Loading real streets…' : '';
+showCard(DISTRICTS[firstDistrict] ?? DISTRICTS.astoria);
 fade.classList.add('show');
 loadDistrict(firstDistrict, { onStatus: (text) => (fade.querySelector('span').textContent = text) }).then(() => {
   if (params.has('cam')) {
@@ -760,7 +786,7 @@ loadDistrict(firstDistrict, { onStatus: (text) => (fade.querySelector('span').te
     W.landmarks.update(k * 0.1, camera, 0.1);
   }
   last = performance.now();
-  fade.classList.remove('show');
+  fade.classList.remove('show', 'card');
   requestAnimationFrame(frame);
 });
 

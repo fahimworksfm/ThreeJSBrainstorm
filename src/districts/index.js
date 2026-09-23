@@ -10,11 +10,19 @@ import midtown from './midtown.js';
 import williamsburg from './williamsburg.js';
 import fordham from './fordham.js';
 import stGeorge from './st-george.js';
+import harlem from './harlem.js';
+import chinatown from './chinatown.js';
+import les from './les.js';
+import bedStuy from './bed-stuy.js';
+import coney from './coney.js';
+import mottHaven from './mott-haven.js';
+import cityIsland from './city-island.js';
 
 /** Playable neighborhoods. Add a district file here to add a place to the map. */
 export const DISTRICTS = {
   astoria, jamaica, lic, 'jackson-heights': jacksonHeights, flushing, sunnyside, 'forest-hills': forestHills, rockaway,
   midtown, williamsburg, fordham, 'st-george': stGeorge,
+  harlem, chinatown, les, 'bed-stuy': bedStuy, coney, 'mott-haven': mottHaven, 'city-island': cityIsland,
 };
 
 /** The whole map, including places that aren't built yet. */
@@ -32,8 +40,8 @@ export const BOROUGHS = [
       { id: 'rockaway' },
     ],
   },
-  { name: 'Manhattan', places: [{ id: 'midtown' }, { name: 'Harlem' }, { name: 'Chinatown' }, { name: 'Lower East Side' }] },
-  { name: 'Brooklyn', places: [{ id: 'williamsburg' }, { name: 'Bed-Stuy' }, { name: 'Coney Island' }] },
-  { name: 'The Bronx', places: [{ name: 'Mott Haven' }, { id: 'fordham' }, { name: 'City Island' }] },
+  { name: 'Manhattan', places: [{ id: 'midtown' }, { id: 'harlem' }, { id: 'chinatown' }, { id: 'les' }] },
+  { name: 'Brooklyn', places: [{ id: 'williamsburg' }, { id: 'bed-stuy' }, { id: 'coney' }] },
+  { name: 'The Bronx', places: [{ id: 'mott-haven' }, { id: 'fordham' }, { id: 'city-island' }] },
   { name: 'Staten Island', places: [{ id: 'st-george' }] },
 ];
