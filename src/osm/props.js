@@ -57,6 +57,7 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
   const steam = [];
   const stacks = [];
   const phones = [];
+  const openHydrants = [];
   const colliders = [];
   const blades = [];
   const names = [];
@@ -157,6 +158,11 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
         hydrants.push(new THREE.SphereGeometry(0.17, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).translate(c[0], CURB + 0.6, c[1]));
         hydrants.push(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 6).rotateZ(Math.PI / 2).translate(c[0], CURB + 0.42, c[1]));
         colliders.push({ x0: c[0] - 0.25, x1: c[0] + 0.25, z0: c[1] - 0.25, z1: c[1] + 0.25 });
+        // a few are open, spraying toward the crossing
+        if (!busy(x, z) && hash01(j.id, 14) < 0.25) {
+          const l = Math.hypot(x - c[0], z - c[1]) || 1;
+          openHydrants.push({ x: c[0], y: CURB + 0.42, z: c[1], dx: (x - c[0]) / l, dz: (z - c[1]) / l });
+        }
       }
     }
     if (busy(x, z)) {
@@ -234,5 +240,5 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
       for (const k of ['R', 'A', 'G']) lampMats[axis + k].color.copy(s === k ? LAMP_ON[k] : off);
     }
   }
-  return { group, update, steam, colliders, trees: [] };
+  return { group, update, steam, colliders, trees: [], openHydrants };
 }

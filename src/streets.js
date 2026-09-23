@@ -157,6 +157,7 @@ export function buildStreets(layout, shared) {
   const stopGeos = [];
   const stopBackGeos = [];
   const hydrants = [];
+  const openHydrants = [];
   const baskets = [];
   const signGeos = new Map();
   const addSign = (name, g) => {
@@ -240,6 +241,8 @@ export function buildStreets(layout, shared) {
         nozzle.rotateZ(Math.PI / 2);
         nozzle.translate(hx, CURB + 0.42, hz);
         hydrants.push(body, cap, nozzle);
+        // some are cracked open, spraying across the side street
+        if (!COMMERCIAL_NS.has(i) && chance(0.3)) openHydrants.push({ x: hx + 0.25, y: CURB + 0.42, z: hz, dx: 1, dz: 0 });
       }
       if (COMMERCIAL_NS.has(i) || COMMERCIAL_EW.has(j)) {
         const bx = x - NS_W / 2 - 0.8;
@@ -504,5 +507,5 @@ export function buildStreets(layout, shared) {
     }
   }
 
-  return { group, update, trees, steam, colliders };
+  return { group, update, trees, steam, colliders, openHydrants };
 }

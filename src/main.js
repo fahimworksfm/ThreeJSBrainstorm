@@ -19,6 +19,7 @@ import { CURB, D, activateDistrict } from './config.js';
 import { DISTRICTS, BOROUGHS } from './districts/index.js';
 import { reseed, chance } from './random.js';
 import { Pigeons } from './pigeons.js';
+import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
   makeFacade, makeRadial, makeBeam, makeHeadlightBeam, makeNoise, makeStripes, makeStreak, FACADE_STYLES,
@@ -277,7 +278,7 @@ function buildGridWorld(def) {
   const kit = new LightKit();
   const elevated = buildElevated(shared, kit);
   const landmarks = def.landmarks(layout, shared);
-  const traffic = new Traffic(shared, audio, null, driveways(layout));
+  const traffic = new Traffic(shared, audio, null, driveways(layout), streets.openHydrants);
   // parked cars are solid too
   const parked = traffic.parked.map((c) => {
     const across = Math.abs(Math.sin(c.rot)) > 0.7; // driveway cars sit crosswise
@@ -327,7 +328,7 @@ function buildRealWorld(def, data) {
       landmarks.group.add(buildSkyline(shared, { x: mx * k + 350, z0: mz * k - 1100, z1: mz * k + 900, depth: 650 }).group);
     } else landmarks.group.add(buildIcons(shared, mx * k, mz * k).group);
   }
-  const traffic = new Traffic(shared, audio, { lanes: city.lanes, parked: city.parked });
+  const traffic = new Traffic(shared, audio, { lanes: city.lanes, parked: city.parked }, [], city.corners.openHydrants);
   const parked = traffic.parked.map((c) => {
     const cs = Math.cos(c.rot);
     const sn = Math.sin(c.rot);
@@ -410,7 +411,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const memories = new Memories(shared, audio, hud, P.place ?? null);
   const peds = P.peds;
   const pigeons = new Pigeons(peds);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group);
+  const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -420,7 +422,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   scene.add(root);
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -1210,6 +1212,7 @@ function frame(now) {
   W.memories.update(t, dt, camera.position);
   W.peds.update(dt, camera.position, player, settings.rain);
   W.pigeons.update(t, dt, player);
+  W.spray.update(dt, camera.position, player);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl

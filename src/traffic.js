@@ -84,9 +84,9 @@ function makeBusMaterials() {
 export class Traffic {
   /**
    * spec (real-map mode): { lanes: [{ pts, crossings: [{ s, axis, half }], busy }], parked: [{ x, z, rot }] }.
-   * Without it, lanes come from the district's street grid. extraParked: more parked cars (driveways).
+   * Without it, lanes come from the district's street grid. extraParked: more parked cars (driveways); keepClear: [{ x, z }] spots no car parks near.
    */
-  constructor(shared, audio, spec = null, extraParked = []) {
+  constructor(shared, audio, spec = null, extraParked = [], keepClear = []) {
     this.audio = audio;
     this.group = new THREE.Group();
     this.lanes = [];
@@ -104,6 +104,8 @@ export class Traffic {
       for (const p of spec.parked) this.parked.push({ ...p, color: pick(BODY_COLORS) });
     } else this.gridLanes();
     for (const p of extraParked) this.parked.push({ ...p, color: pick(BODY_COLORS) });
+    // nobody parks in front of an open hydrant
+    this.parked = this.parked.filter((p) => !keepClear.some((h) => Math.hypot(p.x - h.x, p.z - h.z) < 4.5));
     for (const lane of this.lanes) {
       const span = lane.path.len;
       lane.cars.forEach((c, k) => (c.s = ((k + rand() * 0.5) * span) / lane.cars.length));
