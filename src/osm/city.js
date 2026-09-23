@@ -412,6 +412,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   const poiBuckets = new Buckets(20);
   for (const p of M.pois) poiBuckets.add(p.p[0], p.p[1], p.p[0], p.p[1], p);
   const faces = [];
+  const bigAt = def.bigSigns?.ll ? M.proj.toWorld(...def.bigSigns.ll) : null;
   const signNames = [];
   const signSeen = new Set();
   for (const lot of lots) {
@@ -447,7 +448,8 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
           signNames.push(n.toUpperCase().slice(0, 22));
         }
       }
-      faces.push({ x: mx, z: mz, nx, nz, w, lot, shop, names: names.map((n) => n.toUpperCase().slice(0, 22)) });
+      const bigSign = !!bigAt && lot.h > 14 && w >= 6 && Math.hypot(mx - bigAt[0], mz - bigAt[1]) < def.bigSigns.radius && hash01(lot.id, i + 50) < (def.bigSigns.chance ?? 0.6);
+      faces.push({ x: mx, z: mz, nx, nz, w, lot, shop, bigSign, names: names.map((n) => n.toUpperCase().slice(0, 22)) });
     }
   }
 

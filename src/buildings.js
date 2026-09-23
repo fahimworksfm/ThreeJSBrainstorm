@@ -653,6 +653,34 @@ export function buildBuildings(layout, shared) {
   const ads = makeAdAtlas();
   const adMat = new THREE.MeshStandardMaterial({ map: ads, emissiveMap: ads, emissive: 0xffffff, emissiveIntensity: 0.3, roughness: 0.7, side: THREE.DoubleSide });
   adMat.userData.billboard = true;
+  // Times Square style: facades wrapped in giant lit ads
+  const bigGeos = [];
+  const frameGeos = [];
+  for (const f of layout.faces) {
+    const lot = f.lot;
+    const big = f.bigSign ?? (D.bigSigns && !lot.poly && (f.shop || lot.kind === 'condo') && lot.h > 14 && chance(D.bigSigns.chance ?? 0.5));
+    if (!big || f.w < 6) continue;
+    const ang = Math.atan2(f.nx, f.nz);
+    const y0 = CURB + 5.4;
+    const stack = Math.min(3, Math.floor((Math.min(lot.h, 45) - 6) / 9));
+    for (let k = 0; k < stack; k++) {
+      const bw = f.w - 1.2;
+      const bh = Math.min(8, bw * 0.45);
+      const g = new THREE.PlaneGeometry(bw, bh);
+      const slot = Math.floor(rand() * AD_COUNT);
+      const uv = g.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / AD_COUNT);
+      bigGeos.push(place(g.translate(0, y0 + k * (bh + 1) + bh / 2, 0.35), f.x, 0, f.z, ang));
+      // a steel frame behind each screen
+      frameGeos.push(place(new THREE.BoxGeometry(bw + 0.3, bh + 0.3, 0.25).translate(0, y0 + k * (bh + 1) + bh / 2, 0.15), f.x, 0, f.z, ang));
+    }
+  }
+  const bigMat = adMat.clone();
+  bigMat.emissiveIntensity = 1.1;
+  bigMat.userData.billboard = true;
+  bigMat.userData.bright = true;
+  addMerged(bigGeos, bigMat);
+  addMerged(frameGeos, new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6 }));
   addMerged(billboardGeos, adMat);
   addMerged(
     railGeos,

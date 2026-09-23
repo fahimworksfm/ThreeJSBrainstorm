@@ -336,6 +336,15 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
+  // far building tiles can be skipped once the fog has swallowed them
+  W.cullables = [];
+  if (W.real) {
+    W.buildings.group.traverse((o) => {
+      if (!o.isMesh) return;
+      o.geometry.computeBoundingSphere();
+      W.cullables.push(o);
+    });
+  }
   applyTime(true);
   minimap.setWorld(W);
   hud.setDistrict(`${def.name}, ${def.borough}`);
@@ -460,7 +469,7 @@ function updateMaterials(L, first) {
       m.userData.baseOpacity ??= m.opacity;
       m.opacity = m.userData.baseOpacity * L.pools;
     } else if (m.userData.billboard) {
-      m.emissiveIntensity = 0.12 + L.windows * 0.75;
+      m.emissiveIntensity = m.userData.bright ? 0.6 + L.windows * 1.4 : 0.12 + L.windows * 0.75;
     } else if (m.userData.neonBase) {
       m.userData.neonScale = L.neon;
       if (!m.userData.flicker) m.color.copy(m.userData.neonBase).multiplyScalar(L.neon);
@@ -823,6 +832,7 @@ function renderPortrait() {
   return true;
 }
 let shadowFrame = 0;
+let cullTimer = 0;
 const camEuler = new THREE.Euler();
 
 function frame(now) {
@@ -849,6 +859,16 @@ function frame(now) {
     if (shadowFrame === 0) renderer.shadowMap.needsUpdate = true;
   }
   W.landmarks.update(t, camera, dt);
+  cullTimer -= dt;
+  if (cullTimer <= 0 && W.cullables.length) {
+    cullTimer = 0.4;
+    // distance where exp2 fog is ~98.5% opaque
+    const far = 2.05 / Math.max(1e-4, scene.fog.density) + 40;
+    for (const o of W.cullables) {
+      const bs = o.geometry.boundingSphere;
+      o.visible = Math.hypot(bs.center.x - camera.position.x, bs.center.z - camera.position.z) - bs.radius < far;
+    }
+  }
   W.sky.update(t, camera);
   W.clouds.update(camera);
   W.road.update(t, W.weather.intensity * W.wet);

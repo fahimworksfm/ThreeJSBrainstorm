@@ -55,12 +55,21 @@ const ABBREV = [
   [/\bnorth\b/g, 'n'], [/\bsouth\b/g, 's'], [/\beast\b/g, 'e'], [/\bwest\b/g, 'w'], [/\bsaint\b/g, 'st'],
 ];
 
+// names New Yorkers use vs. what's on the map
+const ALIASES = {
+  'ave of the americas': '6th ave',
+  'adam clayton powell jr blvd': '7th ave',
+  'frederick douglass blvd': '8th ave',
+  'malcolm x blvd': 'lenox ave',
+  'continental ave': '71st ave',
+};
+
 /** "31st Street" and "31st St" both become "31st st". */
 export function normName(name) {
   if (!name) return '';
   let n = name.toLowerCase().replace(/[.'’]/g, '').replace(/\s+/g, ' ').trim();
   for (const [re, to] of ABBREV) n = n.replace(re, to);
-  return n;
+  return ALIASES[n] ?? n;
 }
 
 const SHORT = [

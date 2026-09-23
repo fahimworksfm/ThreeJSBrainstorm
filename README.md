@@ -95,6 +95,11 @@ where you left it.
   train line (the 7 over Queens Blvd and Roosevelt Ave, the E/F under Queens Blvd, the A over the Rockaway
   Freeway), shopping streets, shop names, and memories to find.
 
+- **Times Square (Manhattan)**: facades wrapped in lit billboards, the 1/2/3 under 7th Ave.
+- **Williamsburg (Brooklyn)**: the L at Bedford Ave, murals, the waterfront.
+- **Fordham (the Bronx)**: the 4 train over Jerome Ave, Fordham Road, the Grand Concourse.
+- **St. George (Staten Island)**: the ferry terminal, Borough Hall, the harbor.
+
 The train map lists all five boroughs; places that aren't built yet are marked "coming soon".
 
 ### Real streets (OpenStreetMap)
