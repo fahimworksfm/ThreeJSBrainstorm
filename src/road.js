@@ -17,6 +17,10 @@ const WetRoadShader = {
       tNoise: { value: null },
       time: { value: 0 },
       wetness: { value: 1 },
+      tAsphalt: { value: null },
+      uUseMap: { value: 0 },
+      uMeters: { value: 9 },
+      uGain: { value: 1 },
     },
   ]),
   vertexShader: /* glsl */ `
@@ -39,6 +43,10 @@ const WetRoadShader = {
     uniform sampler2D tNoise;
     uniform float time;
     uniform float wetness;
+    uniform sampler2D tAsphalt;
+    uniform float uUseMap;
+    uniform float uMeters;
+    uniform float uGain;
     varying vec4 vUv;
     varying vec3 vWorld;
     #include <common>
@@ -68,7 +76,9 @@ const WetRoadShader = {
       float amount = mix(0.12, 0.75, puddle) * mix(0.3, 1.0, fresnel) * mix(0.25, 1.0, wetness);
       // the sky is dim in a puddle; lamps and neon stay bright
       refl *= smoothstep(0.0, 1.2, max(refl.r, max(refl.g, refl.b)));
-      vec3 asphalt = color * (0.55 + 0.9 * grain) * (1.0 - puddle * 0.5);
+      // a hand-drawn asphalt sheet, normalized to the same average brightness as the procedural grain
+      vec3 base = uUseMap > 0.5 ? texture2D(tAsphalt, w / uMeters).rgb * uGain : vec3(0.55 + 0.9 * grain);
+      vec3 asphalt = color * base * (1.0 - puddle * 0.5);
       gl_FragColor = vec4(asphalt + refl * amount, 1.0);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
@@ -76,7 +86,8 @@ const WetRoadShader = {
     }`,
 };
 
-export function buildRoad(noiseTex, rect, pixelSize) {
+/** sheet: optional hand-drawn asphalt texture (texture pack), mapped in world meters. */
+export function buildRoad(noiseTex, rect, pixelSize, sheet = null) {
   const geo = new THREE.PlaneGeometry(rect.x1 - rect.x0, rect.z1 - rect.z0);
   const reflector = new Reflector(geo, {
     shader: WetRoadShader,
@@ -91,8 +102,22 @@ export function buildRoad(noiseTex, rect, pixelSize) {
   reflector.rotation.x = -Math.PI / 2;
   reflector.position.set((rect.x0 + rect.x1) / 2, 0, (rect.z0 + rect.z1) / 2);
 
-  const asphalt = makeAsphalt();
-  asphalt.repeat.set((rect.x1 - rect.x0) / 16, (rect.z1 - rect.z0) / 16);
+  let asphalt;
+  let plainGain = 2.2; // the procedural asphalt is mid-grey
+  if (sheet) {
+    const u = reflector.material.uniforms;
+    u.tAsphalt.value = sheet;
+    u.uUseMap.value = 1;
+    u.uMeters.value = sheet.userData.meters;
+    u.uGain.value = Math.min(12, 1 / sheet.userData.mean);
+    asphalt = sheet.clone();
+    asphalt.repeat.set((rect.x1 - rect.x0) / sheet.userData.meters, (rect.z1 - rect.z0) / sheet.userData.meters);
+    asphalt.needsUpdate = true;
+    plainGain = Math.min(12, 1 / sheet.userData.mean);
+  } else {
+    asphalt = makeAsphalt();
+    asphalt.repeat.set((rect.x1 - rect.x0) / 16, (rect.z1 - rect.z0) / 16);
+  }
   const plain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: asphalt, color: 0x14151a, roughness: 1 }));
   plain.rotation.copy(reflector.rotation);
   plain.position.copy(reflector.position);
@@ -107,8 +132,8 @@ export function buildRoad(noiseTex, rect, pixelSize) {
     },
     setColor(hex) {
       reflector.material.uniforms.color.value.copy(hex);
-      // the asphalt texture is mid-grey, so lift the plain road's tint to compensate
-      plain.material.color.copy(hex).multiplyScalar(2.2);
+      // lift the plain road's tint to make up for the texture's own darkness
+      plain.material.color.copy(hex).multiplyScalar(plainGain);
     },
     setSize(w, h) {
       reflector.getRenderTarget().setSize(w, h);

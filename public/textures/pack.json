@@ -1,3 +1,46 @@
 {
-  "facade-brick": { "file": "facade-brick.jpg", "mask": "facade-brick-mask.png", "cols": 8, "rows": 4 }
+  "facade-brick": {
+    "file": "facade-brick.jpg",
+    "mask": "facade-brick-mask.png",
+    "cols": 8,
+    "rows": 4
+  },
+  "facade-stone": {
+    "file": "facade-stone.jpg",
+    "mask": "facade-stone-mask.png",
+    "cols": 8,
+    "rows": 4
+  },
+  "facade-tudor": {
+    "file": "facade-tudor.jpg",
+    "mask": "facade-tudor-mask.png",
+    "cols": 8,
+    "rows": 4
+  },
+  "facade-siding": {
+    "file": "facade-siding.jpg",
+    "mask": "facade-siding-mask.png",
+    "cols": 8,
+    "rows": 4
+  },
+  "storefront": {
+    "file": "storefront.jpg",
+    "mask": "storefront-mask.png",
+    "shops": 2
+  },
+  "sidewalk": {
+    "file": "sidewalk.jpg",
+    "meters": 6,
+    "mean": 0.2388
+  },
+  "asphalt": {
+    "file": "asphalt.jpg",
+    "meters": 9,
+    "mean": 0.0578
+  },
+  "roof": {
+    "file": "roof.jpg",
+    "meters": 8,
+    "mean": 0.057
+  }
 }

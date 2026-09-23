@@ -403,7 +403,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const clouds = buildClouds();
   root.add(...P.parts, P.kit.build(shared.pool), sky.mesh, clouds.group, buildTrees(P.trees));
 
-  const road = buildRoad(shared.noise, D.roadRect, reflectSize());
+  const road = buildRoad(shared.noise, D.roadRect, reflectSize(), shared.asphalt ?? null);
   road.setReflections(settings.reflections);
   root.add(road.reflector, road.plain);
   const weather = new Weather(shared, P.groundAt, P.steam, quality.rain);

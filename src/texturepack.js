@@ -58,6 +58,9 @@ export async function loadTexturePack(shared, base = './textures/') {
         const map = await load(e.file);
         // sidewalk UVs run 1 unit per 3 m; the sheet covers e.meters meters
         map.repeat.setScalar(3 / (e.meters ?? 3));
+        // road and roofs map the sheet in world meters; mean is its average linear brightness
+        map.userData.meters = e.meters ?? 3;
+        map.userData.mean = e.mean ?? 0.2;
         shared[key] = map;
         n++;
       }

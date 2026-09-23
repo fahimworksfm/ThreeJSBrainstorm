@@ -249,6 +249,19 @@ function paint(g, tint) {
   return g;
 }
 
+/** UVs from world x/z, one unit per 3 m (the texture pack's ground-sheet convention); drops vertex colors. */
+function worldUV(g) {
+  const p = g.attributes.position;
+  const uv = new Float32Array(p.count * 2);
+  for (let i = 0; i < p.count; i++) {
+    uv[i * 2] = p.getX(i) / 3;
+    uv[i * 2 + 1] = p.getZ(i) / 3;
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  if (g.attributes.color) g.deleteAttribute('color');
+  return g.index ? g.toNonIndexed() : g;
+}
+
 /** Flat roof (or floor) cap for a ring with holes, facing up. */
 function ringCap(pts, holes, y, tint) {
   const contour = pts.map(([x, z]) => new THREE.Vector2(x, z));
@@ -313,7 +326,7 @@ const ROOF_TINT = new THREE.Color(0.46, 0.44, 0.42);
 const tmpTint = new THREE.Color();
 
 /** A real building footprint: facade walls, a roof, a cornice, and rooftop clutter. */
-function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeos) {
+function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeos, tarGeos) {
   const { poly, holes, h, style } = lot;
   const base = lot.base ?? CURB;
   const top = base + h;
@@ -342,7 +355,8 @@ function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeo
     return;
   }
   const cap = ringCap(poly, holes, top, tmpTint.copy(ROOF_TINT).multiplyScalar(0.85 + r * 0.3));
-  if (cap) list.push(cap);
+  if (cap && tarGeos) tarGeos.push(worldUV(cap));
+  else if (cap) list.push(cap);
   if (lot.kind === 'shed' || lot.outer) return;
 
   // parapet: a lip that sticks out a little, with its top and inner face
@@ -428,11 +442,12 @@ export function buildBuildings(layout, shared) {
   const porchPools = [];
   const tint = new THREE.Color();
   const windTime = { value: 0 };
+  const tarGeos = shared.roof ? [] : null; // hand-drawn tar roofs, when the texture pack has one
 
   for (const lot of layout.lots) {
     if (lot.poly) {
       tint.set(lot.tint).multiplyScalar(0.85 + lot.rand * 0.25);
-      polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeos);
+      polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeos, tarGeos);
       continue;
     }
     const { x0, x1, z0, z1, h, style } = lot;
@@ -459,6 +474,8 @@ export function buildBuildings(layout, shared) {
       roofGeos.push(place(lip, cx, top - 0.05, cz));
       const band = new THREE.BoxGeometry(w + 0.3, 0.25, d + 0.3);
       roofGeos.push(place(band, cx, top - 0.65, cz));
+      // tar paper inside the parapet
+      if (tarGeos) tarGeos.push(worldUV(new THREE.PlaneGeometry(w - 0.2, d - 0.2).rotateX(-Math.PI / 2).translate(cx, top + 0.235, cz)));
     }
 
     if (lot.kind === 'corner' || lot.kind === 'condo' || lot.kind === 'apt') {
@@ -575,6 +592,7 @@ export function buildBuildings(layout, shared) {
     if (geos.length) group.add(new THREE.Mesh(mergeAll(geos), mat));
   };
   addMerged(roofGeos, roofMat);
+  if (tarGeos?.length) addMerged(tarGeos, new THREE.MeshStandardMaterial({ map: shared.roof, roughness: 0.95 }));
   addMerged(shingleGeos, new THREE.MeshStandardMaterial({ color: 0x2b2624, roughness: 0.9, flatShading: true }));
   addMerged(woodGeos, new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 }));
   const fenceTex = makeFenceTexture();
