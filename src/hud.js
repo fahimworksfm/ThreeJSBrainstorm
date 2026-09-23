@@ -75,9 +75,9 @@ export class HUD {
     this.el.location.textContent = text;
   }
 
-  /** Game clock: starts at 2:13 AM, one minute passes every six seconds. */
+  /** Game clock: one minute passes every six seconds. t is in seconds. */
   setClock(t) {
-    const minutes = 2 * 60 + 13 + Math.floor(t / 6);
+    const minutes = Math.floor(t / 6);
     const h = Math.floor(minutes / 60) % 24;
     const m = minutes % 60;
     const text = `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;

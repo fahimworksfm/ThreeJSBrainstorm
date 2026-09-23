@@ -6,6 +6,7 @@ import {
   makeStorefront, makeNeon,
 } from './textures.js';
 import { rand, range, pick, chance } from './random.js';
+import { FLOOR_H } from './textures.js';
 
 
 /** Box with facade UVs in world units so window grids line up across buildings. */
@@ -168,10 +169,12 @@ export function buildBuildings(layout, shared) {
   addMerged(roofGeos, new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.9 }));
   addMerged(shingleGeos, new THREE.MeshStandardMaterial({ color: 0x2b2624, roughness: 0.9, flatShading: true }));
   addMerged(woodGeos, new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 }));
+  const fenceTex = makeFenceTexture();
+  const railGeos = [];
   addMerged(
     fenceGeos,
     new THREE.MeshStandardMaterial({
-      map: makeFenceTexture(), color: 0x1a1a1a, roughness: 0.5, metalness: 0.7,
+      map: fenceTex, color: 0x1a1a1a, roughness: 0.5, metalness: 0.7,
       alphaTest: 0.5, side: THREE.DoubleSide,
     }),
   );
@@ -182,6 +185,48 @@ export function buildBuildings(layout, shared) {
     new THREE.MeshBasicMaterial({
       map: shared.pool, color: 0xffb870, transparent: true, opacity: 0.3,
       blending: THREE.AdditiveBlending, depthWrite: false,
+    }),
+  );
+
+  // ---- fire escapes on the walk-ups
+  const ironGeos = [];
+  for (const f of layout.faces) {
+    const lot = f.lot;
+    if (lot.outer || !['apt', 'corner', 'mixed'].includes(lot.kind)) continue;
+    if (lot.h < 11 || f.w < 8 || !chance(0.45)) continue;
+    const ang = Math.atan2(f.nx, f.nz);
+    const fw = Math.min(5.5, f.w - 2.5);
+    const off = range(-(f.w - fw) / 2 + 0.5, (f.w - fw) / 2 - 0.5);
+    const floorsUp = Math.floor((lot.h - 0.6) / FLOOR_H);
+    const pieces = [];
+    const first = f.shop ? 2 : 1; // keep clear of the storefront
+    for (let k = first; k < floorsUp; k++) {
+      const y = CURB + k * FLOOR_H + 0.15;
+      pieces.push(new THREE.BoxGeometry(fw, 0.08, 1.15).translate(off, y, 0.6));
+      const rail = new THREE.PlaneGeometry(fw, 0.95);
+      const uv = rail.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setX(i, (uv.getX(i) * fw) / 0.6);
+      railGeos.push(place(rail.translate(off, y + 0.5, 1.18), f.x, 0, f.z, ang));
+      for (const sx of [-1, 1]) {
+        const end = new THREE.PlaneGeometry(1.15, 0.95).rotateY(Math.PI / 2);
+        railGeos.push(place(end.translate(off + (sx * fw) / 2, y + 0.5, 0.6), f.x, 0, f.z, ang));
+      }
+      if (k < floorsUp - 1) {
+        // zig-zag stair up to the next landing
+        const run = fw * 0.6;
+        const L = Math.hypot(run, FLOOR_H);
+        const dir = k % 2 ? 1 : -1;
+        const stair = new THREE.BoxGeometry(L, 0.06, 0.5).rotateZ(dir * Math.atan2(FLOOR_H, run));
+        pieces.push(stair.translate(off, y + FLOOR_H / 2, 0.85));
+      }
+    }
+    for (const g of pieces) ironGeos.push(place(g, f.x, 0, f.z, ang));
+  }
+  addMerged(ironGeos, new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.6 }));
+  addMerged(
+    railGeos,
+    new THREE.MeshStandardMaterial({
+      map: fenceTex, color: 0x15171a, roughness: 0.6, metalness: 0.6, alphaTest: 0.5, side: THREE.DoubleSide,
     }),
   );
 

@@ -103,6 +103,10 @@ export function buildRoad(noiseTex, rect, pixelSize) {
       reflector.visible = on;
       plain.visible = !on;
     },
+    setColor(hex) {
+      reflector.material.uniforms.color.value.set(hex);
+      plain.material.color.set(hex);
+    },
     setSize(w, h) {
       reflector.getRenderTarget().setSize(w, h);
     },

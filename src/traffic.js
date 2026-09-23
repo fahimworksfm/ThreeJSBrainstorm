@@ -119,6 +119,22 @@ export class Traffic {
     this.mHead = inst(head, new THREE.MeshBasicMaterial({ color: 0xffffff }));
     this.mTail = inst(tail, new THREE.MeshBasicMaterial({ color: 0xffffff }));
     this.mSign = inst(roofSign, new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.6, 1.6) }));
+    // checkered band along the doors of yellow cabs
+    const checkerCanvas = document.createElement('canvas');
+    checkerCanvas.width = 64;
+    checkerCanvas.height = 8;
+    const cx = checkerCanvas.getContext('2d');
+    for (let x = 0; x < 16; x++) {
+      for (let y = 0; y < 2; y++) {
+        cx.fillStyle = (x + y) % 2 ? '#111' : '#f4f1e8';
+        cx.fillRect(x * 4, y * 4, 4, 4);
+      }
+    }
+    const checkerTex = new THREE.CanvasTexture(checkerCanvas);
+    checkerTex.colorSpace = THREE.SRGBColorSpace;
+    checkerTex.magFilter = THREE.NearestFilter;
+    const checker = mergeGeometries([-1, 1].map((sx) => new THREE.BoxGeometry(0.02, 0.16, 3.4).translate(sx * 0.96, 0.95, -0.1)));
+    this.mChecker = inst(checker, new THREE.MeshStandardMaterial({ map: checkerTex, roughness: 0.5 }));
     this.mBeam = inst(
       beam,
       new THREE.MeshBasicMaterial({
@@ -139,6 +155,7 @@ export class Traffic {
       m.makeRotationY(p.rot).setPosition(p.x, 0, p.z);
       for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail]) mesh.setMatrixAt(k, m);
       this.mSign.setMatrixAt(k, zero);
+      this.mChecker.setMatrixAt(k, zero);
       this.mBeam.setMatrixAt(k, zero);
       this.mBody.setColorAt(k, c.set(p.color));
       this.mHead.setColorAt(k, c.setRGB(0.05, 0.05, 0.05));
@@ -218,7 +235,7 @@ export class Traffic {
     const up = new THREE.Vector3(0, 1, 0);
     this.cars.forEach((car, k) => {
       if (car.hidden) {
-        for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mBeam]) mesh.setMatrixAt(k, zero);
+        for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
         return;
       }
       const lane = car.lane;
@@ -229,9 +246,10 @@ export class Traffic {
       m.compose(p, q, s);
       for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mBeam]) mesh.setMatrixAt(k, m);
       this.mSign.setMatrixAt(k, car.kind === 'car' ? zero : m);
+      this.mChecker.setMatrixAt(k, car.kind === 'yellow' ? m : zero);
       this.mTail.setColorAt(k, car.braking || car.v < 0.3 ? c.setRGB(7, 0.3, 0.2) : c.setRGB(2.4, 0.1, 0.08));
     });
-    for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mBeam]) {
+    for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) {
       mesh.instanceMatrix.needsUpdate = true;
     }
     this.mTail.instanceColor.needsUpdate = true;

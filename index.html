@@ -21,6 +21,7 @@
         <div id="fps"></div>
       </div>
       <div id="crosshair"></div>
+      <canvas id="minimap"></canvas>
       <div id="subtitle">
         <div id="subtitle-title"></div>
         <div id="subtitle-text"></div>
@@ -32,7 +33,7 @@
     <div id="overlay">
       <div class="card">
         <div>
-          <div class="eyebrow">New York City · 2 AM · raining</div>
+          <div class="eyebrow">New York City · after dark</div>
           <h1>NIGHT<br />WALKER</h1>
           <p class="sub">
             You can't sleep, so you walk. Follow the blue lights to find the memories hidden in each neighborhood.
@@ -43,6 +44,10 @@
           <h3>Neighborhood</h3>
           <div id="picker"></div>
         </div>
+        <div>
+          <h3>Look</h3>
+          <div id="styles"></div>
+        </div>
         <button id="start">Click to walk</button>
         <div class="cols">
           <div>
@@ -52,6 +57,7 @@
               <dt>Shift</dt><dd>hurry</dd>
               <dt>Mouse</dt><dd>look around</dd>
               <dt>E</dt><dd>take the train (at a green-globe entrance)</dd>
+              <dt>V</dt><dd>change visual style</dd>
               <dt>R</dt><dd>rain on / off</dd>
               <dt>Q</dt><dd>street reflections (performance)</dd>
               <dt>B</dt><dd>bloom</dd>
