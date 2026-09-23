@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Low-poly, flat-colored models: they take the ink outlines and cel banding well.
 const std = (color, roughness = 0.75, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -472,37 +473,47 @@ export function sedanGeometry() {
       s.lineTo(cz + Math.cos(a) * 0.42, 0.34 + Math.sin(a) * 0.42);
     }
   };
+  // a 70s New York sedan: square nose, long flat hood and trunk, upright glass, flat roof
   const body = new THREE.Shape();
-  body.moveTo(2.35, 0.3);
-  body.lineTo(2.38, 0.62);
-  body.lineTo(2.25, 0.82);
-  body.lineTo(1.05, 0.95); // hood
-  body.lineTo(0.42, 1.4); // windshield
-  body.lineTo(-0.85, 1.42); // roof
-  body.lineTo(-1.55, 1.0); // rear window
-  body.lineTo(-2.28, 0.94); // trunk
-  body.lineTo(-2.38, 0.62);
-  body.lineTo(-2.35, 0.3);
-  arch(body, -1.45);
-  body.lineTo(1.05, 0.3);
-  arch(body, 1.45);
-  body.lineTo(2.35, 0.3);
+  body.moveTo(2.4, 0.3);
+  body.lineTo(2.43, 0.78);
+  body.lineTo(2.33, 0.87);
+  body.lineTo(0.95, 0.93); // long flat hood
+  body.lineTo(0.38, 1.37); // upright windshield
+  body.lineTo(-0.95, 1.39); // flat roof
+  body.lineTo(-1.42, 1.0); // rear window
+  body.lineTo(-2.3, 0.96); // long trunk
+  body.lineTo(-2.43, 0.84);
+  body.lineTo(-2.4, 0.3);
+  arch(body, -1.5);
+  body.lineTo(1.1, 0.3);
+  arch(body, 1.5);
+  body.lineTo(2.4, 0.3);
   const bodyGeo = new THREE.ExtrudeGeometry(body, {
-    depth: W - 0.16, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.07, bevelSegments: 2, curveSegments: 4,
+    depth: W - 0.16, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 1, curveSegments: 4,
   });
   // shape x runs along the car: rotate so it points +z and center the width
   bodyGeo.rotateY(-Math.PI / 2);
   bodyGeo.translate((W - 0.16) / 2, 0, 0);
 
   const glass = new THREE.Shape();
-  glass.moveTo(1.0, 0.97);
-  glass.lineTo(0.4, 1.36);
-  glass.lineTo(-0.83, 1.38);
-  glass.lineTo(-1.48, 1.0);
-  glass.lineTo(1.0, 0.97);
-  const glassGeo = new THREE.ExtrudeGeometry(glass, { depth: W - 0.08, bevelEnabled: false });
+  glass.moveTo(0.93, 0.95);
+  glass.lineTo(0.4, 1.33);
+  glass.lineTo(-0.93, 1.35);
+  glass.lineTo(-1.37, 1.0);
+  glass.lineTo(0.93, 0.95);
+  const glassGeo = new THREE.ExtrudeGeometry(glass, { depth: W - 0.06, bevelEnabled: false });
   glassGeo.rotateY(-Math.PI / 2);
-  glassGeo.translate((W - 0.08) / 2, 0.005, 0);
+  glassGeo.translate((W - 0.06) / 2, 0.005, 0);
+
+  // chrome: wraparound bumpers, a grille, and trim along the flanks
+  const chrome = mergeGeometries([
+    new THREE.BoxGeometry(W + 0.08, 0.17, 0.2).translate(0, 0.42, 2.46),
+    new THREE.BoxGeometry(W + 0.08, 0.17, 0.2).translate(0, 0.42, -2.46),
+    new THREE.BoxGeometry(1.1, 0.24, 0.05).translate(0, 0.66, 2.46),
+    new THREE.BoxGeometry(0.03, 0.05, 3.9).translate(W / 2 + 0.02, 0.72, 0),
+    new THREE.BoxGeometry(0.03, 0.05, 3.9).translate(-W / 2 - 0.02, 0.72, 0),
+  ]);
   // drop the uv/extra attributes differences between the two
-  return { body: bodyGeo, glass: glassGeo };
+  return { body: bodyGeo, glass: glassGeo, chrome };
 }

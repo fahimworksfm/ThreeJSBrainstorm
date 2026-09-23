@@ -10,6 +10,7 @@ import { RIM, rimLight, setWet } from './fx.js';
 import { COMIC, ComicWords } from './comicfx.js';
 import { BigMap, RideWheel } from './menus.js';
 import { PRESETS, DEFAULTS, buildSettings } from './settingsui.js';
+import { loadTexturePack } from './texturepack.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
@@ -282,7 +283,7 @@ function buildGridWorld(def) {
   const roofs = new ColliderGrid(
     layout.lots.filter((l) => l.kind !== 'house' && !l.outer).map((l) => ({ x0: l.x0, x1: l.x1, z0: l.z0, z1: l.z1, top: CURB + l.h + 0.225 })),
   );
-  const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...streets.colliders, ...parked]);
+  const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...streets.colliders, ...parked, ...buildings.colliders]);
   return {
     layout, groundAt, buildings, streets, kit, elevated, landmarks, traffic, roofs, grid,
     trees: [...streets.trees, ...landmarks.trees], parts: [buildings.group, streets.group, elevated.group, landmarks.group],
@@ -329,7 +330,7 @@ function buildRealWorld(def, data) {
     const zs = poly.map((p) => p[1]);
     return { poly, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
   });
-  const grid = new ColliderGrid([...city.colliders, ...elevated.colliders, ...parked]);
+  const grid = new ColliderGrid([...city.colliders, ...elevated.colliders, ...parked, ...buildings.colliders]);
   const roofs = new ColliderGrid(city.roofs);
   const streets = city.corners;
   return {
@@ -926,7 +927,16 @@ const firstDistrict = params.get('district') || store.get('district', 'astoria')
 fade.querySelector('span').textContent = settings.realMap ? 'Loading real streets…' : '';
 showCard(DISTRICTS[firstDistrict] ?? DISTRICTS.astoria);
 fade.classList.add('show');
-loadDistrict(firstDistrict, { onStatus: (text) => (fade.querySelector('span').textContent = text) }).then(() => {
+loadTexturePack(shared)
+  .then((n) => {
+    if (!n) return;
+    console.info(`texture pack: ${n} hand-drawn sheets`);
+    // keep them across neighborhood changes
+    for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.emissiveMap);
+    for (const t of [shared.storefront?.map, shared.storefront?.emissiveMap, shared.sidewalk, shared.asphalt, shared.roof]) if (t) sharedTextures.add(t);
+  })
+  .then(() => loadDistrict(firstDistrict, { onStatus: (text) => (fade.querySelector('span').textContent = text) }))
+  .then(() => {
   if (params.has('cam')) {
     const [x, z, yaw = 0, pitch = 0, height = 1.68] = params.get('cam').split(',').map(Number);
     camera.position.set(x, W.groundAt(x, z) + height, z);

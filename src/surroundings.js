@@ -4,13 +4,37 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB } from './config.js';
 import { rand, range } from './random.js';
 
+/**
+ * Street trees drawn like the reference panels: a real trunk that forks into branches, under
+ * a big, lumpy canopy of leaf clusters. Modeled once (about 9 m tall) and instanced.
+ */
 export function buildTrees(positions) {
-  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.18, 1, 6);
-  trunkGeo.translate(0, 0.5, 0);
-  // a clumpy crown: several leaf masses, like the trees in a comic panel
-  const blobs = [[0, 0.1, 0, 1], [0.7, -0.2, 0.2, 0.72], [-0.65, -0.1, -0.25, 0.75], [0.15, 0.55, -0.45, 0.68], [-0.2, -0.35, 0.6, 0.62], [0.35, 0.4, 0.55, 0.55]];
-  const crownGeo = mergeGeometries(blobs.map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z)));
-  const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x1d1612, roughness: 1 }), positions.length);
+  const wood = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  const limb = (from, to, r0, r1) => {
+    const dir = new THREE.Vector3().subVectors(to, from);
+    const len = dir.length();
+    const g = new THREE.CylinderGeometry(r1, r0, len, 6);
+    g.translate(0, len / 2, 0);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir.normalize()));
+    wood.push(g.translate(from.x, from.y, from.z));
+  };
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  limb(V(0, 0, 0), V(0.05, 3.4, 0), 0.24, 0.17);
+  const forks = [[1.6, 5.2, 0.4], [-1.4, 5.4, 0.9], [0.3, 5.8, -1.5], [-0.6, 5.0, -0.9], [0.9, 6.2, 1.2]];
+  for (const [x, y, z] of forks) {
+    limb(V(0.05, 3.2, 0), V(x, y, z), 0.14, 0.06);
+    limb(V(x, y, z), V(x * 1.35, y + 0.9, z * 1.35), 0.06, 0.03);
+  }
+  const trunkGeo = mergeGeometries(wood);
+  // leaf clusters sit on the branch tips and fill in between, flatter than tall
+  const blobs = [
+    [0, 6.6, 0, 1.7], [1.7, 5.9, 0.5, 1.35], [-1.6, 6.1, 1.0, 1.4], [0.3, 6.3, -1.7, 1.35], [-0.8, 5.6, -1.1, 1.2],
+    [1.1, 6.9, 1.4, 1.2], [-1.2, 7.1, -0.2, 1.15], [0.6, 7.5, -0.6, 1.05], [2.2, 6.4, -0.8, 1.0], [-2.1, 5.7, -0.4, 0.95],
+    [0.2, 5.4, 1.8, 1.0], [-0.3, 7.9, 0.5, 0.85],
+  ];
+  const crownGeo = mergeGeometries(blobs.map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, 1).scale(1, 0.85, 1).translate(x, y, z)));
+  const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x2a1d15, roughness: 1 }), positions.length);
   const crowns = new THREE.InstancedMesh(
     crownGeo,
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }),
@@ -22,11 +46,11 @@ export function buildTrees(positions) {
   const p = new THREE.Vector3();
   const col = new THREE.Color();
   positions.forEach(([x, z, sc, y = CURB], i) => {
-    const h = 3.6 * sc;
-    m.compose(p.set(x, y, z), q.identity(), s.set(sc, h, sc));
+    // sc ~1.3-1.9 from the placers: trees from ~7 m to ~11 m tall
+    const k = sc / 1.6;
+    q.setFromAxisAngle(up, rand() * 6.28);
+    m.compose(p.set(x, y, z), q, s.set(k * range(0.9, 1.1), k, k * range(0.9, 1.1)));
     trunks.setMatrixAt(i, m);
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28);
-    m.compose(p.set(x, y + h + 1.2 * sc, z), q, s.set(2.2 * sc, 2.0 * sc, 2.2 * sc));
     crowns.setMatrixAt(i, m);
     crowns.setColorAt(i, col.setHSL(range(0.27, 0.35), 0.45, range(0.28, 0.4)));
   });

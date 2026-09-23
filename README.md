@@ -144,6 +144,8 @@ Map data © OpenStreetMap contributors, available under the Open Database Licens
 | `src/collide.js` | Grid-accelerated collisions (boxes and building footprints) |
 | `src/main.js` | Renderer, quality settings, district loading, game loop |
 
+Hand-drawn texture sheets can replace the generated ones: see [docs/TEXTURES.md](docs/TEXTURES.md).
+
 See [docs/TECH-STACK.md](docs/TECH-STACK.md) for other free tools that can push the look further, and how the
 hosting works.
 

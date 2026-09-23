@@ -7,6 +7,7 @@ import {
 } from './textures.js';
 import { rand, range, pick, chance } from './random.js';
 import { FLOOR_H } from './textures.js';
+import { fruitStand } from './streetprops.js';
 
 
 /** Box with facade UVs in world units so window grids line up across buildings. */
@@ -690,11 +691,13 @@ export function buildBuildings(layout, shared) {
   );
 
   // ---- storefronts and neon on shopping-strip facades
-  const shop = makeStorefront();
+  const shop = shared.storefront ?? makeStorefront();
   const shopGeos = [];
   const neonGroups = new Map();
   const boardGeos = [];
   const awningGeos = [];
+  const fruitGeos = [];
+  const propColliders = [];
   const boards = makeSignAtlas(D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE']);
   for (const f of layout.faces) {
     if (!f.shop) continue;
@@ -718,6 +721,18 @@ export function buildBuildings(layout, shared) {
         const auv = aw.attributes.uv;
         for (let i = 0; i < auv.count; i++) auv.setXY(i, (auv.getX(i) * (bw - 0.5)) / 1.2, (stripe + auv.getY(i)) / 6);
         awningGeos.push(place(aw.translate(0, 4.2, 0.75), f.x - f.nz * center, CURB, f.z + f.nx * center, faceAng));
+        // a fruit and vegetable stand out front, under the awning
+        if (chance(0.35) && bw > 3.2) {
+          const sw = Math.min(bw - 1, 3.4);
+          const fx = f.x - f.nz * center;
+          const fz = f.z + f.nx * center;
+          fruitGeos.push(...fruitStand(fx, fz, f.nx, f.nz, sw, rand, CURB));
+          const cx = fx + f.nx * 0.9;
+          const cz = fz + f.nz * 0.9;
+          const hx = Math.abs(f.nz) * sw / 2 + Math.abs(f.nx) * 0.5;
+          const hz = Math.abs(f.nx) * sw / 2 + Math.abs(f.nz) * 0.5;
+          propColliders.push({ x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz });
+        }
       }
       off += bw;
     }
@@ -751,6 +766,7 @@ export function buildBuildings(layout, shared) {
   const boardMat = new THREE.MeshStandardMaterial({ map: boards.tex, roughness: 0.8, emissive: 0xffffff, emissiveMap: boards.tex, emissiveIntensity: 0.12 });
   addMerged(boardGeos, boardMat);
   addMerged(awningGeos, new THREE.MeshStandardMaterial({ map: makeAwningTexture(), roughness: 0.9, side: THREE.DoubleSide }));
+  addMerged(fruitGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: true }));
 
   const neonMats = [];
   for (const entry of neonGroups.values()) {
@@ -799,5 +815,5 @@ export function buildBuildings(layout, shared) {
     }
   }
 
-  return { group, update, fireEscapes };
+  return { group, update, fireEscapes, colliders: propColliders };
 }

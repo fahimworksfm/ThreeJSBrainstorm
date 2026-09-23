@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB } from '../config.js';
 import { signalState } from '../signals.js';
 import { hash01 } from './geo.js';
+import { steamStack, stackMaterial } from '../streetprops.js';
 
 const LAMP_ON = {
   R: new THREE.Color(5, 0.25, 0.15),
@@ -54,6 +55,7 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
   const baskets = [];
   const manholes = [];
   const steam = [];
+  const stacks = [];
   const colliders = [];
   const blades = [];
   const names = [];
@@ -160,6 +162,13 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
       const c = corner(j.p, -1, -1, 1.2);
       if (c) baskets.push(new THREE.CylinderGeometry(0.32, 0.26, 0.9, 10, 1, true).translate(c[0], CURB + 0.45, c[1]));
     }
+    // now and then a striped Con Ed stack in the road, steaming away
+    if (hash01(j.id, 11) < 0.07 && isRoad(x - 4, z + 3)) {
+      const st = steamStack(x - 4, z + 3);
+      stacks.push(...st.geos);
+      steam.push(st.emitter);
+      colliders.push({ x0: x - 4.5, x1: x - 3.5, z0: z + 2.5, z1: z + 3.5 });
+    }
     // a manhole in the middle of the crossing, sometimes steaming
     if (hash01(j.id, 8) < 0.6 && isRoad(x + 3, z + 2)) {
       manholes.push(new THREE.CircleGeometry(0.45, 14).rotateX(-Math.PI / 2).translate(x + 3, 0.025, z + 2));
@@ -195,6 +204,7 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
   add(stopBacks, new THREE.MeshStandardMaterial({ color: 0x8a8d90, roughness: 0.6 }));
   add(hydrants, new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }));
   add(baskets, new THREE.MeshStandardMaterial({ color: 0x2f5a3a, roughness: 0.7, side: THREE.DoubleSide }));
+  if (stacks.length) add(stacks, stackMaterial());
   add(manholes, new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.4, metalness: 0.8 }));
   if (blades.length) {
     const atlas = signAtlas(names);

@@ -254,7 +254,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     (x, z) => !isRoad(x, z) && !isWater(x, z),
     res * 0.45,
   );
-  const sidewalkMat = wetGround(new THREE.MeshStandardMaterial({ map: makeSidewalk(), color: 0x9a9aa0, roughness: 0.55, metalness: 0.05 }));
+  const sidewalkMat = wetGround(new THREE.MeshStandardMaterial({ map: shared.sidewalk ?? makeSidewalk(), color: shared.sidewalk ? 0xffffff : 0x9a9aa0, roughness: 0.55, metalness: 0.05 }));
   group.add(new THREE.Mesh(flatPolygons(groundPolys, CURB, 3), sidewalkMat));
   group.add(new THREE.Mesh(curbWalls(groundPolys, CURB, -0.4), new THREE.MeshStandardMaterial({ color: 0x8b8b8e, roughness: 0.8, side: THREE.DoubleSide })));
   const grassPolys = tracePolygons(

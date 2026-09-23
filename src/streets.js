@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { wetGround } from './fx.js';
+import { steamStack, stackMaterial } from './streetprops.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB, D } from './config.js';
 import { LightKit } from './lightkit.js';
@@ -59,7 +60,7 @@ export function buildStreets(layout, shared) {
   group.add(
     new THREE.Mesh(
       sidewalks,
-      wetGround(new THREE.MeshStandardMaterial({ map: makeSidewalk(), color: 0x9a9aa0, roughness: 0.55, metalness: 0.05 })),
+      wetGround(new THREE.MeshStandardMaterial({ map: shared.sidewalk ?? makeSidewalk(), color: shared.sidewalk ? 0xffffff : 0x9a9aa0, roughness: 0.55, metalness: 0.05 })),
     ),
   );
 
@@ -256,6 +257,7 @@ export function buildStreets(layout, shared) {
     group.add(new THREE.Mesh(mergeGeometries(mixed ? geos.map((g) => (g.index ? g.toNonIndexed() : g)) : geos), mat));
   };
   const steam = [];
+  const stackGeos = [];
 
   // ---- food carts with striped umbrellas on the busy corners
   const cartMetal = [];
@@ -473,8 +475,16 @@ export function buildStreets(layout, shared) {
       g.translate(mx, 0.025, mz);
       manholes.push(g);
       if (chance(0.3)) steam.push({ x: mx, y: 0.05, z: mz, strength: range(0.6, 1) });
+      else if (chance(0.08)) {
+        // a Con Ed stack over the street work, pumping a plume
+        const st = steamStack(mx + 1.2, mz);
+        stackGeos.push(...st.geos);
+        steam.push(st.emitter);
+        colliders.push({ x0: mx + 0.7, x1: mx + 1.7, z0: mz - 0.5, z1: mz + 0.5 });
+      }
     }
   }
+  if (stackGeos.length) add(stackGeos, stackMaterial());
   add(manholes, new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.4, metalness: 0.8 }));
 
   const off = new THREE.Color(0.04, 0.02, 0.02);

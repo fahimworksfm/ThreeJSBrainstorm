@@ -7,7 +7,8 @@ import { rand, range, pick, chance } from './random.js';
 import { Path } from './osm/geo.js';
 import { COMIC } from './comicfx.js';
 
-const BODY_COLORS = [0x3f5a3c, 0xc9a24a, 0x8a2a24, 0xd9d0b4, 0x6f8aa8, 0x3a3d44, 0x1d1e22, 0xb8bcc2, 0x6b7a3a, 0xa0522d, 0x2f4f6f];
+// a 70s New York street: avocado, mustard, burnt orange, cream, powder blue, maroon, brown, silver
+const BODY_COLORS = [0x7d8a4a, 0xc99a2e, 0xb35a24, 0xe2d6b4, 0x7fa3bf, 0x7a2a26, 0x5a3a24, 0xb8bcc2, 0x3f5a3c, 0x2f4f6f, 0x1d1e22, 0x8a8f62];
 const BORO_TAXI = 0x7cc242;
 const YELLOW_CAB = 0xf2b705;
 
@@ -201,6 +202,7 @@ export class Traffic {
       return m;
     };
     this.mBody = inst(body, new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.7 }));
+    this.mChrome = inst(sedan.chrome, new THREE.MeshStandardMaterial({ color: 0xd9dde2, roughness: 0.25, metalness: 0.9 }));
     this.mCabin = inst(cabin, new THREE.MeshStandardMaterial({ color: 0x2a3a4e, roughness: 0.3 }));
     this.mWheels = inst(mergeGeometries(wheels), new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 }));
     this.mHead = inst(head, new THREE.MeshBasicMaterial({ color: 0xffffff }));
@@ -258,7 +260,7 @@ export class Traffic {
     this.parked.forEach((p, n) => {
       const k = this.cars.length + n;
       m.makeRotationY(p.rot).setPosition(p.x, 0, p.z);
-      for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail]) mesh.setMatrixAt(k, m);
+      for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail]) mesh.setMatrixAt(k, m);
       this.mSign.setMatrixAt(k, zero);
       this.mChecker.setMatrixAt(k, zero);
       this.mBeam.setMatrixAt(k, zero);
@@ -365,7 +367,7 @@ export class Traffic {
     const up = new THREE.Vector3(0, 1, 0);
     this.cars.forEach((car, k) => {
       if (car.kind === 'bus') {
-        for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
+        for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
         if (car.hidden) {
           this.mBus.setMatrixAt(car.busIdx, zero);
           this.mBusWheels.setMatrixAt(car.busIdx, zero);
@@ -380,19 +382,19 @@ export class Traffic {
         return;
       }
       if (car.hidden || car.x === undefined) {
-        for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
+        for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
         return;
       }
       this._e.set(car.pitch ?? 0, Math.atan2(car.dx, car.dz), car.roll ?? 0, 'YXZ');
       q.setFromEuler(this._e);
       p.set(car.x, 0, car.z);
       m.compose(p, q, s);
-      for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mBeam]) mesh.setMatrixAt(k, m);
+      for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail, this.mBeam]) mesh.setMatrixAt(k, m);
       this.mSign.setMatrixAt(k, car.kind === 'car' ? zero : m);
       this.mChecker.setMatrixAt(k, car.kind === 'yellow' ? m : zero);
       this.mTail.setColorAt(k, car.braking || car.v < 0.3 ? c.setRGB(7, 0.3, 0.2) : c.setRGB(2.4, 0.1, 0.08));
     });
-    for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) {
+    for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) {
       mesh.instanceMatrix.needsUpdate = true;
     }
     this.mTail.instanceColor.needsUpdate = true;
