@@ -22,6 +22,7 @@ export default {
   signalEW: [],
   signalNS: [0, 2, 6],
   edges: { north: 'city', west: 'city' },
+  tudor: 0.65, // Forest Hills Gardens: half-timber and steep slate roofs
   residential: (c, r) => (r >= 3 ? 'detached' : 'apartments'),
   condoChance: (c, r) => (r <= 1 ? 0.35 : 0.03),
   condoFloors: [10, 20],

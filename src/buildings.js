@@ -7,7 +7,7 @@ import {
 } from './textures.js';
 import { rand, range, pick, chance } from './random.js';
 import { FLOOR_H } from './textures.js';
-import { fruitStand } from './streetprops.js';
+import { fruitStand, crateStack, litter } from './streetprops.js';
 
 
 /** Box with facade UVs in world units so window grids line up across buildings. */
@@ -328,7 +328,7 @@ function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeo
   if (lot.gable) {
     // a pitched roof over the footprint's bounding box, ridge along the long side
     const { cx, cz, len, wid, ang } = lot.gable;
-    const rh = Math.min(3.2, wid * 0.35);
+    const rh = lot.style === 'tudor' ? Math.min(5, wid * 0.6) : Math.min(3.2, wid * 0.35);
     const roof = new THREE.CylinderGeometry(1, 1, len + 0.5, 3, 1, false, Math.PI / 2);
     roof.rotateZ(Math.PI / 2);
     roof.scale(1, rh / 1.5, (wid + 0.6) / 1.732);
@@ -444,7 +444,7 @@ export function buildBuildings(layout, shared) {
 
     if (lot.kind === 'house') {
       // gable roof: a triangular prism with its ridge running away from the street
-      const rh = range(2.2, 3.2);
+      const rh = style === 'tudor' ? range(4, 5.2) : range(2.2, 3.2); // Tudor roofs pitch steep
       const roof = new THREE.CylinderGeometry(1, 1, w + 0.6, 3, 1, false, Math.PI / 2);
       roof.rotateZ(Math.PI / 2);
       roof.scale(1, rh / 1.5, (d + 0.7) / 1.732);
@@ -697,16 +697,21 @@ export function buildBuildings(layout, shared) {
   const boardGeos = [];
   const awningGeos = [];
   const fruitGeos = [];
+  const litterGeos = [];
   const propColliders = [];
   const boards = makeSignAtlas(D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE']);
   for (const f of layout.faces) {
-    if (!f.shop) continue;
+    if (!f.shop) {
+      if (f.w > 3 && f.lot?.kind !== 'house' && chance(0.4)) litterGeos.push(...litter(f.x, f.z, f.nx, f.nz, 2.6, f.w * 0.8, rand, CURB, Math.floor(range(1, 4))));
+      continue;
+    }
     // painted sign board over each shop, with a striped awning on many of them
     const faceAng = Math.atan2(f.nx, f.nz);
     for (let off = -f.w / 2 + 0.3; off < f.w / 2 - 3; ) {
       const bw = Math.min(range(5.5, 9), f.w / 2 - 0.3 - off);
       if (bw < 3) break;
       const center = off + bw / 2;
+      let stand = false;
       const tx = f.x - f.nz * center + f.nx * 0.12;
       const tz = f.z + f.nx * center + f.nz * 0.12;
       const board = new THREE.PlaneGeometry(bw - 0.3, 0.9);
@@ -723,6 +728,7 @@ export function buildBuildings(layout, shared) {
         awningGeos.push(place(aw.translate(0, 4.2, 0.75), f.x - f.nz * center, CURB, f.z + f.nx * center, faceAng));
         // a fruit and vegetable stand out front, under the awning
         if (chance(0.35) && bw > 3.2) {
+          stand = true;
           const sw = Math.min(bw - 1, 3.4);
           const fx = f.x - f.nz * center;
           const fz = f.z + f.nx * center;
@@ -734,6 +740,16 @@ export function buildBuildings(layout, shared) {
           propColliders.push({ x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz });
         }
       }
+      // milk crates and boxes by the door, and litter blowing along the pavement
+      const ex = f.x - f.nz * (off + bw - 0.5);
+      const ez = f.z + f.nx * (off + bw - 0.5);
+      if (!stand && chance(0.3)) {
+        fruitGeos.push(...crateStack(ex, ez, f.nx, f.nz, rand, CURB));
+        const cx = ex + f.nx * 0.3;
+        const cz = ez + f.nz * 0.3;
+        propColliders.push({ x0: cx - 0.7, x1: cx + 0.7, z0: cz - 0.7, z1: cz + 0.7 });
+      }
+      litterGeos.push(...litter(f.x - f.nz * center, f.z + f.nx * center, f.nx, f.nz, 2.4, bw, rand, CURB, Math.floor(range(2, 7))));
       off += bw;
     }
     if (!chance(0.3)) continue;
@@ -767,6 +783,7 @@ export function buildBuildings(layout, shared) {
   addMerged(boardGeos, boardMat);
   addMerged(awningGeos, new THREE.MeshStandardMaterial({ map: makeAwningTexture(), roughness: 0.9, side: THREE.DoubleSide }));
   addMerged(fruitGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: true }));
+  addMerged(litterGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
 
   const neonMats = [];
   for (const entry of neonGroups.values()) {

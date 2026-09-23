@@ -72,3 +72,55 @@ export function fruitStand(x, z, nx, nz, width, rnd, y0) {
   }
   return geos;
 }
+
+const CRATES = [0xc8322a, 0x2a5fb0, 0xe8b820, 0x2f8a4a, 0xd8d4c8];
+const CARDBOARD = [0xa77b48, 0x8f6a3e, 0xb98f5a];
+
+/**
+ * Milk crates and cardboard boxes stacked against a shop wall.
+ * (x, z) is the facade point, (nx, nz) its outward normal. Returns vertex-colored geometries.
+ */
+export function crateStack(x, z, nx, nz, rnd, y0) {
+  const geos = [];
+  const ang = Math.atan2(nx, nz);
+  const place = (g) => g.rotateY(ang).translate(x, y0, z);
+  const cols = 1 + Math.floor(rnd() * 3);
+  for (let c = 0; c < cols; c++) {
+    const high = 1 + Math.floor(rnd() * 3);
+    const cardboard = rnd() < 0.35;
+    for (let k = 0; k < high; k++) {
+      const w = cardboard ? 0.5 + rnd() * 0.2 : 0.36;
+      const h = cardboard ? 0.35 + rnd() * 0.15 : 0.28;
+      const box = new THREE.BoxGeometry(w, h, cardboard ? 0.5 : 0.36)
+        .rotateY((rnd() - 0.5) * 0.3)
+        .translate((c - (cols - 1) / 2) * 0.46 + (rnd() - 0.5) * 0.06, h / 2 + k * h, 0.3);
+      const pal = cardboard ? CARDBOARD : CRATES;
+      geos.push(place(colored(box, pal[Math.floor(rnd() * pal.length)])));
+    }
+  }
+  return geos;
+}
+
+const LITTER = [0xf2efe4, 0xe8e2cc, 0xb8b4a8, 0xd8261e, 0xf2d024, 0x7a756a];
+
+/**
+ * Litter on the pavement: paper scraps, flattened cups and newspaper pages, lying flat.
+ * Scattered from (x, z) out along (nx, nz) by up to `reach` meters, `across` meters wide.
+ */
+export function litter(x, z, nx, nz, reach, across, rnd, y0, count = 5) {
+  const geos = [];
+  for (let k = 0; k < count; k++) {
+    const out = 0.4 + rnd() * reach;
+    const side = (rnd() - 0.5) * across;
+    const px = x + nx * out - nz * side;
+    const pz = z + nz * out + nx * side;
+    const s = rnd() < 0.2 ? 0.45 + rnd() * 0.25 : 0.1 + rnd() * 0.18; // now and then a whole newspaper page
+    const g = new THREE.PlaneGeometry(s, s * (0.6 + rnd() * 0.5))
+      .rotateX(-Math.PI / 2)
+      .rotateY(rnd() * Math.PI)
+      .translate(px, y0 + 0.015 + k * 0.001, pz);
+    g.deleteAttribute('uv');
+    geos.push(colored(g, LITTER[Math.floor(rnd() * LITTER.length)]));
+  }
+  return geos;
+}

@@ -350,8 +350,8 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
       style = r2 < 0.5 ? 'glass' : 'office';
     } else if (floors <= 2 && b.area < 220 && (HOUSE_TYPES.test(type) || type === 'yes')) {
       kind = b.shop ? 'mixed' : type === 'yes' || type === 'terrace' ? 'row' : 'house';
-      style = pickBy(['siding', 'siding', 'brick', 'brick', 'stone'], r2);
-      tint = style === 'siding' ? pickBy(SIDING_TINTS, hash01(b.id, 8)) : pickBy(BRICK_TINTS, hash01(b.id, 8));
+      style = kind === 'house' && hash01(b.id, 9) < (def.tudor ?? 0) ? 'tudor' : pickBy(['siding', 'siding', 'brick', 'brick', 'stone'], r2);
+      tint = style === 'siding' ? pickBy(SIDING_TINTS, hash01(b.id, 8)) : style === 'tudor' ? '#ffffff' : pickBy(BRICK_TINTS, hash01(b.id, 8));
     } else if (/^(commercial|retail|supermarket)$/.test(type) || b.shop) {
       kind = 'mixed';
       style = pickBy(['brick', 'stone', 'siding', 'deco'], r2);

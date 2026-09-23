@@ -22,6 +22,7 @@ with hand-drawn (or AI-generated) sheets: put the images in `public/textures/` a
 | `facade-stone` | tan limestone / brownstone front with cornice details | 1024 × 1536 | 4 × 4 |
 | `facade-deco` | cream art-deco apartment building, geometric trim | 1024 × 1536 | 4 × 4 |
 | `facade-siding` | Queens row house: pastel vinyl siding, white window frames | 1024 × 1536 | 4 × 4 |
+| `facade-tudor` | Forest Hills Tudor: cream stucco, dark half-timber beams and braces, leaded diamond-pane windows | 1024 × 1536 | 4 × 4 |
 | `facade-office` | grey stone office tower, window grid | 1024 × 1536 | 4 × 4 |
 | `facade-glass` | blue glass curtain wall with mullions | 1024 × 1536 | 4 × 4 |
 | `storefront` | a row of shop fronts at street level (glass, doors, roll-down gates, no signs above) | 2048 × 512 | 4 shops |

@@ -37,6 +37,7 @@ export const FACADE_STYLES = {
   deco: { wall: '#d4bf95', mortar: 'rgba(90,70,40,0.2)', trim: '#8a5a3a', mx: 10, my: 5, lit: 0.25, palette: WARM, floorBias: 0.2 },
   office: { wall: '#8d949e', mortar: 'rgba(40,40,50,0.2)', trim: '#dfe3e8', mx: 3, my: 7, lit: 0.2, palette: COOL, floorBias: 0.6, noAC: true },
   glass: { wall: '#3d5f82', mortar: 'rgba(10,20,40,0.3)', trim: '#23374f', mx: 1, my: 9, lit: 0.15, palette: COOL, floorBias: 0.7, curtain: true, noAC: true },
+  tudor: { wall: '#eadfc4', mortar: 'rgba(0,0,0,0.1)', trim: '#3b2618', mx: 9, my: 7, lit: 0.35, palette: WARM, floorBias: 0.1, timber: true, noAC: true },
   siding: { wall: '#d9d6cc', mortar: 'rgba(0,0,0,0.12)', trim: '#fbf8f0', mx: 9, my: 7, lit: 0.33, palette: WARM, floorBias: 0.1, siding: true },
 };
 
@@ -74,6 +75,38 @@ export function makeFacade(style) {
   }
   e.fillStyle = '#000';
   e.fillRect(0, 0, W, H);
+  if (s.timber) {
+    // half-timbering: sill and plate beams, a post between windows, braces in alternating bays
+    m.strokeStyle = m.fillStyle = s.trim;
+    hgt.strokeStyle = hgt.fillStyle = 'rgb(165,165,165)';
+    m.lineWidth = hgt.lineWidth = 3;
+    for (let row = 0; row < TILE_ROWS; row++) {
+      const y = row * CELL;
+      for (const c of [m, hgt]) {
+        c.fillRect(0, y, W, 3);
+        c.fillRect(0, y + CELL - 3, W, 3);
+      }
+      for (let col = 0; col < TILE_COLS; col++) {
+        const x = col * CELL;
+        for (const c of [m, hgt]) {
+          c.fillRect(x - 1, y, 3, CELL);
+          c.beginPath();
+          if ((col + row) % 2) {
+            c.moveTo(x + 1, y + CELL - 3);
+            c.lineTo(x + s.mx - 1, y + CELL - s.my);
+            c.moveTo(x + CELL - 1, y + CELL - 3);
+            c.lineTo(x + CELL - s.mx + 1, y + CELL - s.my);
+          } else {
+            c.moveTo(x + 1, y + 3);
+            c.lineTo(x + s.mx - 1, y + s.my);
+            c.moveTo(x + CELL - 1, y + 3);
+            c.lineTo(x + CELL - s.mx + 1, y + s.my);
+          }
+          c.stroke();
+        }
+      }
+    }
+  }
 
   for (let row = 0; row < TILE_ROWS; row++) {
     const floorMode = rand() < s.floorBias ? (chance(0.45) ? 'lit' : 'dark') : 'mixed';
@@ -117,7 +150,24 @@ export function makeFacade(style) {
       m.lineTo(x + w * 0.6, y);
       m.lineTo(x + w * 0.3, y + h);
       m.fill();
-      if (!s.curtain) {
+      if (s.timber) {
+        // leaded casement: a diamond lattice
+        m.strokeStyle = 'rgba(40,30,25,0.55)';
+        m.lineWidth = 1;
+        m.save();
+        m.beginPath();
+        m.rect(x, y, w, h);
+        m.clip();
+        m.beginPath();
+        for (let k = -h; k < w; k += 4) {
+          m.moveTo(x + k, y);
+          m.lineTo(x + k + h, y + h);
+          m.moveTo(x + k + h, y);
+          m.lineTo(x + k, y + h);
+        }
+        m.stroke();
+        m.restore();
+      } else if (!s.curtain) {
         // sash bar
         m.fillStyle = s.trim;
         m.fillRect(x, y + Math.floor(h / 2), w, 1);

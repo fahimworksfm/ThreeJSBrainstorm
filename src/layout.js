@@ -97,8 +97,8 @@ export function generateLayout() {
           } else if (mode === 'detached') {
             kind = 'house';
             h = floors(chance(0.7) ? 2 : 1);
-            style = pick(['siding', 'siding', 'siding', 'brick']);
-            tint = style === 'siding' ? pick(SIDING_TINTS) : pick(BRICK_TINTS);
+            style = chance(D.tudor ?? 0) ? 'tudor' : pick(['siding', 'siding', 'siding', 'brick']);
+            tint = style === 'siding' ? pick(SIDING_TINTS) : style === 'tudor' ? '#ffffff' : pick(BRICK_TINTS);
           } else {
             kind = 'row';
             h = floors(chance(0.6) ? 2 : 3);
