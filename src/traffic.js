@@ -14,6 +14,70 @@ const YELLOW_CAB = 0xf2b705;
  * cost the same draw calls as one. Moving cars follow lanes, stop at red lights,
  * queue behind each other and wait (and honk) for pedestrians. Parked cars line the curbs.
  */
+function busSide() {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#f3f3ef';
+  ctx.fillRect(0, 0, 1024, 256);
+  ctx.fillStyle = '#23303e';
+  ctx.fillRect(40, 58, 944, 92);
+  for (let x = 40; x < 984; x += 118) {
+    ctx.fillStyle = '#f3f3ef';
+    ctx.fillRect(x, 58, 6, 92);
+    if (Math.random() < 0.6) {
+      ctx.fillStyle = '#56657a';
+      ctx.beginPath();
+      ctx.arc(x + 50, 100, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(x + 36, 112, 28, 38);
+    }
+  }
+  ctx.fillStyle = '#1f5fae';
+  ctx.fillRect(0, 178, 1024, 26);
+  ctx.fillStyle = '#2b2b2b';
+  ctx.fillRect(160, 58, 70, 180);
+  ctx.fillRect(720, 58, 70, 180);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function busFront(route) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#f3f3ef';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(14, 12, 228, 36);
+  ctx.fillStyle = '#ffb020';
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(route, 128, 40);
+  ctx.fillStyle = '#23303e';
+  ctx.fillRect(14, 56, 228, 110);
+  ctx.fillStyle = '#1f5fae';
+  ctx.fillRect(0, 180, 256, 20);
+  ctx.fillStyle = '#fff6d8';
+  ctx.fillRect(22, 208, 40, 18);
+  ctx.fillRect(194, 208, 40, 18);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function makeBusMaterials() {
+  const side = new THREE.MeshStandardMaterial({ map: busSide(), roughness: 0.6 });
+  const roof = new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.7 });
+  const front = new THREE.MeshStandardMaterial({ map: busFront(D.busRoute ?? 'Q69  LOCAL'), roughness: 0.6 });
+  const back = new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.7 });
+  // BoxGeometry groups: +x, -x, +y, -y, +z (front), -z (back)
+  return [side, side, roof, roof, front, back];
+}
+
 export class Traffic {
   constructor(shared, audio) {
     this.audio = audio;
@@ -34,7 +98,7 @@ export class Traffic {
         };
         this.lanes.push(lane);
         const busy = D.commercialNS.has(i);
-        for (let k = 0; k < (busy ? 4 : 2); k++) this.addCar(lane);
+        for (let k = 0; k < (busy ? 4 : 2); k++) this.addCar(lane, busy);
       }
     }
     for (let j = 0; j < NZ; j++) {
@@ -45,7 +109,7 @@ export class Traffic {
         };
         this.lanes.push(lane);
         const busy = D.commercialEW.has(j);
-        for (let k = 0; k < (busy ? 3 : 1); k++) this.addCar(lane);
+        for (let k = 0; k < (busy ? 3 : 1); k++) this.addCar(lane, busy);
       }
     }
     for (const lane of this.lanes) {
@@ -72,14 +136,15 @@ export class Traffic {
     this.buildMeshes(shared);
   }
 
-  addCar(lane) {
+  addCar(lane, busy = false) {
     const r = rand();
-    const kind = r < 0.12 ? 'yellow' : r < 0.3 ? 'boro' : 'car';
+    const kind = busy && rand() < 0.14 ? 'bus' : r < 0.12 ? 'yellow' : r < 0.3 ? 'boro' : 'car';
     const car = {
       lane, s: 0, v: range(6, 10), vmax: range(9, 13), kind,
       color: kind === 'yellow' ? YELLOW_CAB : kind === 'boro' ? BORO_TAXI : pick(BODY_COLORS),
-      wait: 0, honked: false, braking: false, hidden: false,
+      wait: 0, honked: false, braking: false, hidden: false, len: kind === 'bus' ? 12 : 4.7,
     };
+    if (kind === 'bus') car.vmax = range(7, 9);
     lane.cars.push(car);
     this.cars.push(car);
   }
@@ -147,6 +212,24 @@ export class Traffic {
       }),
     );
 
+    // buses: white and blue, route sign up front
+    this.buses = this.cars.filter((c) => c.kind === 'bus');
+    this.buses.forEach((b, k) => (b.busIdx = k));
+    const nb = Math.max(1, this.buses.length);
+    const busGeo = new THREE.BoxGeometry(2.55, 2.9, 12);
+    busGeo.translate(0, 1.8, 0);
+    const busMats = makeBusMaterials();
+    this.mBus = new THREE.InstancedMesh(busGeo, busMats, nb);
+    this.mBus.frustumCulled = false;
+    this.group.add(this.mBus);
+    const bw = [];
+    for (const [x, z] of [[-1.15, 4], [1.15, 4], [-1.15, -3.6], [1.15, -3.6]]) {
+      bw.push(new THREE.CylinderGeometry(0.5, 0.5, 0.35, 12).rotateZ(Math.PI / 2).translate(x, 0.5, z));
+    }
+    this.mBusWheels = new THREE.InstancedMesh(mergeGeometries(bw), new THREE.MeshStandardMaterial({ color: 0x141416 }), nb);
+    this.mBusWheels.frustumCulled = false;
+    this.group.add(this.mBusWheels);
+
     const c = new THREE.Color();
     const m = new THREE.Matrix4();
     const zero = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -207,11 +290,11 @@ export class Traffic {
         for (const o of lane.cars) {
           if (o === car || o.hidden) continue;
           const gap = (o.s - car.s) * lane.dir;
-          if (gap > 0 && gap < 40) target = Math.min(target, Math.sqrt(2 * 5 * Math.max(0, gap - 7)));
+          if (gap > 0 && gap < 50) target = Math.min(target, Math.sqrt(2 * 5 * Math.max(0, gap - (car.len + o.len) / 2 - 2.3)));
         }
         let waiting = false;
         if (playerInLane) {
-          const d = (pAlong - car.s) * lane.dir - 2.4;
+          const d = (pAlong - car.s) * lane.dir - car.len / 2;
           if (d > -1.5 && d < 22) {
             target = Math.min(target, Math.sqrt(2 * 7 * Math.max(0, d - 1.8)));
             waiting = d < 9;
@@ -238,6 +321,23 @@ export class Traffic {
     const { _m: m, _q: q, _p: p, _s: s, _zero: zero, _c: c } = this;
     const up = new THREE.Vector3(0, 1, 0);
     this.cars.forEach((car, k) => {
+      if (car.kind === 'bus') {
+        for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
+        if (car.hidden) {
+          this.mBus.setMatrixAt(car.busIdx, zero);
+          this.mBusWheels.setMatrixAt(car.busIdx, zero);
+          return;
+        }
+        const lane = car.lane;
+        const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+        q.setFromAxisAngle(up, yaw);
+        if (lane.axis === 'z') p.set(lane.fixed, 0, car.s);
+        else p.set(car.s, 0, lane.fixed);
+        m.compose(p, q, s);
+        this.mBus.setMatrixAt(car.busIdx, m);
+        this.mBusWheels.setMatrixAt(car.busIdx, m);
+        return;
+      }
       if (car.hidden) {
         for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
         return;
@@ -257,6 +357,8 @@ export class Traffic {
       mesh.instanceMatrix.needsUpdate = true;
     }
     this.mTail.instanceColor.needsUpdate = true;
+    this.mBus.instanceMatrix.needsUpdate = true;
+    this.mBusWheels.instanceMatrix.needsUpdate = true;
   }
 
   panFor(camera, lane, car) {

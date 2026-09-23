@@ -252,3 +252,83 @@ export function buildSkyline(shared, { x, z0, z1, depth = 700, groundY = 0 }) {
   group.add(icons.group);
   return { group, crownMat: icons.crownMat };
 }
+
+/** A painted cumulus: overlapping puffs, lit tops, shaded bellies, an ink outline. */
+function paintCloud(seedPuffs) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+  const puffs = [];
+  const n = seedPuffs;
+  for (let k = 0; k < n; k++) {
+    const t = k / (n - 1);
+    const x = 70 + t * 372 + range(-20, 20);
+    const r = range(40, 70) * (1 - Math.abs(t - 0.5) * 0.9);
+    puffs.push([x, 185 - r * range(0.6, 1.0), r]);
+  }
+  for (let k = 0; k < 4; k++) puffs.push([range(160, 350), range(80, 120), range(45, 70)]);
+  const drawAll = () => {
+    ctx.beginPath();
+    for (const [x, y, r] of puffs) {
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ctx.rect(70, 150, 372, 45);
+  };
+  // ink outline
+  ctx.lineWidth = 9;
+  ctx.strokeStyle = 'rgba(40,30,45,0.55)';
+  drawAll();
+  ctx.stroke();
+  // body: light top, shaded belly
+  const g = ctx.createLinearGradient(0, 40, 0, 200);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(0.55, '#f4eef2');
+  g.addColorStop(1, '#b9adc6');
+  ctx.fillStyle = g;
+  drawAll();
+  ctx.fill();
+  // a few drawn contour strokes inside
+  ctx.strokeStyle = 'rgba(120,100,140,0.35)';
+  ctx.lineWidth = 3;
+  for (const [x, y, r] of puffs.slice(0, 4)) {
+    ctx.beginPath();
+    ctx.arc(x, y + 6, r * 0.8, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Big painted clouds on a ring far away; tinted by the time of day. */
+export function buildClouds() {
+  const group = new THREE.Group();
+  const textures = [6, 7, 8, 5].map(paintCloud);
+  const mats = [];
+  for (let k = 0; k < 16; k++) {
+    const mat = new THREE.SpriteMaterial({ map: textures[k % textures.length], transparent: true, depthWrite: false, fog: false });
+    const s = new THREE.Sprite(mat);
+    const a = (k / 16) * Math.PI * 2 + range(-0.15, 0.15);
+    const d = range(2600, 3600);
+    s.position.set(Math.cos(a) * d, range(380, 950), Math.sin(a) * d);
+    const w = range(900, 1700);
+    s.scale.set(w, w * 0.5, 1);
+    s.renderOrder = -0.5;
+    group.add(s);
+    mats.push(mat);
+  }
+  return {
+    group,
+    set(cloud, shade, amount) {
+      for (const m of mats) {
+        m.color.setRGB(cloud[0] * 0.55 + shade[0] * 0.45, cloud[1] * 0.55 + shade[1] * 0.45, cloud[2] * 0.55 + shade[2] * 0.45);
+        m.opacity = Math.min(1, amount * 1.2);
+      }
+    },
+    update(camera) {
+      group.position.set(camera.position.x, 0, camera.position.z);
+    },
+  };
+}

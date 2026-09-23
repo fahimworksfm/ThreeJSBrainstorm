@@ -20,7 +20,7 @@ import {
 import { buildBuildings } from './buildings.js';
 import { buildStreets } from './streets.js';
 import { buildElevated } from './elevated.js';
-import { buildSky, buildTrees, nightSky, setFoliage } from './surroundings.js';
+import { buildSky, buildTrees, setFoliage, buildClouds } from './surroundings.js';
 import { Pedestrians } from './peds.js';
 import { LightKit } from './lightkit.js';
 import { buildRoad } from './road.js';
@@ -70,7 +70,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'h
 let pixelRatio = pixelRatioNow();
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+// neutral tone mapping keeps the illustration's hues saturated (ACES washes them out)
+renderer.toneMapping = THREE.NeutralToneMapping;
 // sun shadows (desktop): a shadow box that follows you, refreshed every other frame
 renderer.shadowMap.enabled = !LOW;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -166,8 +167,9 @@ function loadDistrict(id, { arrive = false } = {}) {
   const elevated = buildElevated(shared, kit);
   const landmarks = def.landmarks(layout, shared);
   const sky = buildSky(shared);
+  const clouds = buildClouds();
   root.add(
-    buildings.group, streets.group, elevated.group, landmarks.group, kit.build(shared.pool), sky.mesh,
+    buildings.group, streets.group, elevated.group, landmarks.group, kit.build(shared.pool), sky.mesh, clouds.group,
     buildTrees([...streets.trees, ...landmarks.trees]),
   );
 
@@ -177,7 +179,7 @@ function loadDistrict(id, { arrive = false } = {}) {
   const traffic = new Traffic(shared, audio);
   // parked cars are solid too
   const parked = traffic.parked.map((c) => ({ x0: c.x - 1, x1: c.x + 1, z0: c.z - 2.35, z1: c.z + 2.35 }));
-  const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...parked]);
+  const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...streets.colliders, ...parked]);
   const weather = new Weather(shared, groundAt, streets.steam, quality.rain);
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
   const memories = new Memories(shared, audio, hud);
@@ -191,7 +193,7 @@ function loadDistrict(id, { arrive = false } = {}) {
   });
   scene.add(root);
 
-  W = { def, root, layout, groundAt, grid, peds, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
+  W = { def, root, layout, groundAt, grid, peds, clouds, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
   applyTime(true);
   minimap.setWorld(W);
   hud.setDistrict(`${def.name}, ${def.borough}`);
@@ -264,7 +266,8 @@ function applyTime(force = false) {
   g.contrast.value = L.contrast;
   g.shadowTint.value.set(...L.shadowTint);
   g.highlightTint.value.set(...L.highlightTint);
-  W.sky.set(L.sky);
+  W.sky.set({ ...L.sky, amount: L.sky.amount * 0.45 });
+  W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount);
   W.road.setColor(tmpColor.setRGB(...L.road));
 
   // weather: some nights it rains
@@ -630,6 +633,7 @@ function frame(now) {
   }
   W.landmarks.update(t, camera, dt);
   W.sky.update(t, camera);
+  W.clouds.update(camera);
   W.road.update(t, W.weather.intensity * W.wet);
 
   const pos = camera.position;

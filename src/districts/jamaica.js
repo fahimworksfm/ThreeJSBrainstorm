@@ -33,6 +33,7 @@ export default {
   parkBlocks: [[2, 3]], // Rufus King Park
   reserved: [{ c: 6, r: 3, part: 'south', depth: 30 }], // the old Valencia theater
 
+  busRoute: 'Q44  SELECT BUS',
   shops: [
     'PATTIES', 'ROTI SHOP', 'JERK CHICKEN', 'BRAIDING', 'SNEAKERS', '99¢ STORE', 'GOLD & SILVER', 'BAKERY',
     'PHARMACY', 'CELL PHONES', 'TAX SERVICE', 'DELI', 'HAIR SALON', 'FISH MARKET', 'DISCOUNT', 'CARIBBEAN FOOD',

@@ -21,7 +21,7 @@ export class Pedestrians {
     for (const b of this.blocks()) {
       if (!inner(b)) continue;
       const busy = D.commercialNS.has(b.c) || D.commercialNS.has(b.c + 1) || D.commercialEW.has(b.r) || D.commercialEW.has(b.r + 1);
-      const n = busy ? Math.floor(range(6, 11)) : Math.floor(range(1, 3));
+      const n = busy ? Math.floor(range(16, 24)) : Math.floor(range(3, 6));
       for (let k = 0; k < n; k++) {
         const inset = range(1.9, D.sidewalk - 0.7);
         const rect = { x0: b.x0 + inset, x1: b.x1 - inset, z0: b.z0 + inset, z1: b.z1 - inset };
@@ -149,6 +149,8 @@ export class Pedestrians {
     this.peds.forEach((p, i) => {
       const near = Math.abs(p.rect.x0 - cam.x) < VIEW + 60 && Math.abs(p.rect.z0 - cam.z) < VIEW + 60;
       if (!near) {
+        if (p.hidden) return;
+        p.hidden = true;
         this.torso.setMatrixAt(i, zero);
         this.head.setMatrixAt(i, zero);
         this.hair.setMatrixAt(i, zero);
@@ -158,6 +160,7 @@ export class Pedestrians {
         }
         return;
       }
+      p.hidden = false;
       let [x, z, dx, dz] = this.at(p, p.s);
       // step aside for you, and well aside for anything with wheels
       const ddx = x - px;

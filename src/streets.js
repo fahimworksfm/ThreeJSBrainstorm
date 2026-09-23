@@ -4,7 +4,8 @@ import { CURB, D } from './config.js';
 import { LightKit } from './lightkit.js';
 import { isSignalized, signalState } from './signals.js';
 import { makeSidewalk, makeStreetSign } from './textures.js';
-import { rand, range, chance } from './random.js';
+import { rand, range, chance, pick } from './random.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 function flat(w, d, x, y, z) {
   const g = new THREE.PlaneGeometry(w, d);
@@ -124,11 +125,10 @@ export function buildStreets(layout, shared) {
         lampZ.push(z);
         kit.add(e.x, z, e.nx, 0, { kind: kindFor(e.shops), height: underEl ? 6.5 : 8.5, arm: underEl ? 1.2 : 2.2 });
       }
-      if (!e.shops) {
-        for (let z = b.z0 + 5; z < b.z1 - 5; z += 7.5) {
-          if (lampZ.some((lz) => Math.abs(lz - z) < 3)) continue;
-          if (chance(0.6)) trees.push([e.x - e.nx * 0.8, z, range(1.1, 1.6)]);
-        }
+      // street trees: dense on side streets, sparser on shopping streets
+      for (let z = b.z0 + 5; z < b.z1 - 5; z += e.shops ? 13 : 7.5) {
+        if (lampZ.some((lz) => Math.abs(lz - z) < 3)) continue;
+        if (chance(e.shops ? 0.4 : 0.6)) trees.push([e.x - e.nx * 0.8, z, range(1.1, 1.6)]);
       }
     }
     for (const [z, nz, road] of [[b.z0 + 0.5, -1, b.r], [b.z1 - 0.5, 1, b.r + 1]]) {
@@ -248,7 +248,110 @@ export function buildStreets(layout, shared) {
       }
     }
   }
-  const add = (geos, mat) => geos.length && group.add(new THREE.Mesh(mergeGeometries(geos), mat));
+  // merge anything: mixed indexed / non-indexed inputs are normalized first
+  const add = (geos, mat) => {
+    if (!geos.length) return;
+    const mixed = geos.some((g) => g.index) && geos.some((g) => !g.index);
+    group.add(new THREE.Mesh(mergeGeometries(mixed ? geos.map((g) => (g.index ? g.toNonIndexed() : g)) : geos), mat));
+  };
+  const steam = [];
+
+  // ---- food carts with striped umbrellas on the busy corners
+  const cartMetal = [];
+  const cartGlass = [];
+  const umbrellas = [];
+  const colliders = [];
+  const UMB = [[0xf2c230, 0x1d4f9e], [0xd63a2a, 0xf4ecd8], [0x1e7a44, 0xf4ecd8], [0xe4661c, 0x2b6cb0]];
+  const col = new THREE.Color();
+  for (let i = 0; i < NX; i++) {
+    for (let j = 0; j < NZ; j++) {
+      if (!(COMMERCIAL_NS.has(i) || COMMERCIAL_EW.has(j)) || !chance(0.55)) continue;
+      const sx = chance(0.5) ? 1 : -1;
+      const sz = chance(0.5) ? 1 : -1;
+      const x = colX(i) + sx * (NS_W / 2 + 1.6);
+      const z = rowZ(j) + sz * (EW_W / 2 + range(6, 10));
+      cartMetal.push(new RoundedBoxGeometry(0.95, 1.0, 1.7, 2, 0.06).translate(x, CURB + 0.75, z));
+      cartMetal.push(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 10).rotateZ(Math.PI / 2).translate(x - 0.5, CURB + 0.2, z - 0.5));
+      cartMetal.push(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 10).rotateZ(Math.PI / 2).translate(x + 0.5, CURB + 0.2, z - 0.5));
+      cartMetal.push(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6).translate(x, CURB + 2.0, z + 0.3));
+      cartGlass.push(new RoundedBoxGeometry(0.85, 0.5, 1.2, 2, 0.04).translate(x, CURB + 1.5, z - 0.1));
+      // umbrella: an 8-panel cone, alternating colors
+      const umb = new THREE.ConeGeometry(1.35, 0.55, 8, 1, true).toNonIndexed();
+      const [c1, c2] = pick(UMB);
+      const n = umb.attributes.position.count;
+      const colors = new Float32Array(n * 3);
+      for (let v = 0; v < n; v++) {
+        col.set(Math.floor(v / 3) % 2 ? c1 : c2);
+        colors.set([col.r, col.g, col.b], v * 3);
+      }
+      umb.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      umb.deleteAttribute('uv');
+      umbrellas.push(umb.translate(x, CURB + 2.85, z + 0.3));
+      steam.push({ x, y: CURB + 1.8, z: z - 0.3, strength: 0.45 });
+      colliders.push({ x0: x - 0.6, x1: x + 0.6, z0: z - 1, z1: z + 1 });
+    }
+  }
+  add(cartMetal, new THREE.MeshStandardMaterial({ color: 0xc9cdd3, roughness: 0.5 }));
+  add(cartGlass, new THREE.MeshStandardMaterial({ color: 0xf2d9a8, emissive: 0xffc070, emissiveIntensity: 0.25, roughness: 0.4 }));
+  add(umbrellas, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }));
+
+  // ---- fallen leaves along the curbs
+  const leafCanvas = document.createElement('canvas');
+  leafCanvas.width = leafCanvas.height = 64;
+  const lc = leafCanvas.getContext('2d');
+  lc.fillStyle = '#fff';
+  lc.beginPath();
+  lc.moveTo(32, 4);
+  lc.quadraticCurveTo(58, 26, 32, 60);
+  lc.quadraticCurveTo(6, 26, 32, 4);
+  lc.fill();
+  lc.strokeStyle = 'rgba(0,0,0,0.35)';
+  lc.lineWidth = 2;
+  lc.beginPath();
+  lc.moveTo(32, 8);
+  lc.lineTo(32, 58);
+  lc.stroke();
+  const leafTex = new THREE.CanvasTexture(leafCanvas);
+  const LEAVES = 2600;
+  const leaves = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(0.22, 0.22).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 }),
+    LEAVES,
+  );
+  leaves.userData.leaves = true;
+  const lm = new THREE.Matrix4();
+  const lq = new THREE.Quaternion();
+  const lpos = new THREE.Vector3();
+  const lsc = new THREE.Vector3();
+  const LEAF_COLORS = [0xd9822b, 0xe3a531, 0xc4542a, 0xe8c547, 0xb86420, 0x8a5a2a];
+  let placed = 0;
+  for (const b of layout.blocks) {
+    if (b.outer || placed >= LEAVES) continue;
+    for (let k = 0; k < 26 && placed < LEAVES; k++) {
+      // mostly in the gutters, some on the sidewalk
+      const edge = Math.floor(rand() * 4);
+      const along = rand();
+      const off = chance(0.6) ? range(-1.2, 0.2) : range(0.3, 3);
+      let x;
+      let z;
+      if (edge < 2) {
+        x = edge === 0 ? b.x0 - off : b.x1 + off;
+        z = b.z0 + along * (b.z1 - b.z0);
+      } else {
+        z = edge === 2 ? b.z0 - off : b.z1 + off;
+        x = b.x0 + along * (b.x1 - b.x0);
+      }
+      const onWalk = off > 0.05;
+      lq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28);
+      lm.compose(lpos.set(x, (onWalk ? CURB : 0) + 0.03 + rand() * 0.01, z), lq, lsc.setScalar(range(0.7, 1.4)));
+      leaves.setMatrixAt(placed, lm);
+      leaves.setColorAt(placed, col.set(pick(LEAF_COLORS)));
+      placed++;
+    }
+  }
+  leaves.count = placed;
+  leaves.receiveShadow = true;
+  group.add(leaves);
   add(poleGeos, new THREE.MeshStandardMaterial({ color: 0x1c2024, roughness: 0.5, metalness: 0.6 }));
   add(stopGeos, new THREE.MeshStandardMaterial({ map: makeStopTexture(), emissive: 0x401010, roughness: 0.4 }));
   add(stopBackGeos, new THREE.MeshStandardMaterial({ color: 0x55585c, roughness: 0.6, metalness: 0.5 }));
@@ -279,7 +382,6 @@ export function buildStreets(layout, shared) {
 
   // ---- manholes, some of them steaming
   const manholes = [];
-  const steam = [];
   for (let i = 0; i < NX; i++) {
     for (let j = 0; j < NZ - 1; j++) {
       if (!chance(0.4) || j === elEW || j + 1 === elEW) continue;
@@ -302,5 +404,5 @@ export function buildStreets(layout, shared) {
     }
   }
 
-  return { group, update, trees, steam };
+  return { group, update, trees, steam, colliders };
 }

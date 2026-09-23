@@ -32,6 +32,7 @@ export default {
   condoFloors: [7, 11],
 
   // painted sign boards over the shops
+  busRoute: 'Q69  LONG IS CITY',
   shops: [
     'GYRO HOUSE', 'TAVERNA', 'PIZZA & SUB', 'DELI', 'BAKERY', 'COFFEE', 'LAUNDROMAT', 'PHARMACY',
     'MINI MART', 'FLOWERS', 'HARDWARE', 'ΚΑΦΕΝΕΙΟ', 'BARBER', 'NAIL SALON', 'DINER', 'SWEETS',
