@@ -3,7 +3,7 @@ import { D } from './config.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { rand, range, pick } from './random.js';
-import { turnBone } from './hero.js';
+import { turnBone, stepMixer } from './hero.js';
 
 const SKIN = [0x3b2519, 0x5a3a26, 0x7a4e32, 0x8d5a3b, 0xa8744f, 0xc68e64, 0xe0b08a, 0xf1c9a5];
 const TOPS = [0x2b3a55, 0x7a2430, 0x2f4a36, 0x3d3d44, 0xc9a24a, 0x6a3f7a, 0xd8d2c4, 0x1c1c20, 0x9a5a2a, 0x3f6f8f, 0xb5483a, 0x556b2f];
@@ -531,7 +531,7 @@ export class Pedestrians {
           s.walk.setEffectiveWeight(p.amp);
           s.idle.setEffectiveWeight(1 - p.amp);
         }
-        s.mixer.update(dt);
+        if (!stepMixer(s, s.mixer, dt)) continue;
         if (p.prop === 'phone' || p.prop === 'stroller') {
           // arms forward: one hand up to the phone, or both on the stroller handle
           const right = this._axis.set(1, 0, 0).applyQuaternion(s.root.quaternion);

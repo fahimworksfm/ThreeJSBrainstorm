@@ -5,6 +5,7 @@ import { isSignalized, signalState } from './signals.js';
 import { sedanGeometry } from './models.js';
 import { rand, range, pick, chance } from './random.js';
 import { Path } from './osm/geo.js';
+import { COMIC } from './comicfx.js';
 
 const BODY_COLORS = [0x3f5a3c, 0xc9a24a, 0x8a2a24, 0xd9d0b4, 0x6f8aa8, 0x3a3d44, 0x1d1e22, 0xb8bcc2, 0x6b7a3a, 0xa0522d, 0x2f4f6f];
 const BORO_TAXI = 0x7cc242;
@@ -321,6 +322,7 @@ export class Traffic {
           if (car.wait > 1.4 && !car.honked) {
             car.honked = true;
             this.audio?.honk(this.panFor(camera, lane, car), 0.16);
+            if (car.x !== undefined) COMIC.pop(car.kind === 'bus' ? 'HOOOONK!' : 'HONK!', car.x, 2.2, car.z, { cooldown: 3, key: 'honk' });
           }
         } else if (!waiting) {
           car.wait = 0;

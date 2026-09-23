@@ -7,6 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
 import { RIM, rimLight, setWet } from './fx.js';
+import { COMIC, ComicWords } from './comicfx.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
@@ -26,7 +27,7 @@ import { loadOSM } from './osm/fetch.js';
 import { buildCity } from './osm/city.js';
 import { buildViaduct } from './osm/viaduct.js';
 import { Pedestrians } from './peds.js';
-import { LightKit } from './lightkit.js';
+import { LightKit, CONES } from './lightkit.js';
 import { buildRoad } from './road.js';
 import { Traffic } from './traffic.js';
 import { Weather } from './weather.js';
@@ -99,8 +100,11 @@ scene.add(hemi, sun, sun.target);
 // a soft fill that follows the hero at night, so he never turns into a silhouette
 const heroLight = new THREE.PointLight(0xb8c8ff, 0, 9, 1.6);
 scene.add(heroLight);
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 600 });
+// a bigger, sharper shadow box that sits ahead of the camera (see the loop)
+const SHADOW_HALF = 115;
+const SHADOW_RES = 3072;
+sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
+Object.assign(sun.shadow.camera, { left: -SHADOW_HALF, right: SHADOW_HALF, top: SHADOW_HALF, bottom: -SHADOW_HALF, near: 1, far: 700 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.05;
 const sunDir = new THREE.Vector3(-1, 2, 1).normalize();
@@ -121,6 +125,7 @@ const sharedTextures = new Set([shared.pool, shared.soft, shared.dot, shared.bea
 for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.emissiveMap);
 
 const audio = new CityAudio();
+let comicWords = null; // created once the camera exists
 const hud = new HUD();
 const minimap = new Minimap(document.getElementById('minimap'));
 const compass = new Compass(document.getElementById('compass'));
@@ -131,6 +136,7 @@ const settings = {
   rain: true,
   reflections: store.get('reflections', !LOW),
   bloom: true,
+  comicWords: true,
 };
 
 // ---------- the current neighborhood ----------
@@ -169,6 +175,8 @@ const worldProxy = {
   inside: (x, z, pad) => (W ? W.grid.inside(x, z, pad) : false),
   roofAt: (x, z, pad) => (W ? W.roofs.at(x, z, pad) : null),
 };
+comicWords = new ComicWords(camera);
+COMIC.pop = (...a) => settings.comicWords && comicWords.pop(...a);
 const input = new Input(renderer.domElement);
 const player = new Player(camera, scene, worldProxy, audio, input, shared);
 if (params.has('fly')) player.update = () => {};
@@ -429,6 +437,8 @@ function applyInk() {
   const g = grade.uniforms;
   g.bands.value = INK.bands;
   g.shadowDots.value = INK.shadowDots;
+  g.hatch.value = INK.hatch ?? 0;
+  g.printShift.value = INK.printShift ?? 0;
   g.misprint.value = 0;
   g.chroma.value = 0;
   g.ink.value = 0;
@@ -490,6 +500,7 @@ function applyTime(force = false) {
     setWet(W.root, rain && settings.reflections);
   }
   W.wet = rain ? 1 : 0.05;
+  CONES.strength.value = L.pools * (rain ? 1.7 : 0.8);
 
   materialTimer -= 1;
   if (force || materialTimer <= 0) {
@@ -891,8 +902,41 @@ function renderPortrait() {
   return true;
 }
 let shadowFrame = 0;
+const shadowFwd = new THREE.Vector3();
+const shadowCenter = new THREE.Vector3();
+const shadowRight = new THREE.Vector3();
+const shadowUp = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 let cullTimer = 0;
 const camEuler = new THREE.Euler();
+
+let lastSpeed = 0;
+let lastLand = 0;
+/** Pop comic sound effects for the loud moments. */
+function comicSounds(dt) {
+  if (!settings.comicWords) return;
+  const p = camera.position;
+  camera.getWorldDirection(tmpDir);
+  const ahead = (d, up) => [p.x + tmpDir.x * d, p.y + up, p.z + tmpDir.z * d];
+  // a train thundering overhead
+  if (W.elevated.rumbleAt(p) > 0.78) COMIC.pop('RUMBLE', ...ahead(9, 5), { size: 1.3, cooldown: 9 });
+  if (W.elevated.events.horn) {
+    const hp = W.elevated.events.horn;
+    COMIC.pop('HOOOONK!', hp.x, hp.y + 3, hp.z, { size: 1.2, cooldown: 8 });
+  }
+  // landing a jump in the rain
+  if (player.land > 0.45 && lastLand <= 0.45) COMIC.pop(settings.rain ? 'SPLASH!' : 'THUD', player.pos.x, player.ground + 0.4, player.pos.z, { size: 0.8, cooldown: 1.5 });
+  lastLand = player.land;
+  // engines and brakes
+  const sp = Math.abs(player.speed);
+  if (player.mode !== 'walk' && player.mode !== 'bike') {
+    if (sp > 6 && sp - lastSpeed > 5.5 * dt && player.input.axes?.().y > 0.5) COMIC.pop('VROOM!', player.pos.x, player.ground + 1.6, player.pos.z, { cooldown: 7 });
+    if (lastSpeed - sp > 9 * dt && lastSpeed > 9) COMIC.pop('SKRRT!', player.pos.x, player.ground + 0.8, player.pos.z, { cooldown: 4 });
+  }
+  lastSpeed = sp;
+  comicWords.update();
+}
+const tmpDir = new THREE.Vector3();
 
 function frame(now) {
   // rAF can hand us a timestamp from before a long rebuild; never run time backwards
@@ -912,8 +956,20 @@ function frame(now) {
   W.peds.update(dt, camera.position, player, settings.rain);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
-    sun.target.position.set(player.pos.x, 0, player.pos.z);
-    sun.position.copy(sun.target.position).addScaledVector(sunDir, 250);
+    // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl
+    camera.getWorldDirection(shadowFwd);
+    shadowFwd.y = 0;
+    shadowFwd.normalize();
+    shadowCenter.set(player.pos.x, 0, player.pos.z).addScaledVector(shadowFwd, SHADOW_HALF * 0.55);
+    shadowRight.crossVectors(UP, sunDir).normalize();
+    shadowUp.crossVectors(sunDir, shadowRight).normalize();
+    const texel = (SHADOW_HALF * 2) / SHADOW_RES;
+    const a = Math.round(shadowCenter.dot(shadowRight) / texel) * texel;
+    const b = Math.round(shadowCenter.dot(shadowUp) / texel) * texel;
+    const c = shadowCenter.dot(sunDir);
+    shadowCenter.copy(shadowRight).multiplyScalar(a).addScaledVector(shadowUp, b).addScaledVector(sunDir, c);
+    sun.target.position.copy(shadowCenter);
+    sun.position.copy(shadowCenter).addScaledVector(sunDir, 300);
     shadowFrame = (shadowFrame + 1) % 2;
     if (shadowFrame === 0) renderer.shadowMap.needsUpdate = true;
   }
@@ -933,6 +989,7 @@ function frame(now) {
   W.road.update(t, W.weather.intensity * W.wet);
 
   const pos = camera.position;
+  comicSounds(dt);
   const horn = W.elevated.events.horn;
   if (horn) audio.horn(Math.max(0, 1 - horn.distanceTo(pos) / 500));
   audio.update(dt, {
@@ -988,6 +1045,9 @@ function frame(now) {
   hud.setClock(minute * 6);
   grade.uniforms.time.value = t;
   godRays.setSun(skySun, raysLevel * (settings.rain ? 0.3 : 1), raysColor);
+  // drops on the lens when it's raining and you're out in it (not in the SUV)
+  const lensTarget = settings.rain && player.mode !== 'suv' && !player.roofCovered ? 1 : 0;
+  grade.uniforms.lensRain.value += (lensTarget - grade.uniforms.lensRain.value) * Math.min(1, dt * 0.6);
   composer.render();
 
   frames++;
@@ -999,4 +1059,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, get world() { return W; }, loadDistrict, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, get world() { return W; }, loadDistrict, setMinute: (m) => { minute = m; applyTime(true); } };

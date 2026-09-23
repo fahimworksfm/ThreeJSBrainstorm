@@ -9,6 +9,48 @@ const KINDS = {
   green: { bulb: 0x3dff7a, pool: 0x2aff66 }, // subway entrance globes
 };
 
+/** Shared by every lamp cone: 0 by day, 1 at night, more in rain. */
+export const CONES = { strength: { value: 0 } };
+
+function coneMaterial(color) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { color: { value: color }, strength: CONES.strength },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      varying vec3 vNormalW;
+      varying float vUp;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = w.xyz;
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        vUp = uv.y;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 color;
+      uniform float strength;
+      varying vec3 vWorld;
+      varying vec3 vNormalW;
+      varying float vUp;
+      void main() {
+        vec3 v = normalize(cameraPosition - vWorld);
+        // bright where you look through the thick of the cone, fading at its edges
+        float face = pow(abs(dot(normalize(vNormalW), v)), 1.4);
+        // brightest near the bulb, fading toward the ground
+        float along = 0.25 + 0.75 * pow(vUp, 1.3);
+        float dist = distance(cameraPosition, vWorld);
+        float fade = (1.0 - smoothstep(50.0, 120.0, dist)) * smoothstep(0.5, 3.0, dist);
+        gl_FragColor = vec4(color * face * along * fade * strength * 0.16, 1.0);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  m.userData.cone = true;
+  return m;
+}
+
 /**
  * Collects street lamps and builds them as a few merged meshes.
  * Light pools are fake: additive radial decals on the ground instead of real lights,
@@ -19,6 +61,7 @@ export class LightKit {
     this.poles = [];
     this.bulbs = {};
     this.pools = {};
+    this.cones = {};
   }
 
   add(x, z, nx, nz, { height = 8.5, arm = 2.2, kind = 'sodium', pool = 10, y0 = CURB, globe = false } = {}) {
@@ -44,6 +87,18 @@ export class LightKit {
       bulb.rotateX(Math.PI / 2);
       bulb.translate(0, height - 0.12, arm);
     }
+    if (!globe && height > 4) {
+      // a soft cone of light hanging under the lamp head, visible in night air and rain
+      const r = Math.min(pool * 0.32, height * 0.42);
+      const cone = new THREE.ConeGeometry(r, height - 0.3, 16, 1, true);
+      cone.translate(0, (height - 0.3) / 2, 0);
+      cone.rotateY(ang);
+      const ax = Math.sin(ang) * arm;
+      const az = Math.cos(ang) * arm;
+      // ConeGeometry's tip is up: tip at the bulb, the wide end on the ground
+      cone.translate(x + ax, y0, z + az);
+      (this.cones[kind] ??= []).push(cone);
+    }
     const p = new THREE.PlaneGeometry(pool * 2, pool * 2);
     p.rotateX(-Math.PI / 2);
     p.translate(0, 0.025, globe ? 0 : arm);
@@ -58,6 +113,13 @@ export class LightKit {
 
   build(poolTex) {
     const group = new THREE.Group();
+    for (const kind of Object.keys(this.cones)) {
+      const mat = coneMaterial(new THREE.Color(KINDS[kind].pool));
+      const mesh = new THREE.Mesh(mergeGeometries(this.cones[kind]), mat);
+      mesh.renderOrder = 3;
+      mesh.frustumCulled = false;
+      group.add(mesh);
+    }
     if (this.poles.length) {
       const poleMat = new THREE.MeshStandardMaterial({ color: 0x20262a, roughness: 0.5, metalness: 0.7 });
       group.add(new THREE.Mesh(mergeGeometries(this.poles), poleMat));

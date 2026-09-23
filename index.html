@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Oswald:wght@400;500;600&family=Comic+Neue:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
     <title>Night Walker NYC</title>
     <meta name="description" content="A first-person night walk through New York City neighborhoods, built with three.js." />
   </head>
@@ -22,12 +22,23 @@
 
     <div id="hud">
       <canvas id="compass"></canvas>
-      <div class="corner" id="where">
-        <div id="badge"><img id="portrait" alt="" /><div id="stamina"><i></i></div></div>
-        <div class="label" id="district">Queens</div>
-        <div id="location"></div>
-        <div id="clock"></div>
+      <div id="topleft">
         <div id="objective"><span class="gem"></span><span>Find the memories</span><b id="objective-count">0 / 8</b></div>
+        <div id="prompt"></div>
+      </div>
+      <div id="radar">
+        <div id="badge"><img id="portrait" alt="" /></div>
+        <canvas id="minimap"></canvas>
+        <div id="bars">
+          <div id="stamina" title="Stamina"><i></i></div>
+          <div id="progress" title="Memories found"><i></i></div>
+        </div>
+      </div>
+      <div id="info">
+        <div id="location"></div>
+        <div id="sublocation"></div>
+        <div id="district">Queens</div>
+        <div class="row"><div id="clock"></div><div id="ride" data-mode="walk"><span id="ride-name">On foot</span><span id="ride-speed"></span></div></div>
       </div>
       <div class="corner" id="tally">
         <div class="label">Memories</div>
@@ -35,14 +46,11 @@
         <div id="fps"></div>
       </div>
       <div id="crosshair"></div>
-      <canvas id="minimap"></canvas>
-      <div id="ride" data-mode="walk"><span id="ride-name">On foot</span><span id="ride-speed"></span></div>
       <div id="subtitle">
         <div id="subtitle-title"></div>
         <div id="subtitle-text"></div>
       </div>
       <div id="toast"></div>
-      <div id="prompt"></div>
     </div>
 
     <div id="overlay">
@@ -77,7 +85,7 @@
             <dl class="keys">
               <dt>WASD</dt><dd>walk / drive</dd>
               <dt>Shift</dt><dd>hurry / boost</dd>
-              <dt>Space</dt><dd>brake</dd>
+              <dt>Space</dt><dd>jump / brake</dd>
               <dt>Mouse</dt><dd>look around</dd>
               <dt>1 2 3 4</dt><dd>walk, bicycle, motorcycle, SUV</dd>
               <dt>C</dt><dd>first / third person</dd>

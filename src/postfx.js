@@ -91,6 +91,9 @@ export const GradeShader = {
     speed: { value: 0 },
     shadowDots: { value: 0 },
     misprint: { value: 0 },
+    lensRain: { value: 0 },
+    hatch: { value: 0 },
+    printShift: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -98,7 +101,7 @@ export const GradeShader = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 resolution;
-    uniform float time, saturation, contrast, bands, pixel, levels, chroma, ink, grain, vignette, speed, shadowDots, misprint;
+    uniform float time, saturation, contrast, bands, pixel, levels, chroma, ink, grain, vignette, speed, shadowDots, misprint, lensRain, hatch, printShift;
     uniform vec3 shadowTint, highlightTint;
     varying vec2 vUv;
     const vec3 LUMA = vec3(0.299, 0.587, 0.114);
@@ -108,8 +111,35 @@ export const GradeShader = {
       float m[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
       return m[i] / 16.0 - 0.5;
     }
+    /** Raindrops on the lens: beads that sit, grow, then run down, bending the image behind them. */
+    vec2 lensDrops(vec2 uv, float scale, float speed, float seed, out float wet) {
+      vec2 a = uv * vec2(resolution.x / resolution.y, 1.0) * scale;
+      vec2 id = floor(a);
+      vec2 f = fract(a) - 0.5;
+      float n = hash(id + seed);
+      float t = fract(time * speed * (0.6 + n) + n * 7.0);
+      // hang still for a while, then slide down and off the cell
+      float slide = smoothstep(0.55, 1.0, t);
+      vec2 c = vec2((hash(id + seed + 3.1) - 0.5) * 0.6, 0.3 - slide * 1.1);
+      vec2 d = f - c;
+      d.y *= 1.0 + slide * 0.8;
+      float r = (0.1 + hash(id + seed + 7.7) * 0.12) * smoothstep(0.0, 0.2, t);
+      float drop = smoothstep(r, r * 0.55, length(d)) * step(0.5, n);
+      wet = drop;
+      return d * drop;
+    }
+
     void main() {
       vec2 uv = vUv;
+      float lensWet = 0.0;
+      if (lensRain > 0.001) {
+        float w1;
+        float w2;
+        vec2 big = lensDrops(vUv, 5.0, 0.07, 0.0, w1);
+        vec2 small = lensDrops(vUv, 13.0, 0.03, 19.0, w2);
+        uv -= (big * 0.09 + small * 0.035) * lensRain;
+        lensWet = max(w1, w2 * 0.7) * lensRain;
+      }
       vec2 cell = gl_FragCoord.xy;
       if (pixel > 1.0) {
         vec2 px = resolution / pixel;
@@ -117,7 +147,17 @@ export const GradeShader = {
         cell = floor(gl_FragCoord.xy / pixel);
       }
       vec3 c;
-      if (misprint > 0.0) {
+      if (printShift > 0.0) {
+        // Spider-Verse print: the cyan and magenta plates slip out of register toward the frame
+        // edges (where a camera would go out of focus) and more at speed
+        vec2 d = uv - 0.5;
+        float r2 = dot(d, d);
+        vec2 off = normalize(d + 1e-5) * printShift * (0.25 + 3.0 * r2) * (1.0 + speed * 2.0);
+        vec3 base = texture2D(tDiffuse, uv).rgb;
+        float rr = texture2D(tDiffuse, uv + off).r;
+        float bb = texture2D(tDiffuse, uv - off).b;
+        c = vec3(rr, base.g, bb);
+      } else if (misprint > 0.0) {
         // comic print: the color plates are slightly out of register
         c = vec3(texture2D(tDiffuse, uv + vec2(misprint, 0.0)).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - vec2(0.0, misprint)).b);
       } else if (chroma > 0.0) {
@@ -149,6 +189,16 @@ export const GradeShader = {
         float dots = 1.0 - smoothstep(r - 0.06, r + 0.06, dist);
         c *= 1.0 - dots * shadowDots * 0.6;
       }
+      if (hatch > 0.0) {
+        // pen hatching in the darkest areas, cross-hatched where it's darker still
+        float L = dot(c, LUMA);
+        vec2 g = gl_FragCoord.xy;
+        float h1 = step(0.55, fract((g.x + g.y) / 5.0));
+        float h2 = step(0.55, fract((g.x - g.y) / 5.0));
+        float dark1 = 1.0 - smoothstep(0.05, 0.16, L);
+        float dark2 = 1.0 - smoothstep(0.02, 0.07, L);
+        c *= 1.0 - hatch * (h1 * dark1 * 0.35 + h2 * dark2 * 0.35);
+      }
       if (speed > 0.001) {
         // speed lines streaking out from the center
         vec2 p = vUv - 0.5;
@@ -173,6 +223,8 @@ export const GradeShader = {
         float v = L > 0.7 ? 1.0 : (L < 0.09 ? 0.0 : 1.0 - dotInk);
         c = mix(c, mix(vec3(0.05, 0.05, 0.06), vec3(0.96, 0.95, 0.92), v), ink);
       }
+      // a drop catches a little light at its rim
+      c += lensWet * 0.05;
       c += (hash(vUv * 1000.0 + fract(time) * 71.0) - 0.5) * grain;
       vec2 d = vUv - 0.5;
       c *= 1.0 - dot(d, d) * vignette;

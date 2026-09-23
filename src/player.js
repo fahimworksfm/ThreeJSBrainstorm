@@ -422,10 +422,10 @@ export class Player {
       h.root.position.set(this.pos.x, this.ground + this.air - this.land * 0.08, this.pos.z);
       h.root.rotation.set(0, this.facing, 0);
       const v = Math.hypot(this.vel.x, this.vel.z);
-      animateHero(h, dt, v);
+      const stepped = animateHero(h, dt, v);
       // look where the camera looks (the camera looks down -z at yaw 0, the model faces +z)
       const look = Math.atan2(Math.sin(this.yaw + Math.PI - this.facing), Math.cos(this.yaw + Math.PI - this.facing));
-      heroSecondary(h, dt, {
+      if (stepped) heroSecondary(h, stepped, {
         speed: v, turnRate: this.turnRate ?? 0, look, pitch: this.pitch, phase: this.phase, t: performance.now() / 1000,
         air: this.air, vy: this.vy, land: this.land,
       });

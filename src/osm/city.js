@@ -840,7 +840,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   mapCanvas.width = Math.ceil((box.x1 - box.x0) / MAP_RES);
   mapCanvas.height = Math.ceil((box.z1 - box.z0) / MAP_RES);
   const mc = mapCanvas.getContext('2d');
-  mc.fillStyle = '#2f3a47';
+  mc.fillStyle = '#9aa0a8';
   mc.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
   mc.setTransform(1 / MAP_RES, 0, 0, 1 / MAP_RES, -box.x0 / MAP_RES, -box.z0 / MAP_RES);
   const fillPoly = (pts, holes = []) => {
@@ -852,15 +852,15 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     }
     mc.fill('evenodd');
   };
-  mc.fillStyle = '#c9d4de';
+  mc.fillStyle = '#4a4f58';
   for (const p of groundPolys) fillPoly(p.pts, p.holes);
-  mc.fillStyle = '#7aa870';
+  mc.fillStyle = '#3f6a3a';
   for (const p of grassPolys) fillPoly(p.pts, p.holes);
-  mc.fillStyle = '#e3cf9a';
+  mc.fillStyle = '#8a7a52';
   for (const p of sandPolys) fillPoly(p.pts, p.holes);
-  mc.fillStyle = '#4f86b8';
+  mc.fillStyle = '#2f5d8a';
   for (const p of waterPolys) fillPoly(p.pts, p.holes);
-  mc.fillStyle = '#a9bdd0';
+  mc.fillStyle = '#2b2f37';
   for (const l of lots) if (!l.outer) fillPoly(l.poly);
   if (elevated) {
     mc.strokeStyle = '#9b7fd1';

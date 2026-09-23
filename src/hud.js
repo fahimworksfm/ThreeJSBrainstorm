@@ -69,7 +69,9 @@ export class HUD {
   setPrompt(text) {
     if (text === this.lastPrompt) return;
     this.lastPrompt = text;
-    this.el.prompt.textContent = text || '';
+    // "Press E to ..." gets a key cap, like a console help box
+    const safe = (text || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    this.el.prompt.innerHTML = safe.replace(/^Press (\w+) /, '<kbd>$1</kbd> ');
     this.el.prompt.classList.toggle('show', !!text);
   }
 
@@ -87,10 +89,14 @@ export class HUD {
     this.el.rideSpeed.textContent = v;
   }
 
+  /** Big street name, with the cross streets and extras on a smaller line under it. */
   setLocation(text) {
     if (text === this.lastLocation) return;
     this.lastLocation = text;
-    this.el.location.textContent = text;
+    const [main, ...rest] = text.split('·').map((t) => t.trim()).filter(Boolean);
+    this.el.location.textContent = main ?? '';
+    const sub = document.getElementById('sublocation');
+    if (sub) sub.textContent = rest.join('  ·  ');
   }
 
   /** Game clock: one minute passes every six seconds. t is in seconds. */
@@ -108,6 +114,8 @@ export class HUD {
   setCount(n, total) {
     this.el.count.textContent = `${n} / ${total}`;
     document.getElementById('objective-count').textContent = `${n} / ${total}`;
+    const bar = document.querySelector('#progress i');
+    if (bar) bar.style.width = `${total ? (n / total) * 100 : 0}%`;
   }
 
   showMemory(title, text, ms = 10000) {

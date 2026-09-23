@@ -305,6 +305,19 @@ export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t
   }
 }
 
+/** Characters hold each pose for two film frames (12 poses a second), Spider-Verse style. */
+export const POSE_STEP = { value: 1 / 12 };
+
+/** Advance a mixer on twos. Returns the time stepped (0 when this frame holds the pose). */
+export function stepMixer(owner, mixer, dt) {
+  owner.poseAcc = (owner.poseAcc ?? 0) + dt;
+  if (owner.poseAcc < POSE_STEP.value) return 0;
+  const step = owner.poseAcc;
+  owner.poseAcc = 0;
+  mixer.update(step);
+  return step;
+}
+
 export function animateHero(hero, dt, speed) {
   const { actions } = hero;
   const walkW = THREE.MathUtils.clamp(speed / 1.6, 0, 1) * (1 - THREE.MathUtils.clamp((speed - 3.6) / 2.5, 0, 1));
@@ -316,7 +329,7 @@ export function animateHero(hero, dt, speed) {
   // the clips cover ~1.6 m/s walking and ~5 m/s running
   if (actions.Walk) actions.Walk.timeScale = THREE.MathUtils.clamp(speed / 1.7, 0.6, 2.2);
   if (actions.Run) actions.Run.timeScale = THREE.MathUtils.clamp(speed / 6, 0.8, 1.4);
-  hero.mixer.update(dt);
+  return stepMixer(hero, hero.mixer, dt);
 }
 
 const _a = new THREE.Vector3();
