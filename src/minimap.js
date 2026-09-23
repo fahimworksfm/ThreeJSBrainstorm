@@ -1,10 +1,10 @@
 import { D } from './config.js';
 
-const W = 250;
-const H = 160;
+const W = 200;
+const H = 200;
 const CX = W / 2;
 const CY = H * 0.6; // you sit a little low, so more of what's ahead shows
-const RANGE = 150; // meters from center to the side edge
+const RANGE = 120; // meters from center to the side edge
 
 /** A rotating street map: blocks, parks, stations, memories and you. */
 export class Minimap {
@@ -31,7 +31,7 @@ export class Minimap {
     const s = W / 2 / RANGE;
     ctx.save();
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#9aa0a8'; // streets
+    ctx.fillStyle = '#2b3340'; // streets
     ctx.fillRect(0, 0, W, H);
     ctx.translate(CX, CY);
     ctx.rotate(yaw); // heading always points up
@@ -56,19 +56,19 @@ export class Minimap {
       return;
     }
     if (D.riverX !== null) {
-      ctx.fillStyle = '#2f5d8a';
+      ctx.fillStyle = '#3e6a96';
       ctx.fillRect(D.riverX - 4000, pos.z - 4000, 4000, 8000);
     }
     if (D.parkZ1 !== null) {
-      ctx.fillStyle = '#3f6a3a';
+      ctx.fillStyle = '#6f8f6a';
       ctx.fillRect(pos.x - 4000, D.parkZ1 - 4000, 8000, 4000);
     }
     const near = (b) => Math.abs((b.x0 + b.x1) / 2 - pos.x) < RANGE * 2 && Math.abs((b.z0 + b.z1) / 2 - pos.z) < RANGE * 2;
     for (const b of layout.blocks) {
       if (!near(b)) continue;
-      ctx.fillStyle = '#4a4f58'; // sidewalk
+      ctx.fillStyle = '#5d6c82'; // sidewalk
       ctx.fillRect(b.x0, b.z0, b.x1 - b.x0, b.z1 - b.z0);
-      ctx.fillStyle = b.park ? '#3f6a3a' : '#2b2f37';
+      ctx.fillStyle = b.park ? '#6f8f6a' : '#8fa3bd';
       const sw = D.sidewalk;
       ctx.fillRect(b.x0 + sw, b.z0 + sw, b.x1 - b.x0 - 2 * sw, b.z1 - b.z0 - 2 * sw);
     }
@@ -105,8 +105,8 @@ export class Minimap {
     // you
     ctx.save();
     ctx.translate(CX, CY);
-    ctx.fillStyle = '#1aa3ff';
-    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = '#f5c518';
+    ctx.strokeStyle = '#111';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, -9);

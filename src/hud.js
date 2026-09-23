@@ -114,8 +114,15 @@ export class HUD {
   setCount(n, total) {
     this.el.count.textContent = `${n} / ${total}`;
     document.getElementById('objective-count').textContent = `${n} / ${total}`;
-    const bar = document.querySelector('#progress i');
-    if (bar) bar.style.width = `${total ? (n / total) * 100 : 0}%`;
+    // one segment per memory
+    const bar = document.getElementById('progress');
+    if (bar) {
+      if (bar.children.length !== total) {
+        bar.replaceChildren(...Array.from({ length: total }, () => document.createElement('span')));
+        bar.style.setProperty('--n', total);
+      }
+      [...bar.children].forEach((seg, k) => seg.classList.toggle('on', k < n));
+    }
   }
 
   showMemory(title, text, ms = 10000) {

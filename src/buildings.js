@@ -365,7 +365,7 @@ function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeo
     return null;
   };
   // water towers on the classic walk-ups
-  if (h > 12 && h < 60 && lot.area > 180 && hashf(lot.id, 3) < 0.4) {
+  if (h > 12 && h < 60 && lot.area > 180 && hashf(lot.id, 3) < 0.6) {
     const s = spot(2.4, 1);
     if (s) {
       const [tx, tz] = s;
@@ -460,7 +460,7 @@ export function buildBuildings(layout, shared) {
       if (chance(0.6)) roofGeos.push(place(new THREE.BoxGeometry(3, 2.8, 3.4), cx + range(-w / 4, w / 4), top + 1.4, cz + range(-d / 4, d / 4)));
     }
     // water towers: wooden tanks on steel legs, iron hoops around them
-    if (!lot.outer && ['corner', 'apt', 'mixed', 'condo'].includes(lot.kind) && h > 12 && chance(0.55)) {
+    if (!lot.outer && ['corner', 'apt', 'mixed', 'condo'].includes(lot.kind) && h > 12 && chance(0.7)) {
       const tx = cx + range(-w / 5, w / 5);
       const tz = cz + range(-d / 5, d / 5);
       const tr = range(1.3, 1.8);
@@ -617,7 +617,7 @@ export function buildBuildings(layout, shared) {
   for (const f of layout.faces) {
     const lot = f.lot;
     if (lot.outer || !['apt', 'corner', 'mixed'].includes(lot.kind)) continue;
-    if (lot.h < 11 || f.w < 8 || !chance(0.45)) continue;
+    if (lot.h < 11 || f.w < 8 || !chance(0.72)) continue;
     const ang = Math.atan2(f.nx, f.nz);
     const fw = Math.min(5.5, f.w - 2.5);
     const off = range(-(f.w - fw) / 2 + 0.5, (f.w - fw) / 2 - 0.5);

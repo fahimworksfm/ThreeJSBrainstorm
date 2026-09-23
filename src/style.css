@@ -558,3 +558,139 @@ body.photo #hud, body.photo #comic-words { opacity: 0 !important; }
 
 /* loading tips */
 #load-card .tip { margin: 12px 0 0; font: italic 700 14px 'Comic Neue', 'Comic Sans MS', sans-serif; color: #5a4a1a; }
+
+/* =====================================================================
+   HUD v3, matched to the reference art: diamond portrait with bars (top left),
+   compass strip (top), mission block (top right), ride dial (bottom left),
+   square slate-blue map with a name tag (bottom right), cyan comic tags.
+   ===================================================================== */
+#hud #compass { display: block; top: max(10px, env(safe-area-inset-top)); width: 320px; height: 30px; }
+
+#herohud { position: absolute; left: max(18px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; }
+#hud #badge {
+  position: relative; width: 62px; height: 62px; margin: 0; z-index: 2; flex: none;
+  background: #111; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+#hud #portrait {
+  position: absolute; inset: 4px; width: auto; height: auto; margin: 0; border: 0; border-radius: 0; box-shadow: none;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: #f5c518; object-fit: cover;
+}
+#hbars { display: grid; gap: 5px; margin-left: -10px; }
+#hud #hbars > div {
+  position: relative; width: 190px; height: 12px; background: rgba(10, 10, 14, 0.85); border: 2px solid #111;
+  transform: skewX(-24deg); overflow: hidden; border-radius: 0; box-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+}
+#hud #hbars > #progress { width: 150px; height: 10px; display: grid; grid-template-columns: repeat(var(--n, 8), 1fr); gap: 2px; background: rgba(10,10,14,0.85); padding: 0; }
+#hud #stamina i { display: block; height: 100%; background: linear-gradient(#ff6b57, #d62828); }
+#hud #stamina.low i { background: linear-gradient(#ffb03b, #e0601a); }
+#progress span { background: rgba(80, 140, 200, 0.25); }
+#progress span.on { background: linear-gradient(#6fd8ff, #1f9fe0); }
+
+#pausebtn {
+  position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(14px, env(safe-area-inset-top));
+  width: 38px; height: 38px; pointer-events: auto; cursor: pointer; border: 2px solid #111; background: rgba(10, 10, 14, 0.85);
+  color: #fff; font: 700 13px system-ui, sans-serif; letter-spacing: -1px; box-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+}
+#mission {
+  position: absolute; right: max(64px, calc(env(safe-area-inset-right) + 62px)); top: max(14px, env(safe-area-inset-top));
+  text-align: right; display: grid; justify-items: end; gap: 3px; max-width: 42vw; text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+  padding: 8px 14px 9px; background: linear-gradient(270deg, rgba(8, 10, 22, 0.8), rgba(8, 10, 22, 0));
+}
+#hud #district { font: 600 22px Oswald, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; }
+#hud #objective {
+  all: unset; display: flex; align-items: center; gap: 8px; font: 600 17px Oswald, sans-serif; letter-spacing: 0.04em; color: #f5c518;
+}
+#hud #objective .gem { width: 10px; height: 10px; border: 2px solid #f5c518; background: none; transform: rotate(45deg); box-shadow: none; display: inline-block; }
+#hud #objective b { color: #fff; font-weight: 500; }
+#hint { font: 400 14px/1.35 Oswald, sans-serif; letter-spacing: 0.03em; color: #e8e8f0; }
+#hint:empty { display: none; }
+
+#hud #topleft { top: max(92px, calc(env(safe-area-inset-top) + 82px)); left: max(18px, env(safe-area-inset-left)); }
+
+/* ride dial: cyan arc for speed, magenta arc for energy */
+#dial { position: absolute; left: max(20px, env(safe-area-inset-left)); bottom: max(20px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: 92px auto; grid-template-rows: 92px; align-items: center; column-gap: 12px; --spd: 0; --nrg: 1; }
+#dial-ring {
+  grid-area: 1 / 1; width: 92px; height: 92px; border-radius: 50%;
+  background:
+    conic-gradient(from 200deg, #2fe3ff 0 calc(var(--spd) * 150deg), transparent 0) ,
+    conic-gradient(from 20deg, #ff3fb5 0 calc(var(--nrg) * 150deg), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 36px, #000 37px, #000 44px, transparent 45px);
+  mask: radial-gradient(circle, transparent 36px, #000 37px, #000 44px, transparent 45px);
+  filter: drop-shadow(0 0 4px rgba(47, 227, 255, 0.5));
+}
+#dial-core {
+  grid-area: 1 / 1; justify-self: center; width: 66px; height: 66px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 40% 35%, #2a2f40, #0d0f16); border: 2px solid #111; box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
+}
+#dial-icon { font-size: 30px; line-height: 1; }
+#hud #dial #clock { grid-area: 1 / 2; align-self: end; margin-bottom: 44px; font: 600 16px Oswald, sans-serif; letter-spacing: 0.08em; color: #fff; text-shadow: 0 2px 6px #000; }
+#hud #dial #ride { grid-area: 1 / 2; align-self: end; margin-bottom: 14px; position: static; background: rgba(10, 10, 14, 0.8); border: 2px solid #111; border-radius: 0; padding: 3px 9px; font: 500 12px Oswald, sans-serif; letter-spacing: 0.16em; box-shadow: 2px 2px 0 rgba(0,0,0,0.5); }
+
+/* map: black name tag over a square slate-blue map */
+#hud #radar { left: auto; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); width: 200px; gap: 0; }
+#hud #info { position: static; text-align: left; justify-items: start; display: grid; gap: 0; margin-bottom: -2px; text-shadow: none; }
+#hud #info #location {
+  font: 600 15px/1 Oswald, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; max-width: 200px;
+  background: #111; padding: 6px 10px 5px; clip-path: polygon(0 0, 100% 0, 94% 100%, 0 100%); padding-right: 20px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#hud #info #sublocation { font: 400 11px Oswald, sans-serif; letter-spacing: 0.1em; color: #ddd; background: rgba(10,10,14,0.8); padding: 2px 10px 3px; max-width: 200px; }
+#mapframe { position: relative; border: 3px solid #111; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55); background: #111; }
+#hud #radar #minimap { display: block; width: 194px; height: 194px; border: 0; border-radius: 0; box-shadow: none; }
+#hud #radar #badge { position: relative; left: auto; top: auto; }
+
+/* notifications: cyan comic tags */
+#hud #toast {
+  left: auto; right: max(20px, env(safe-area-inset-right)); top: auto; bottom: max(270px, calc(env(safe-area-inset-bottom) + 262px)); transform: rotate(-2deg);
+  background: #37d6ea; color: #0b0b0b; border: 3px solid #111; border-radius: 0; box-shadow: 5px 5px 0 #111;
+  font: 20px/1 Bangers, Impact, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; padding: 8px 14px 6px 22px;
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 12px); backdrop-filter: none;
+}
+
+/* captions: top center, under the compass */
+#hud #subtitle { left: 50%; right: auto; top: max(58px, calc(env(safe-area-inset-top) + 50px)); width: min(560px, calc(100% - 520px)); min-width: 320px; transform: translate(-50%, -8px); }
+#hud #subtitle.show { transform: translate(-50%, 0); }
+
+/* comic panel gutters in the sky (Settings: Comic panel lines) */
+#panels { position: absolute; inset: 0 0 auto 0; height: 38vh; display: none; -webkit-mask: linear-gradient(#000 40%, transparent); mask: linear-gradient(#000 40%, transparent); }
+body.panels #panels { display: block; }
+#panels svg { width: 100%; height: 100%; }
+#panels path { fill: none; stroke: #0b0b12; stroke-width: 7; vector-effect: non-scaling-stroke; opacity: 0.85; }
+
+/* photo mode: camcorder frame */
+#recframe { position: fixed; inset: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); pointer-events: none; display: none; z-index: 17; }
+body.photo #recframe { display: block; }
+#recframe .c { position: absolute; width: 64px; height: 64px; border: 3px solid rgba(255, 255, 255, 0.9); }
+#recframe .tl { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+#recframe .tr { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+#recframe .bl { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+#recframe .br { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+#recframe .rec { position: absolute; right: 26px; top: 20px; font: 600 22px Oswald, sans-serif; letter-spacing: 0.08em; color: #fff; text-shadow: 0 1px 4px #000; }
+#recframe .rec::before { content: ''; display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #ff2d2d; margin-right: 8px; vertical-align: 1px; animation: recblink 1s steps(2) infinite; }
+@keyframes recblink { 50% { opacity: 0; } }
+#recframe .batt { position: absolute; left: 26px; top: 22px; width: 38px; height: 18px; border: 2px solid #fff; border-radius: 3px; background: linear-gradient(90deg, #fff 0 70%, transparent 70%) content-box; padding: 2px; }
+#recframe .batt::after { content: ''; position: absolute; right: -6px; top: 4px; width: 4px; height: 6px; background: #fff; }
+
+/* phones: map top right under the mission, no dial (the joystick lives there) */
+body.touch #hud #compass { width: 200px; height: 20px; top: max(76px, calc(env(safe-area-inset-top) + 70px)); }
+body.touch #hud #badge { width: 46px; height: 46px; }
+body.touch #hud #hbars > div { width: 120px; height: 9px; }
+body.touch #hud #hbars > #progress { width: 96px; height: 8px; }
+body.touch #mission { right: max(58px, calc(env(safe-area-inset-right) + 56px)); padding: 4px 8px; max-width: 46vw; }
+body.touch #hud #district { font-size: 15px; }
+body.touch #hud #objective { font-size: 13px; }
+body.touch #hint { font-size: 11px; }
+body.touch #dial { display: none; }
+body.touch #hud #radar { top: max(104px, calc(env(safe-area-inset-top) + 96px)); bottom: auto; width: 128px; }
+body.touch #hud #radar #minimap { width: 122px; height: 122px; }
+body.touch #hud #info #location { font-size: 11px; max-width: 128px; }
+body.touch #hud #info #sublocation { display: none; }
+body.touch #hud #toast { bottom: auto; top: max(260px, calc(env(safe-area-inset-top) + 250px)); font-size: 15px; }
+body.touch #hud #subtitle { top: max(260px, calc(env(safe-area-inset-top) + 250px)); width: min(92vw, 420px); min-width: 0; }
+body.touch #pausebtn { display: none; }
+#hud #herohud #badge { width: 66px; height: 66px; background: #f5c518; display: block; margin: 0; }
+#hud #herohud #portrait { inset: 4px; background: #1b2030; display: block; }
+#hud #herohud #hbars { margin-left: -4px; position: relative; z-index: 1; }
+#hud #herohud { gap: 0; }
+body.touch #hud #herohud #badge { width: 48px; height: 48px; }
+#hud #herohud #portrait { width: calc(100% - 8px); height: calc(100% - 8px); left: 4px; top: 4px; }

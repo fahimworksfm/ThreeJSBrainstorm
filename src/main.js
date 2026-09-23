@@ -895,6 +895,7 @@ function applyGfx() {
   LOOK.sensitivity = gfx.sensitivity;
   settings.fov = gfx.fov;
   audio.setVolume(gfx.volume);
+  document.body.classList.toggle('panels', !!gfx.panels);
   resize();
 }
 function changeSetting(key, value) {
@@ -1071,6 +1072,41 @@ function savePhoto() {
   audio.chime?.();
 }
 
+// ---------- ride dial and mission hint ----------
+const dialEl = document.getElementById('dial');
+const dialIcon = document.getElementById('dial-icon');
+const RIDE_ICONS = { walk: '🚶', bike: '🚲', moto: '🏍️', suv: '🚙' };
+let hintTimer = 0;
+function updateDial(dt) {
+  const v = player.mode === 'walk' ? Math.hypot(player.vel.x, player.vel.z) : Math.abs(player.speed);
+  const max = player.mode === 'walk' ? 7 : MODES[player.mode].max;
+  dialEl.style.setProperty('--spd', Math.min(1, v / max).toFixed(3));
+  dialEl.style.setProperty('--nrg', player.stamina.toFixed(3));
+  const icon = RIDE_ICONS[player.mode];
+  if (dialIcon.textContent !== icon) dialIcon.textContent = icon;
+  // the mission line under the objective: the nearest memory and how far
+  hintTimer -= dt;
+  if (hintTimer > 0) return;
+  hintTimer = 0.5;
+  let best = null;
+  let bd = Infinity;
+  for (const it of W.memories.items) {
+    if (it.done) continue;
+    const d = Math.hypot(it.g.position.x - player.pos.x, it.g.position.z - player.pos.z);
+    if (d < bd) {
+      bd = d;
+      best = it;
+    }
+  }
+  const hint = document.getElementById('hint');
+  const text = best ? `Nearest: ${best.mem.title} · ${bd < 1000 ? `${Math.round(bd / 10) * 10} m` : `${(bd / 1000).toFixed(1)} km`}` : 'All memories found. Take the train somewhere new.';
+  if (hint.textContent !== text) hint.textContent = text;
+}
+document.getElementById('pausebtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  input.pause();
+});
+
 let lastSpeed = 0;
 let lastLand = 0;
 /** Pop comic sound effects for the loud moments. */
@@ -1226,6 +1262,7 @@ function frame(now) {
   minimap.update(dt, pos, camEuler.y);
   compass.update(camEuler.y, player.pos, W);
   staminaBar.style.width = `${Math.round(player.stamina * 100)}%`;
+  updateDial(dt);
   staminaBar.parentElement.classList.toggle('low', player.stamina < 0.25);
   if (player.hero && !portraitDone && frames > 5) portraitDone = renderPortrait();
   hud.setLocation((W.describe ?? describeLocation)(player.pos.x, player.pos.z, { roof: !!player.roof }));

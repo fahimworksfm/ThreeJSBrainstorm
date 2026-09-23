@@ -63,24 +63,24 @@ export class BigMap {
     ctx.save();
     ctx.translate(ox, oz);
     ctx.scale(s, s);
-    ctx.fillStyle = '#9aa0a8';
+    ctx.fillStyle = '#2b3340';
     ctx.fillRect(x0, z0, x1 - x0, z1 - z0);
     if (im) {
       ctx.imageSmoothingEnabled = true;
       ctx.drawImage(im.canvas, im.x0, im.z0, im.w, im.h);
     } else {
       if (D.riverX !== null) {
-        ctx.fillStyle = '#2f5d8a';
+        ctx.fillStyle = '#3e6a96';
         ctx.fillRect(x0, z0, D.riverX - x0, z1 - z0);
       }
       if (D.parkZ1 !== null) {
-        ctx.fillStyle = '#3f6a3a';
+        ctx.fillStyle = '#6f8f6a';
         ctx.fillRect(x0, z0, x1 - x0, D.parkZ1 - z0);
       }
       for (const b of world.layout.blocks) {
-        ctx.fillStyle = '#4a4f58';
+        ctx.fillStyle = '#5d6c82';
         ctx.fillRect(b.x0, b.z0, b.x1 - b.x0, b.z1 - b.z0);
-        ctx.fillStyle = b.park ? '#3f6a3a' : '#2b2f37';
+        ctx.fillStyle = b.park ? '#6f8f6a' : '#8fa3bd';
         const sw = D.sidewalk;
         ctx.fillRect(b.x0 + sw, b.z0 + sw, b.x1 - b.x0 - 2 * sw, b.z1 - b.z0 - 2 * sw);
       }
@@ -136,7 +136,7 @@ export class BigMap {
     ctx.lineTo(0, 5);
     ctx.lineTo(-10, 10);
     ctx.closePath();
-    ctx.fillStyle = '#1aa3ff';
+    ctx.fillStyle = '#f5c518';
     ctx.fill();
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#fff';

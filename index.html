@@ -22,23 +22,36 @@
 
     <div id="hud">
       <canvas id="compass"></canvas>
-      <div id="topleft">
-        <div id="objective"><span class="gem"></span><span>Find the memories</span><b id="objective-count">0 / 8</b></div>
-        <div id="prompt"></div>
+      <div id="panels" aria-hidden="true">
+        <svg viewBox="0 0 1000 400" preserveAspectRatio="none">
+          <path d="M-10 118 L420 96 L452 -10 M420 96 L1010 132 M688 110 L660 -10" />
+        </svg>
       </div>
-      <div id="radar">
+      <div id="herohud">
         <div id="badge"><img id="portrait" alt="" /></div>
-        <canvas id="minimap"></canvas>
-        <div id="bars">
-          <div id="stamina" title="Stamina"><i></i></div>
-          <div id="progress" title="Memories found"><i></i></div>
+        <div id="hbars">
+          <div id="stamina" title="Energy"><i></i></div>
+          <div id="progress" title="Memories found"></div>
         </div>
       </div>
-      <div id="info">
-        <div id="location"></div>
-        <div id="sublocation"></div>
+      <button id="pausebtn" aria-label="Pause">❚❚</button>
+      <div id="mission">
         <div id="district">Queens</div>
-        <div class="row"><div id="clock"></div><div id="ride" data-mode="walk"><span id="ride-name">On foot</span><span id="ride-speed"></span></div></div>
+        <div id="objective"><span>Find the memories</span><span class="gem"></span><b id="objective-count">0 / 8</b></div>
+        <div id="hint"></div>
+      </div>
+      <div id="topleft">
+        <div id="prompt"></div>
+      </div>
+      <div id="dial">
+        <div id="dial-ring"></div>
+        <div id="dial-core"><span id="dial-icon">🚶</span></div>
+        <div id="clock"></div>
+        <div id="ride" data-mode="walk"><span id="ride-name">On foot</span><span id="ride-speed"></span></div>
+      </div>
+      <div id="radar">
+        <div id="info"><div id="location"></div><div id="sublocation"></div></div>
+        <div id="mapframe"><canvas id="minimap"></canvas></div>
       </div>
       <div class="corner" id="tally">
         <div class="label">Memories</div>
@@ -52,8 +65,7 @@
       </div>
       <div id="toast"></div>
     </div>
-    <div id="photobar"><b>Photo mode</b><span><kbd>Mouse</kbd>orbit</span><span><kbd>Wheel</kbd>zoom</span><span><kbd>WASD</kbd>move</span><span><kbd>Enter</kbd>save</span><span><kbd>P</kbd>exit</span></div>
-    <div id="flash"></div>
+    <div id="recframe" aria-hidden="true"><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i><span class="rec">REC</span><span class="batt"></span></div>
     <div id="banner"><div class="b-burst"></div><div class="b-title"></div><div class="b-sub"></div></div>
 
     <div id="overlay">

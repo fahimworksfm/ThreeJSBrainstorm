@@ -9,7 +9,7 @@ export const PRESETS = {
 
 export const DEFAULTS = {
   preset: 'high', ...PRESETS.high,
-  lensRain: true, print: true, hatch: true, words: true, twos: true, realMap: true,
+  lensRain: true, print: true, hatch: true, words: true, twos: true, realMap: true, panels: false,
   fov: 72, sensitivity: 1, volume: 0.8,
 };
 
@@ -28,6 +28,7 @@ const ROWS = [
   { key: 'twos', label: 'Animate on twos', type: 'toggle' },
   { key: 'words', label: 'Sound-effect words', type: 'toggle' },
   { key: 'lensRain', label: 'Rain on the lens', type: 'toggle' },
+  { key: 'panels', label: 'Comic panel lines in the sky', type: 'toggle' },
   { group: 'World' },
   { key: 'realMap', label: 'Real OpenStreetMap streets', type: 'toggle' },
   { group: 'Camera and sound' },
