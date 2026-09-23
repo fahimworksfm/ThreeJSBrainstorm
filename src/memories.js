@@ -125,6 +125,7 @@ export class Memories {
     this.hud.setCount(n, this.list.length);
     this.hud.setJournal(journalAll());
     this.hud.showMemory(it.mem.title, it.mem.text);
+    this.hud.banner(n === this.list.length ? 'NEIGHBORHOOD COMPLETE!' : 'MEMORY FOUND!', `${n} / ${this.list.length}`);
     if (n === this.list.length) {
       const title = `${D.name}, ${D.borough}`;
       const id = this.id;

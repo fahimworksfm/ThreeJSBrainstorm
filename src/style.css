@@ -398,3 +398,109 @@ body.touch #subtitle { bottom: 34vh; }
 body.touch #subtitle { top: max(120px, calc(env(safe-area-inset-top) + 110px)); bottom: auto; left: max(12px, env(safe-area-inset-left)); width: min(420px, 62vw); }
 body.touch #subtitle #subtitle-text { font-size: 13px; padding: 10px 12px; }
 body.touch #subtitle #subtitle-title { font-size: 16px; }
+
+/* ---------- full-screen map ---------- */
+#bigmap { position: fixed; inset: 0; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+#bigmap.show { opacity: 1; pointer-events: auto; }
+#bigmap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#bigmap .bm-head { position: absolute; left: max(28px, env(safe-area-inset-left)); top: max(24px, env(safe-area-inset-top)); text-shadow: 0 2px 8px #000; }
+#bigmap .bm-boro { font: 500 13px Oswald, sans-serif; letter-spacing: 0.35em; text-transform: uppercase; color: #f5c518; }
+#bigmap .bm-name { font: 44px/1 Bangers, Impact, sans-serif; letter-spacing: 0.04em; color: #fff; text-shadow: 3px 3px 0 #111; }
+#bigmap .bm-legend {
+  position: absolute; right: max(28px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex; gap: 18px; padding: 10px 16px; border-radius: 4px; background: rgba(8, 8, 12, 0.75);
+  font: 500 13px Oswald, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; color: #eee;
+}
+#bigmap .bm-legend span { display: flex; align-items: center; gap: 7px; }
+#bigmap .bm-legend i { width: 12px; height: 12px; display: inline-block; border: 2px solid #111; border-radius: 50%; }
+#bigmap .you { background: #1aa3ff; border-color: #fff !important; }
+#bigmap .mem { background: #f5c518; border-radius: 0 !important; transform: rotate(45deg) scale(0.85); }
+#bigmap .st { background: #2ecc71; }
+#bigmap .el { background: #b48cff; border-radius: 2px !important; height: 5px !important; width: 18px !important; border: 0 !important; }
+#bigmap .bm-hint { position: absolute; left: max(28px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); font: 400 13px Oswald, sans-serif; letter-spacing: 0.15em; color: #aaa; text-transform: uppercase; }
+
+/* ---------- ride wheel ---------- */
+#ridewheel { position: fixed; inset: 0; z-index: 15; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 0.12s; background: radial-gradient(circle, rgba(0,0,0,0.45), rgba(0,0,0,0.15) 60%); }
+#ridewheel.show { opacity: 1; }
+#ridewheel.show .rw-slot { pointer-events: auto; cursor: pointer; }
+#ridewheel .rw-ring { position: relative; width: 340px; height: 340px; border-radius: 50%; background: rgba(8, 8, 12, 0.72); box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 20px 60px rgba(0,0,0,0.5); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#ridewheel .rw-slot {
+  position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%;
+  display: grid; place-items: center; align-content: center; gap: 2px; color: #ddd;
+  transform: rotate(var(--a)) translateY(-112px) rotate(calc(-1 * var(--a))); transition: background 0.1s, scale 0.1s;
+}
+#ridewheel .rw-slot.on { background: #f5c518; color: #111; scale: 1.12; box-shadow: 4px 4px 0 #111; }
+#ridewheel .rw-icon { font-size: 34px; line-height: 1; }
+#ridewheel .rw-label { font: 500 12px Oswald, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; }
+#ridewheel .rw-center { position: absolute; inset: 0; display: grid; place-items: center; font: 26px Bangers, Impact, sans-serif; letter-spacing: 0.06em; color: #fff; text-shadow: 2px 2px 0 #111; pointer-events: none; }
+
+/* ---------- MEMORY FOUND banner ---------- */
+#banner {
+  position: fixed; left: 50%; top: 30%; z-index: 12; pointer-events: none; text-align: center; opacity: 0;
+  transform: translate(-50%, -50%);
+}
+#banner.show { animation: banner 2.8s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+#banner .b-burst {
+  position: absolute; left: 50%; top: 50%; width: 520px; height: 260px; transform: translate(-50%, -50%); z-index: -1;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 228, 92, 0.95) 0 30%, transparent 31%),
+    repeating-conic-gradient(from 0deg, rgba(255, 90, 54, 0.9) 0 6deg, rgba(255, 210, 59, 0.9) 6deg 12deg);
+  -webkit-mask: radial-gradient(ellipse, #000 45%, transparent 70%); mask: radial-gradient(ellipse, #000 45%, transparent 70%);
+}
+#banner .b-title { font: 72px/1 Bangers, Impact, sans-serif; letter-spacing: 0.05em; color: #fff; -webkit-text-stroke: 3px #111; paint-order: stroke fill; text-shadow: 5px 5px 0 #e3262e, 8px 8px 0 #111; transform: rotate(-3deg); }
+#banner .b-sub { margin-top: 8px; font: 600 20px Oswald, sans-serif; letter-spacing: 0.3em; text-transform: uppercase; color: #111; background: #fff; display: inline-block; padding: 3px 14px; border: 3px solid #111; transform: rotate(-3deg); }
+@keyframes banner {
+  0% { opacity: 0; scale: 0.3; }
+  10% { opacity: 1; scale: 1.1; }
+  18% { scale: 1; }
+  80% { opacity: 1; scale: 1; }
+  100% { opacity: 0; scale: 1.05; }
+}
+@media (max-width: 640px) { #banner .b-title { font-size: 44px; } #banner .b-burst { width: 340px; height: 180px; } }
+
+#hud.under-map { opacity: 0; }
+
+/* ---------- title / pause and train map: open-world menu style ---------- */
+#overlay {
+  place-items: start; align-content: start; padding: 0;
+  background: linear-gradient(90deg, rgba(6, 6, 10, 0.94) 0%, rgba(6, 6, 10, 0.86) 38%, rgba(6, 6, 10, 0.35) 70%, rgba(6, 6, 10, 0.1) 100%);
+}
+#overlay .card {
+  width: min(640px, 100%); min-height: 100dvh; padding: max(36px, env(safe-area-inset-top)) 40px 40px max(44px, env(safe-area-inset-left));
+  gap: 26px; font-family: Oswald, system-ui, sans-serif;
+}
+.eyebrow { font: 500 13px Oswald, sans-serif; letter-spacing: 0.4em; color: #f5c518; }
+#overlay h1 {
+  font: clamp(64px, 9vw, 112px)/0.88 Bangers, Impact, sans-serif; letter-spacing: 0.04em; color: #fff; margin: 8px 0 12px;
+  -webkit-text-stroke: 3px #111; paint-order: stroke fill; text-shadow: 6px 6px 0 #e3262e, 10px 10px 0 #111; transform: rotate(-2deg);
+}
+#overlay .sub { font: 400 16px/1.6 system-ui, sans-serif; color: #c9c6d2; }
+#start {
+  font: 26px Bangers, Impact, sans-serif; letter-spacing: 0.08em; text-transform: none; color: #111;
+  background: #f5c518; border: 3px solid #111; border-radius: 0; padding: 12px 34px 10px; box-shadow: 6px 6px 0 #111;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+#start:hover { background: #ffd84a; transform: translate(-2px, -2px); box-shadow: 8px 8px 0 #111; }
+#start:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #111; }
+.ghost { font: 500 13px Oswald, sans-serif; letter-spacing: 0.2em; border-color: rgba(255, 255, 255, 0.35); border-radius: 0; }
+#overlay h3, .travel-card h3 { font: 600 13px Oswald, sans-serif; letter-spacing: 0.3em; color: #f5c518; margin-bottom: 12px; }
+#picker .boro { font: 500 12px Oswald, sans-serif; letter-spacing: 0.3em; color: #8e8a9a; }
+.place {
+  border: 0; border-left: 3px solid rgba(255, 255, 255, 0.18); border-radius: 0; background: rgba(255, 255, 255, 0.05);
+  padding: 10px 14px; transition: background 0.12s, border-color 0.12s, transform 0.12s;
+}
+.place:hover:not(:disabled) { background: rgba(245, 197, 24, 0.14); border-left-color: #f5c518; transform: translateX(4px); }
+.place.here { border-left-color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
+.place .pname { font: 500 17px Oswald, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+.place .blurb { font: 13px/1.45 system-ui, sans-serif; color: #a9a5b5; }
+.keys { font: 14px system-ui, sans-serif; }
+.keys dt { font: 600 13px Oswald, sans-serif; letter-spacing: 0.08em; color: #111; background: #e8e8e8; padding: 0 7px; border-radius: 3px; justify-self: start; box-shadow: 0 2px 0 #888; }
+#journal .entry h4 { font: 16px Bangers, Impact, sans-serif; letter-spacing: 0.06em; color: #f5c518; }
+#journal .entry p { font: italic 700 14px/1.4 'Comic Neue', 'Comic Sans MS', sans-serif; color: #eee; }
+#travel { background: linear-gradient(90deg, rgba(6, 6, 10, 0.95), rgba(6, 6, 10, 0.8)); }
+.travel-card .eyebrow { font-size: 14px; }
+#travel-close { font: 500 14px Oswald, sans-serif; letter-spacing: 0.2em; border-radius: 0; }
+@media (max-width: 640px) {
+  #overlay { background: rgba(6, 6, 10, 0.9); }
+  #overlay .card { padding: max(24px, env(safe-area-inset-top)) 20px 28px; }
+}

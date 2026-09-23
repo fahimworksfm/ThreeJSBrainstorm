@@ -144,6 +144,7 @@ export class Input extends EventTarget {
         <button data-act="jump">Jump</button>
         <button data-act="run">Run</button>
         <button data-act="camera">View</button>
+        <button data-act="map">Map</button>
         <button data-act="vehicle" class="big">Ride</button>
       </div>
       <button data-act="pause" class="pause" aria-label="Pause">❚❚</button>`;

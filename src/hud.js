@@ -126,6 +126,19 @@ export class HUD {
     this.subTimer = setTimeout(() => this.el.subtitle.classList.remove('show'), ms);
   }
 
+  /** Big comic splash in the middle of the screen: MEMORY FOUND, 3 / 8. */
+  banner(title, sub = '') {
+    const b = document.getElementById('banner');
+    if (!b) return;
+    b.querySelector('.b-title').textContent = title;
+    const s = b.querySelector('.b-sub');
+    s.textContent = sub;
+    s.style.display = sub ? '' : 'none';
+    b.classList.remove('show');
+    void b.offsetWidth; // restart the animation
+    b.classList.add('show');
+  }
+
   toast(msg) {
     this.el.toast.textContent = msg;
     this.el.toast.classList.add('show');

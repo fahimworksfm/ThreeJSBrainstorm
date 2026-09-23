@@ -8,6 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
 import { RIM, rimLight, setWet } from './fx.js';
 import { COMIC, ComicWords } from './comicfx.js';
+import { BigMap, RideWheel } from './menus.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
@@ -176,6 +177,14 @@ const worldProxy = {
   roofAt: (x, z, pad) => (W ? W.roofs.at(x, z, pad) : null),
 };
 comicWords = new ComicWords(camera);
+const bigMap = new BigMap();
+const rideWheel = new RideWheel();
+let bigMapTimer = 0;
+function toggleMap() {
+  camEuler.setFromQuaternion(camera.quaternion, 'YXZ');
+  const open = bigMap.toggle(W, player, camEuler.y);
+  document.getElementById('hud').classList.toggle('under-map', open);
+}
 COMIC.pop = (...a) => settings.comicWords && comicWords.pop(...a);
 const input = new Input(renderer.domElement);
 const player = new Player(camera, scene, worldProxy, audio, input, shared);
@@ -748,6 +757,9 @@ input.addEventListener('button', (e) => {
     case 'camera':
       hud.toast(player.toggleView() === 'fpv' ? 'First person' : 'Third person');
       break;
+    case 'map':
+      toggleMap();
+      break;
     case 'action':
       if (W.nearEntrance) openTravel();
       else if (W.nearEscape) climbEscape();
@@ -755,7 +767,23 @@ input.addEventListener('button', (e) => {
   }
 });
 
+addEventListener('keyup', (e) => {
+  if (e.code === 'KeyV' && rideWheel.open) {
+    const mode = rideWheel.hide();
+    if (mode) ride(mode);
+  }
+});
+
 addEventListener('keydown', (e) => {
+  if (e.code === 'Tab') {
+    e.preventDefault();
+    if (input.active || bigMap.open) toggleMap();
+    return;
+  }
+  if (e.code === 'KeyV' && !e.repeat && input.active && !player.roof) {
+    rideWheel.show(player.mode);
+    return;
+  }
   switch (e.code) {
     case 'Escape':
       if (input.dragLook && input.active) input.pause();
@@ -946,6 +974,19 @@ function frame(now) {
 
   minute = (minute + dt * MINUTES_PER_SECOND) % 1440;
   applyTime();
+  // the ride wheel takes the mouse while it's open
+  if (rideWheel.open) {
+    const d = input.consumeLook();
+    rideWheel.steer(d.x, d.y);
+  }
+  if (bigMap.open) {
+    bigMapTimer -= dt;
+    if (bigMapTimer <= 0) {
+      bigMapTimer = 0.25;
+      camEuler.setFromQuaternion(camera.quaternion, 'YXZ');
+      bigMap.draw(W, player, camEuler.y);
+    }
+  }
   player.update(dt);
   W.buildings.update(t, dt);
   W.streets.update(t);
