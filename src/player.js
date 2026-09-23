@@ -42,6 +42,7 @@ export class Player {
     this.atEdge = false;
     this.facing = 0;
     this.bump = 0;
+    this.roof = null; // the rooftop you're standing on, if any
 
     this.root = new THREE.Group();
     scene.add(this.root);
@@ -103,6 +104,7 @@ export class Player {
 
   setMode(mode, silent = false) {
     if (mode === this.mode && !silent) return;
+    if (this.roof && mode !== 'walk') return;
     const old = this.vehicles[this.mode];
     if (old && mode !== this.mode) {
       // leave it parked where you got off
@@ -129,6 +131,23 @@ export class Player {
     this.vel.set(0, 0, 0);
     this.steer = 0;
     this.audio.setEngine?.(mode);
+  }
+
+  /** Up a fire escape to the roof, or back down to the sidewalk. */
+  climb(fe) {
+    if (this.roof) {
+      this.roof = null;
+      this.pos.set(fe.x, 0, fe.z);
+    } else {
+      const r = this.world.roofAt(fe.roofX, fe.roofZ, 0);
+      if (!r) return false;
+      this.roof = r;
+      this.pos.set(fe.roofX, 0, fe.roofZ);
+    }
+    this.ground = this.roof ? this.roof.top : this.world.groundAt(this.pos.x, this.pos.z);
+    this.vel.set(0, 0, 0);
+    this.placeCamera(1, true);
+    return true;
   }
 
   toggleView() {
@@ -167,9 +186,21 @@ export class Player {
       const a = 1 - Math.exp(-10 * dt);
       this.vel.x += (wx * speed - this.vel.x) * a;
       this.vel.z += (wz * speed - this.vel.z) * a;
+      const px = this.pos.x;
+      const pz = this.pos.z;
       this.pos.x += this.vel.x * dt;
       this.pos.z += this.vel.z * dt;
-      this.world.collide(this.pos, cfg.radius);
+      if (this.roof) {
+        // on the roofs: walk anywhere a roof continues at about the same height
+        const r = this.world.roofAt(this.pos.x, this.pos.z, 0.35);
+        if (!r || Math.abs(r.top - this.roof.top) > 1.3) {
+          this.pos.x = px;
+          this.pos.z = pz;
+          this.vel.set(0, 0, 0);
+        } else this.roof = r;
+      } else {
+        this.world.collide(this.pos, cfg.radius);
+      }
       const v = Math.hypot(this.vel.x, this.vel.z);
       if (v > 0.3) this.facing = Math.atan2(this.vel.x, this.vel.z);
       const before = Math.floor(this.phase / Math.PI);
@@ -228,12 +259,12 @@ export class Player {
     this.pos.x = cx;
     this.pos.z = cz;
 
-    const g = this.world.groundAt(this.pos.x, this.pos.z);
+    const g = this.roof ? this.roof.top : this.world.groundAt(this.pos.x, this.pos.z);
     if (Math.abs(g - this.ground) > 0.05 && this.mode !== 'walk') this.bump = 0.06; // curb hop
     this.ground += (g - this.ground) * Math.min(1, dt * 14);
     this.bump *= 1 - Math.min(1, dt * 8);
     this.shake *= 1 - Math.min(1, dt * 5);
-    this.onRoad = g < 0.05;
+    this.onRoad = !this.roof && g < 0.05;
 
     this.updateModels(dt);
     this.placeCamera(dt);
@@ -314,7 +345,7 @@ export class Player {
     const bx = Math.sin(yaw);
     const bz = Math.cos(yaw);
     for (let s = 0.5; s <= d; s += 0.4) {
-      if (this.world.inside(target.x + bx * s, target.z + bz * s, 0.4)) {
+      if (!this.roof && this.world.inside(target.x + bx * s, target.z + bz * s, 0.4)) {
         d = Math.max(0.8, s - 0.5);
         break;
       }

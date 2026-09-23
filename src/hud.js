@@ -3,7 +3,7 @@ import { D } from './config.js';
 const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** "31st St & 30th Ave", "Crescent St · 24th Ave – 25th Ave", ... */
-export function describeLocation(x, z) {
+export function describeLocation(x, z, opts = {}) {
   const { nsW, ewW, sidewalk, NX, NZ, colX, rowZ, PITCH_X, PITCH_Z, nsRoads, ewRoads } = D;
   if (D.parkZ1 !== null && z < D.parkZ1) return D.parkName;
   if (D.riverX !== null && x < colX(0) - nsW / 2) return D.riverName;
@@ -28,6 +28,7 @@ export function describeLocation(x, z) {
     const between = a && b ? `${a} – ${b}` : i0 < 0 ? `west of ${nsRoads[0]}` : `east of ${nsRoads[NX - 1]}`;
     return `${ewRoads[j]}  ·  ${between}${under}`;
   }
+  if (opts.roof) return `Rooftop over ${nsRoads[i]} & ${ewRoads[j]}`;
   const c = Math.floor((x - colX(0)) / PITCH_X);
   const r = Math.floor((z - rowZ(0)) / PITCH_Z);
   const pb = (D.parkBlocks || []).findIndex(([pc, pr]) => pc === c && pr === r);

@@ -91,6 +91,9 @@ scene.add(camera);
 const hemi = new THREE.HemisphereLight(0x2c3452, 0x7a4a2a, 0.65);
 const sun = new THREE.DirectionalLight(0x8090c0, 0.12);
 scene.add(hemi, sun, sun.target);
+// a soft fill that follows the hero at night, so he never turns into a silhouette
+const heroLight = new THREE.PointLight(0xb8c8ff, 0, 9, 1.6);
+scene.add(heroLight);
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 600 });
 sun.shadow.bias = -0.0004;
@@ -129,6 +132,11 @@ const worldProxy = {
   groundAt: (x, z) => (W ? W.groundAt(x, z) : 0),
   collide: (p, r) => (W ? W.grid.collide(p, r) : false),
   inside: (x, z, pad) => (W ? W.grid.inside(x, z, pad) : false),
+  roofAt: (x, z, pad) => {
+    if (!W) return null;
+    for (const r of W.roofs.near(x, z, pad)) if (x >= r.x0 - pad && x <= r.x1 + pad && z >= r.z0 - pad && z <= r.z1 + pad) return r;
+    return null;
+  },
 };
 const input = new Input(renderer.domElement);
 const player = new Player(camera, scene, worldProxy, audio, input, shared);
@@ -179,6 +187,10 @@ function loadDistrict(id, { arrive = false } = {}) {
   const traffic = new Traffic(shared, audio);
   // parked cars are solid too
   const parked = traffic.parked.map((c) => ({ x0: c.x - 1, x1: c.x + 1, z0: c.z - 2.35, z1: c.z + 2.35 }));
+  // walkable roofs: flat-topped buildings, standing on the parapet lip
+  const roofs = new ColliderGrid(
+    layout.lots.filter((l) => l.kind !== 'house' && !l.outer).map((l) => ({ x0: l.x0, x1: l.x1, z0: l.z0, z1: l.z1, top: CURB + l.h + 0.225 })),
+  );
   const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...streets.colliders, ...parked]);
   const weather = new Weather(shared, groundAt, streets.steam, quality.rain);
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
@@ -193,7 +205,7 @@ function loadDistrict(id, { arrive = false } = {}) {
   });
   scene.add(root);
 
-  W = { def, root, layout, groundAt, grid, peds, clouds, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
+  W = { def, root, layout, groundAt, grid, roofs, peds, clouds, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
   applyTime(true);
   minimap.setWorld(W);
   hud.setDistrict(`${def.name}, ${def.borough}`);
@@ -266,6 +278,7 @@ function applyTime(force = false) {
   g.contrast.value = L.contrast;
   g.shadowTint.value.set(...L.shadowTint);
   g.highlightTint.value.set(...L.highlightTint);
+  heroLight.intensity = nightness(minute) * 5;
   W.sky.set({ ...L.sky, amount: L.sky.amount * 0.45 });
   W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount);
   W.road.setColor(tmpColor.setRGB(...L.road));
@@ -308,6 +321,8 @@ function updateMaterials(L, first) {
     } else if (m.blending === THREE.AdditiveBlending && m.map === shared.pool) {
       m.userData.baseOpacity ??= m.opacity;
       m.opacity = m.userData.baseOpacity * L.pools;
+    } else if (m.userData.billboard) {
+      m.emissiveIntensity = 0.12 + L.windows * 0.75;
     } else if (m.userData.neonBase) {
       m.userData.neonScale = L.neon;
       if (!m.userData.flicker) m.color.copy(m.userData.neonBase).multiplyScalar(L.neon);
@@ -490,7 +505,21 @@ input.addEventListener('pause', () => {
   if (!travelOpen) overlay.classList.remove('gone');
 });
 
+function climbEscape() {
+  fade.querySelector('span').textContent = '';
+  fade.classList.add('show');
+  setTimeout(() => {
+    player.climb(W.nearEscape);
+    fade.classList.remove('show');
+    hud.toast(player.roof ? 'On the roof' : 'Back on the street');
+  }, 250);
+}
+
 function ride(mode) {
+  if (player.roof && mode !== 'walk') {
+    hud.toast('Climb down first');
+    return;
+  }
   if (mode === player.mode) return;
   player.setMode(mode);
   hud.setRide(MODES[mode].name, player.mode);
@@ -506,6 +535,7 @@ input.addEventListener('button', (e) => {
       break;
     case 'action':
       if (W.nearEntrance) openTravel();
+      else if (W.nearEscape) climbEscape();
       break;
   }
 });
@@ -516,7 +546,9 @@ addEventListener('keydown', (e) => {
       if (input.dragLook && input.active) input.pause();
       break;
     case 'KeyE':
-      if (W.nearEntrance && input.active) openTravel();
+      if (!input.active) break;
+      if (W.nearEntrance) openTravel();
+      else if (W.nearEscape) climbEscape();
       break;
     case 'Digit1':
     case 'Digit2':
@@ -625,6 +657,7 @@ function frame(now) {
   W.weather.update(dt, camera.position);
   W.memories.update(t, dt, camera.position);
   W.peds.update(dt, camera.position, player);
+  heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     sun.target.position.set(player.pos.x, 0, player.pos.z);
     sun.position.copy(sun.target.position).addScaledVector(sunDir, 250);
@@ -647,11 +680,22 @@ function frame(now) {
 
   // station entrances: offer a ride
   let near = null;
-  for (const e of W.elevated.entrances) if (Math.hypot(e.x - pos.x, e.z - pos.z) < 3.2) near = e;
+  if (!player.roof) for (const e of W.elevated.entrances) if (Math.hypot(e.x - pos.x, e.z - pos.z) < 3.2) near = e;
   W.nearEntrance = near;
+  // fire escapes: climb up from the sidewalk, or back down from the roof
+  let fe = null;
+  if (!near && player.mode === 'walk') {
+    for (const f of W.buildings.fireEscapes) {
+      const [fx, fz] = player.roof ? [f.roofX, f.roofZ] : [f.x, f.z];
+      if (Math.hypot(fx - player.pos.x, fz - player.pos.z) < 2.6) fe = f;
+    }
+  }
+  W.nearEscape = fe;
   const stationName = near?.name.replace(/–/g, '-');
   hud.setPrompt(near && input.active && !IS_TOUCH ? `Press E to take ${W.def.el.ride} from ${stationName}` : '');
-  input.setAction(near && input.active ? `Take ${W.def.el.ride}` : '');
+  const climbLabel = fe ? (player.roof ? 'Climb down' : 'Climb') : '';
+  input.setAction(near && input.active ? `Take ${W.def.el.ride}` : climbLabel);
+  if (fe && !IS_TOUCH && input.active) hud.setPrompt(`Press E to ${player.roof ? 'climb down' : 'climb the fire escape'}`);
   hud.setSpeed(player.mode === 'walk' ? 0 : player.mph);
   hud.setRide(MODES[player.mode].name, player.mode);
 
@@ -673,7 +717,7 @@ function frame(now) {
 
   camEuler.setFromQuaternion(camera.quaternion, 'YXZ');
   minimap.update(dt, pos, camEuler.y);
-  hud.setLocation(describeLocation(pos.x, pos.z));
+  hud.setLocation(describeLocation(player.pos.x, player.pos.z, { roof: !!player.roof }));
   hud.setClock(minute * 6);
   grade.uniforms.time.value = t;
   composer.render();

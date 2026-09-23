@@ -60,6 +60,67 @@ function makeFenceTexture() {
 
 const lot_h_ok = (f) => f.lot.h > 8;
 
+const AD_COUNT = 6;
+/** Painted rooftop ads, one per row: bold shapes and a word, comic-poster style. */
+function makeAdAtlas() {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 460 * AD_COUNT;
+  const ctx = c.getContext('2d');
+  const ads = [
+    ['#d62d20', '#ffd23b', 'SUNNY COLA', 'circle'],
+    ['#1b2a6b', '#ff4fd8', 'NEW YORK', 'bolt'],
+    ['#ffcc00', '#1d1d1d', "TONY'S PIZZA", 'slice'],
+    ['#0f6b6b', '#f7e7b0', 'QUEENS FM 98.1', 'wave'],
+    ['#6b2a8a', '#39d0ff', 'NIGHT RIDER', 'bolt'],
+    ['#f4ecd8', '#c0392b', 'THE DAILY', 'circle'],
+  ];
+  ads.forEach(([bg, fg, text, motif], i) => {
+    const y = i * 460;
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, y, 1024, 460);
+    ctx.fillStyle = fg;
+    ctx.globalAlpha = 0.9;
+    if (motif === 'circle') {
+      ctx.beginPath();
+      ctx.arc(820, y + 230, 170, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (motif === 'bolt') {
+      ctx.beginPath();
+      ctx.moveTo(700, y + 40);
+      ctx.lineTo(980, y + 200);
+      ctx.lineTo(840, y + 230);
+      ctx.lineTo(990, y + 420);
+      ctx.lineTo(690, y + 260);
+      ctx.lineTo(830, y + 230);
+      ctx.closePath();
+      ctx.fill();
+    } else if (motif === 'slice') {
+      ctx.beginPath();
+      ctx.moveTo(700, y + 60);
+      ctx.lineTo(990, y + 60);
+      ctx.lineTo(845, y + 420);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      for (let k = 0; k < 5; k++) ctx.fillRect(660, y + 80 + k * 64, 340, 26);
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = 'bold 110px "Arial Black", Impact, sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillText(text, 46, y + 276, 620);
+    ctx.fillStyle = fg;
+    ctx.fillText(text, 40, y + 270, 620);
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(7, y + 7, 1010, 446);
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
 const BOARD_COLORS = [
   ['#b3261e', '#fff3d6'], ['#1f5f3a', '#f7e7b0'], ['#1d3a6b', '#ffe08a'], ['#f2c230', '#2a1a0e'],
   ['#efe6d2', '#8a1f1a'], ['#6b2a5a', '#ffe6f2'], ['#0f6b6b', '#f1f7e8'], ['#e46a1c', '#fff8e8'],
@@ -129,6 +190,8 @@ export function buildBuildings(layout, shared) {
   const byStyle = {};
   const roofGeos = [];
   const woodGeos = [];
+  const ironGeos = [];
+  const billboardGeos = [];
   const shingleGeos = [];
   const fenceGeos = [];
   const stoneGeos = [];
@@ -165,15 +228,48 @@ export function buildBuildings(layout, shared) {
 
     if (lot.kind === 'corner' || lot.kind === 'condo' || lot.kind === 'apt') {
       if (chance(0.6)) roofGeos.push(place(new THREE.BoxGeometry(3, 2.8, 3.4), cx + range(-w / 4, w / 4), top + 1.4, cz + range(-d / 4, d / 4)));
-      if ((lot.kind === 'corner' || lot.kind === 'apt') && h > 14 && chance(0.45)) {
-        const tx = cx + range(-w / 5, w / 5);
-        const tz = cz + range(-d / 5, d / 5);
-        woodGeos.push(place(new THREE.CylinderGeometry(1.5, 1.5, 3, 12), tx, top + 3.4, tz));
-        woodGeos.push(place(new THREE.ConeGeometry(1.7, 1.2, 12), tx, top + 5.5, tz));
-        for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-          woodGeos.push(place(new THREE.BoxGeometry(0.18, 1.9, 0.18), tx + ox * 1.05, top + 0.95, tz + oz * 1.05));
-        }
+    }
+    // water towers: wooden tanks on steel legs, iron hoops around them
+    if (!lot.outer && ['corner', 'apt', 'mixed', 'condo'].includes(lot.kind) && h > 12 && chance(0.55)) {
+      const tx = cx + range(-w / 5, w / 5);
+      const tz = cz + range(-d / 5, d / 5);
+      const tr = range(1.3, 1.8);
+      const leg = range(2, 3.2);
+      woodGeos.push(place(new THREE.CylinderGeometry(tr, tr * 1.04, 3.2, 14), tx, top + leg + 1.6, tz));
+      woodGeos.push(place(new THREE.ConeGeometry(tr * 1.12, 1.3, 14), tx, top + leg + 3.85, tz));
+      for (let k = 0; k < 3; k++) {
+        const hoop = new THREE.TorusGeometry(tr * 1.05, 0.05, 4, 20).rotateX(Math.PI / 2);
+        ironGeos.push(place(hoop, tx, top + leg + 0.5 + k * 1.1, tz));
       }
+      for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        ironGeos.push(place(new THREE.BoxGeometry(0.16, leg, 0.16), tx + ox * tr * 0.72, top + leg / 2, tz + oz * tr * 0.72));
+      }
+      const brace = new THREE.BoxGeometry(tr * 1.9, 0.08, 0.08);
+      ironGeos.push(place(brace.clone().rotateZ(0.5), tx, top + leg / 2, tz - tr * 0.72));
+      ironGeos.push(place(brace.clone().rotateZ(-0.5), tx, top + leg / 2, tz + tr * 0.72));
+    }
+    // lit billboards on some corner roofs, facing the street
+    if (!lot.outer && lot.kind === 'corner' && h > 13 && chance(0.28)) {
+      const bw = Math.min(9, d - 1);
+      const bx = lot.side < 0 ? x0 + 1 : x1 - 1;
+      const g = new THREE.PlaneGeometry(bw, bw * 0.45);
+      const slot = Math.floor(rand() * AD_COUNT);
+      const uv = g.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / AD_COUNT);
+      billboardGeos.push(place(g.translate(0, top + 2.6 + bw * 0.225, 0), bx + lot.side * 0.3, 0, cz, lot.side > 0 ? Math.PI / 2 : -Math.PI / 2));
+      for (const oz of [-bw / 2 + 0.4, bw / 2 - 0.4]) ironGeos.push(place(new THREE.BoxGeometry(0.18, 2.6 + bw * 0.45, 0.18), bx, top + (2.6 + bw * 0.45) / 2, cz + oz));
+      ironGeos.push(place(new THREE.BoxGeometry(0.14, 0.14, bw), bx, top + 2.4, cz));
+    }
+    // rooftop clutter: AC units, vents, skylights
+    if (!lot.outer && lot.kind !== 'house') {
+      const n = Math.floor(range(0, lot.kind === 'row' ? 2 : 4));
+      for (let k = 0; k < n; k++) {
+        const ax = cx + range(-w / 2 + 1.2, w / 2 - 1.2);
+        const az = cz + range(-d / 2 + 1.2, d / 2 - 1.2);
+        if (chance(0.6)) roofGeos.push(place(new THREE.BoxGeometry(1.1, 0.85, 0.8), ax, top + 0.65, az));
+        else roofGeos.push(place(new THREE.CylinderGeometry(0.22, 0.22, 0.9, 8), ax, top + 0.65, az));
+      }
+      if (chance(0.3)) roofGeos.push(place(new THREE.ConeGeometry(0.9, 0.6, 4), cx + range(-w / 4, w / 4), top + 0.5, cz + range(-d / 4, d / 4)));
     }
     if (lot.kind === 'row' && chance(0.3)) {
       const dish = new THREE.CylinderGeometry(0.45, 0.45, 0.06, 10);
@@ -253,7 +349,7 @@ export function buildBuildings(layout, shared) {
   );
 
   // ---- fire escapes on the walk-ups
-  const ironGeos = [];
+  const fireEscapes = [];
   for (const f of layout.faces) {
     const lot = f.lot;
     if (lot.outer || !['apt', 'corner', 'mixed'].includes(lot.kind)) continue;
@@ -264,6 +360,9 @@ export function buildBuildings(layout, shared) {
     const floorsUp = Math.floor((lot.h - 0.6) / FLOOR_H);
     const pieces = [];
     const first = f.shop ? 2 : 1; // keep clear of the storefront
+    const tx = f.x - f.nz * off;
+    const tz = f.z + f.nx * off;
+    fireEscapes.push({ x: tx + f.nx * 1.4, z: tz + f.nz * 1.4, nx: f.nx, nz: f.nz, lot, roofX: tx - f.nx * 1.2, roofZ: tz - f.nz * 1.2 });
     for (let k = first; k < floorsUp; k++) {
       const y = CURB + k * FLOOR_H + 0.15;
       pieces.push(new THREE.BoxGeometry(fw, 0.08, 1.15).translate(off, y, 0.6));
@@ -287,6 +386,10 @@ export function buildBuildings(layout, shared) {
     for (const g of pieces) ironGeos.push(place(g, f.x, 0, f.z, ang));
   }
   addMerged(ironGeos, new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.6 }));
+  const ads = makeAdAtlas();
+  const adMat = new THREE.MeshStandardMaterial({ map: ads, emissiveMap: ads, emissive: 0xffffff, emissiveIntensity: 0.3, roughness: 0.7, side: THREE.DoubleSide });
+  adMat.userData.billboard = true;
+  addMerged(billboardGeos, adMat);
   addMerged(
     railGeos,
     new THREE.MeshStandardMaterial({
@@ -404,5 +507,5 @@ export function buildBuildings(layout, shared) {
     }
   }
 
-  return { group, update };
+  return { group, update, fireEscapes };
 }
