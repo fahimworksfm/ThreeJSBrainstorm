@@ -52,6 +52,8 @@
       </div>
       <div id="toast"></div>
     </div>
+    <div id="photobar"><b>Photo mode</b><span><kbd>Mouse</kbd>orbit</span><span><kbd>Wheel</kbd>zoom</span><span><kbd>WASD</kbd>move</span><span><kbd>Enter</kbd>save</span><span><kbd>P</kbd>exit</span></div>
+    <div id="flash"></div>
     <div id="banner"><div class="b-burst"></div><div class="b-title"></div><div class="b-sub"></div></div>
 
     <div id="overlay">
@@ -72,18 +74,33 @@
           <button id="start">Click to play</button>
           <button id="fullscreen" class="ghost">Fullscreen</button>
         </div>
-        <div>
-          <h3>Neighborhood</h3>
-          <div id="picker"></div>
-        </div>
-        <div>
-          <h3>Start at</h3>
-          <div id="styles"></div>
-        </div>
-        <div class="cols">
+        <nav class="tabs">
+          <button data-tab="play" class="on">Play</button>
+          <button data-tab="journal">Journal</button>
+          <button data-tab="settings">Settings</button>
+          <button data-tab="controls">Controls</button>
+        </nav>
+        <section class="pane" data-pane="play">
           <div>
-            <h3>Controls</h3>
-            <dl class="keys">
+            <h3>Neighborhood</h3>
+            <div id="picker"></div>
+          </div>
+          <div>
+            <h3>Start at</h3>
+            <div id="styles"></div>
+          </div>
+        </section>
+        <section class="pane" data-pane="journal" hidden>
+          <h3>Journal</h3>
+          <div id="journal"></div>
+          <button id="reset">Clear journal</button>
+        </section>
+        <section class="pane" data-pane="settings" hidden>
+          <div id="settings"></div>
+        </section>
+        <section class="pane" data-pane="controls" hidden>
+          <h3>Controls</h3>
+          <dl class="keys">
               <dt>WASD</dt><dd>walk / drive</dd>
               <dt>Shift</dt><dd>hurry / boost</dd>
               <dt>Space</dt><dd>jump / brake</dd>
@@ -92,6 +109,7 @@
               <dt>V (hold)</dt><dd>ride wheel</dd>
               <dt>Tab</dt><dd>map</dd>
               <dt>C</dt><dd>first / third person</dd>
+              <dt>P</dt><dd>photo mode</dd>
               <dt>E</dt><dd>take the train (at a green-globe entrance)</dd>
               <dt>R</dt><dd>rain on / off</dd>
               <dt>Q</dt><dd>street reflections (performance)</dd>
@@ -101,13 +119,7 @@
               <dt>F</dt><dd>show fps</dd>
               <dt>Esc</dt><dd>pause, open journal</dd>
             </dl>
-          </div>
-          <div>
-            <h3>Journal</h3>
-            <div id="journal"></div>
-            <button id="reset">Clear journal</button>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
 
@@ -125,6 +137,7 @@
         <h2 id="load-name"></h2>
         <p id="load-blurb"></p>
         <div class="bar"><i></i></div>
+        <p class="tip" id="load-tip"></p>
       </div>
       <span></span>
       <button id="skip-real" type="button">Play the drawn map instead</button>

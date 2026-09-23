@@ -8,6 +8,7 @@ export class CityAudio {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.volume = 0.8;
     this.rainOn = true;
     this.sirenT = range(15, 30);
     this.hornT = range(6, 14);
@@ -22,7 +23,7 @@ export class CityAudio {
     if (!AC) return;
     const ctx = (this.ctx = new AC());
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.8;
+    this.master.gain.value = this.muted ? 0 : this.volume;
     this.master.connect(ctx.destination);
 
     this.reverb = ctx.createConvolver();
@@ -358,8 +359,13 @@ export class CityAudio {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.8, this.ctx.currentTime, 0.1);
+    if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.1);
     return this.muted;
+  }
+
+  setVolume(v) {
+    this.volume = v;
+    if (this.ctx && !this.muted) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
   }
 
   update(dt, { rumble = 0, braking = false, plane = 0 } = {}) {

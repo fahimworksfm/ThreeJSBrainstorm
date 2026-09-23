@@ -9,6 +9,7 @@ import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
 import { RIM, rimLight, setWet } from './fx.js';
 import { COMIC, ComicWords } from './comicfx.js';
 import { BigMap, RideWheel } from './menus.js';
+import { PRESETS, DEFAULTS, buildSettings } from './settingsui.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
@@ -35,8 +36,8 @@ import { Weather } from './weather.js';
 import { Memories } from './memories.js';
 import { CityAudio } from './audio.js';
 import { HUD, describeLocation } from './hud.js';
-import { Player, MODES, MODE_ORDER } from './player.js';
-import { loadMichelle } from './hero.js';
+import { Player, MODES, MODE_ORDER, LOOK } from './player.js';
+import { loadMichelle, POSE_STEP } from './hero.js';
 import { Input, IS_TOUCH } from './input.js';
 import { ColliderGrid } from './collide.js';
 import { makeCityEnvironment } from './env.js';
@@ -103,7 +104,7 @@ const heroLight = new THREE.PointLight(0xb8c8ff, 0, 9, 1.6);
 scene.add(heroLight);
 // a bigger, sharper shadow box that sits ahead of the camera (see the loop)
 const SHADOW_HALF = 115;
-const SHADOW_RES = 3072;
+let SHADOW_RES = 3072;
 sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
 Object.assign(sun.shadow.camera, { left: -SHADOW_HALF, right: SHADOW_HALF, top: SHADOW_HALF, bottom: -SHADOW_HALF, near: 1, far: 700 });
 sun.shadow.bias = -0.0004;
@@ -135,7 +136,7 @@ const settings = {
   startAt: START_TIMES[params.get('time')] ? params.get('time') : store.get('startAt', 'golden'),
   rainOverride: null, // R forces rain on or off; otherwise it rains on some nights
   rain: true,
-  reflections: store.get('reflections', !LOW),
+  reflections: !LOW,
   bloom: true,
   comicWords: true,
 };
@@ -207,11 +208,22 @@ function disposeTree(root) {
 // real OpenStreetMap streets, fetched in the browser; the drawn grid is the fallback
 const FETCH_RADIUS = LOW ? 600 : 760;
 const osmCache = new Map();
-settings.realMap = params.has('realmap') ? params.get('realmap') !== '0' : store.get('realMap', true);
 
 const bar = document.querySelector('#load-card .bar i');
 /** The comic title card shown while a neighborhood loads. */
+const TIPS = [
+  'Tip: hold V for the ride wheel.',
+  'Tip: Tab opens the map. Yellow diamonds are memories.',
+  'Tip: press R to make it rain. The streets turn to mirrors.',
+  'Tip: press P for photo mode, then Enter to save a picture.',
+  'Tip: Space jumps. Land in a puddle for a SPLASH!',
+  'Tip: green globes are subway entrances. Press E to ride.',
+  'Tip: climb a fire escape (E) and walk the rooftops.',
+  'Tip: press C to switch between first and third person.',
+  'Tip: Settings has graphics presets if things feel slow.',
+];
 function showCard(def) {
+  document.getElementById('load-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
   document.getElementById('load-boro').textContent = def.borough;
   document.getElementById('load-name').textContent = def.name;
   document.getElementById('load-blurb').textContent = def.blurb;
@@ -509,7 +521,7 @@ function applyTime(force = false) {
     setWet(W.root, rain && settings.reflections);
   }
   W.wet = rain ? 1 : 0.05;
-  CONES.strength.value = L.pools * (rain ? 1.7 : 0.8);
+  CONES.strength.value = gfx.cones ? L.pools * (rain ? 1.7 : 0.8) : 0;
 
   materialTimer -= 1;
   if (force || materialTimer <= 0) {
@@ -551,23 +563,28 @@ function updateMaterials(L, first) {
 const target = new THREE.WebGLRenderTarget(innerWidth * pixelRatio, innerHeight * pixelRatio, { type: THREE.HalfFloatType, samples: quality.samples });
 target.depthTexture = new THREE.DepthTexture(innerWidth * pixelRatio, innerHeight * pixelRatio);
 const composer = new EffectComposer(renderer, target);
-// desktop: N8AO renders the scene and adds soft contact shadows; phones use a plain render pass
+// N8AO renders the scene with soft contact shadows; without it a plain render pass does the job
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
 let ao = null;
-if (!LOW) {
-  ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
-  Object.assign(ao.configuration, {
-    aoRadius: 1.1, distanceFalloff: 0.5, intensity: 2.2, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10,
-    halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, color: new THREE.Color(0.12, 0.06, 0.1),
-  });
-  composer.addPass(ao);
-} else {
-  composer.addPass(new RenderPass(scene, camera));
+function setAO(on) {
+  if (on && !ao) {
+    ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
+    Object.assign(ao.configuration, {
+      aoRadius: 1.1, distanceFalloff: 0.5, intensity: 2.2, aoSamples: 12, denoiseSamples: 6, denoiseRadius: 10,
+      halfRes: true, depthAwareUpsampling: true, gammaCorrection: false, color: new THREE.Color(0.12, 0.06, 0.1),
+    });
+    composer.insertPass(ao, 0);
+  }
+  if (ao) ao.enabled = on;
+  renderPass.enabled = !on;
 }
+const aoDepth = () => (ao?.enabled ? ao.beautyRenderTarget.depthTexture : null);
 const outline = new OutlinePass(camera);
-if (ao) outline.depthSource = () => ao.beautyRenderTarget.depthTexture;
+outline.depthSource = aoDepth;
 composer.addPass(outline);
 const godRays = new GodRaysPass(camera, LOW ? 20 : 40);
-if (ao) godRays.depthSource = () => ao.beautyRenderTarget.depthTexture;
+godRays.depthSource = aoDepth;
 composer.addPass(godRays);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.8, 0.55, 0.85);
 composer.addPass(bloom);
@@ -588,7 +605,7 @@ function resize() {
   // portrait phones: widen the vertical FOV so you still see a sensible slice of street
   const minHorizontal = THREE.MathUtils.degToRad(68);
   const needed = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect));
-  baseFov = THREE.MathUtils.clamp(needed, 72, 100);
+  baseFov = THREE.MathUtils.clamp(needed, settings.fov ?? 72, 110);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
   composer.setSize(w, h);
@@ -780,6 +797,14 @@ addEventListener('keydown', (e) => {
     if (input.active || bigMap.open) toggleMap();
     return;
   }
+  if (e.code === 'KeyP' && !e.repeat && (input.active || photo)) {
+    togglePhoto();
+    return;
+  }
+  if (photo) {
+    if (e.code === 'Enter') captureNext = true;
+    return;
+  }
   if (e.code === 'KeyV' && !e.repeat && input.active && !player.roof) {
     rideWheel.show(player.mode);
     return;
@@ -812,21 +837,18 @@ addEventListener('keydown', (e) => {
       hud.toast(audio.toggleMute() ? 'Muted' : 'Sound on');
       break;
     case 'KeyO':
-      settings.realMap = !settings.realMap;
-      store.set('realMap', settings.realMap);
-      hud.toast(settings.realMap ? 'Real OpenStreetMap streets' : 'Drawn street grid');
-      goTo(W.def.id, false);
+      hud.toast(!settings.realMap ? 'Real OpenStreetMap streets' : 'Drawn street grid');
+      changeSetting('realMap', !settings.realMap);
+      settingsUI.render();
       break;
     case 'KeyQ':
-      settings.reflections = !settings.reflections;
-      W.road.setReflections(settings.reflections && settings.rain);
-      setWet(W.root, settings.reflections && settings.rain);
-      store.set('reflections', settings.reflections);
+      changeSetting('reflections', !settings.reflections);
+      settingsUI.render();
       hud.toast(settings.reflections ? 'Street reflections on' : 'Street reflections off (faster)');
       break;
     case 'KeyB':
-      settings.bloom = !settings.bloom;
-      bloom.enabled = settings.bloom;
+      changeSetting('bloom', !settings.bloom);
+      settingsUI.render();
       hud.toast(settings.bloom ? 'Bloom on' : 'Bloom off');
       break;
     case 'KeyH':
@@ -839,8 +861,66 @@ addEventListener('keydown', (e) => {
   }
 });
 
+// ---------- settings ----------
+const gfx = { ...DEFAULTS, ...(LOW ? { preset: 'low', ...PRESETS.low } : {}), ...store.get('gfx', {}) };
+settings.realMap = params.has('realmap') ? params.get('realmap') !== '0' : gfx.realMap;
+function applyGfx() {
+  quality.maxRatio = Math.min(devicePixelRatio, gfx.ratio);
+  if (renderer.shadowMap.enabled !== gfx.shadows) {
+    renderer.shadowMap.enabled = gfx.shadows;
+    if (!gfx.shadows) sun.castShadow = false;
+    scene.traverse((o) => {
+      for (const m of [].concat(o.material ?? [])) m.needsUpdate = true;
+    });
+  }
+  if (SHADOW_RES !== gfx.shadowRes) {
+    SHADOW_RES = gfx.shadowRes;
+    sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;
+  }
+  setAO(gfx.ao);
+  settings.reflections = gfx.reflections;
+  if (W) {
+    W.road.setReflections(settings.reflections && settings.rain);
+    setWet(W.root, settings.reflections && settings.rain);
+  }
+  settings.bloom = gfx.bloom;
+  bloom.enabled = gfx.bloom;
+  grade.uniforms.printShift.value = gfx.print ? INK.printShift ?? 0 : 0;
+  grade.uniforms.hatch.value = gfx.hatch ? INK.hatch ?? 0 : 0;
+  grade.uniforms.shadowDots.value = gfx.hatch ? INK.shadowDots : 0;
+  settings.comicWords = gfx.words;
+  POSE_STEP.value = gfx.twos ? 1 / 12 : 0;
+  LOOK.sensitivity = gfx.sensitivity;
+  settings.fov = gfx.fov;
+  audio.setVolume(gfx.volume);
+  resize();
+}
+function changeSetting(key, value) {
+  gfx[key] = value;
+  if (key === 'preset') Object.assign(gfx, PRESETS[value]);
+  else if (key in PRESETS.low) gfx.preset = 'custom';
+  store.set('gfx', gfx);
+  applyGfx();
+  if (key === 'realMap' && W && settings.realMap !== value) {
+    settings.realMap = value;
+    goTo(W.def.id, false);
+  }
+}
+const settingsUI = buildSettings(document.getElementById('settings'), gfx, changeSetting);
+// menu tabs
+for (const tab of document.querySelectorAll('.tabs button')) {
+  tab.addEventListener('click', (e) => {
+    e.stopPropagation();
+    for (const t of document.querySelectorAll('.tabs button')) t.classList.toggle('on', t === tab);
+    for (const p of document.querySelectorAll('.pane')) p.hidden = p.dataset.pane !== tab.dataset.tab;
+  });
+}
+
 // ---------- start ----------
 applyInk();
+applyGfx();
 const firstDistrict = params.get('district') || store.get('district', 'astoria');
 fade.querySelector('span').textContent = settings.realMap ? 'Loading real streets…' : '';
 showCard(DISTRICTS[firstDistrict] ?? DISTRICTS.astoria);
@@ -938,6 +1018,59 @@ const UP = new THREE.Vector3(0, 1, 0);
 let cullTimer = 0;
 const camEuler = new THREE.Euler();
 
+// ---------- photo mode ----------
+let photo = null;
+let captureNext = false;
+function togglePhoto() {
+  if (photo) {
+    photo = null;
+    document.body.classList.remove('photo');
+    return;
+  }
+  camEuler.setFromQuaternion(camera.quaternion, 'YXZ');
+  photo = {
+    yaw: camEuler.y, pitch: THREE.MathUtils.clamp(camEuler.x, -1.2, 0.5), dist: 4,
+    target: new THREE.Vector3(player.pos.x, player.ground + 1.3, player.pos.z),
+  };
+  document.body.classList.add('photo');
+}
+addEventListener('wheel', (e) => {
+  if (photo) photo.dist = THREE.MathUtils.clamp(photo.dist * (e.deltaY > 0 ? 1.1 : 0.9), 1.2, 40);
+}, { passive: true });
+const photoMove = new THREE.Vector3();
+function photoFrame(dt) {
+  const look = input.consumeLook();
+  photo.yaw -= look.x * 0.004;
+  photo.pitch = THREE.MathUtils.clamp(photo.pitch - look.y * 0.004, -1.45, 1.2);
+  // slide the focus point around with WASD
+  const a = input.axes();
+  photoMove.set(-Math.sin(photo.yaw) * a.y + Math.cos(photo.yaw) * a.x, 0, -Math.cos(photo.yaw) * a.y - Math.sin(photo.yaw) * a.x);
+  photo.target.addScaledVector(photoMove, dt * 6);
+  const cp = Math.cos(photo.pitch);
+  camera.position.set(
+    photo.target.x + Math.sin(photo.yaw) * cp * photo.dist,
+    Math.max(0.3, photo.target.y - Math.sin(photo.pitch) * photo.dist),
+    photo.target.z + Math.cos(photo.yaw) * cp * photo.dist,
+  );
+  camera.lookAt(photo.target);
+}
+/** Save the frame that was just drawn as a PNG. */
+function savePhoto() {
+  renderer.domElement.toBlob((blob) => {
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `night-walker-${W.def.id}-${Date.now()}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
+  const f = document.getElementById('flash');
+  f.classList.remove('go');
+  void f.offsetWidth;
+  f.classList.add('go');
+  audio.chime?.();
+}
+
 let lastSpeed = 0;
 let lastLand = 0;
 /** Pop comic sound effects for the loud moments. */
@@ -972,6 +1105,19 @@ function frame(now) {
   last = now;
   t += dt;
 
+  if (photo) {
+    // the world holds still; only the camera moves
+    photoFrame(dt);
+    W.sky.update(t, camera);
+    W.clouds.update(camera);
+    composer.render();
+    if (captureNext) {
+      captureNext = false;
+      savePhoto();
+    }
+    requestAnimationFrame(frame);
+    return;
+  }
   minute = (minute + dt * MINUTES_PER_SECOND) % 1440;
   applyTime();
   // the ride wheel takes the mouse while it's open
@@ -1085,9 +1231,9 @@ function frame(now) {
   hud.setLocation((W.describe ?? describeLocation)(player.pos.x, player.pos.z, { roof: !!player.roof }));
   hud.setClock(minute * 6);
   grade.uniforms.time.value = t;
-  godRays.setSun(skySun, raysLevel * (settings.rain ? 0.3 : 1), raysColor);
+  godRays.setSun(skySun, gfx.shafts ? raysLevel * (settings.rain ? 0.3 : 1) : 0, raysColor);
   // drops on the lens when it's raining and you're out in it (not in the SUV)
-  const lensTarget = settings.rain && player.mode !== 'suv' && !player.roofCovered ? 1 : 0;
+  const lensTarget = gfx.lensRain && settings.rain && player.mode !== 'suv' && !player.roofCovered ? 1 : 0;
   grade.uniforms.lensRain.value += (lensTarget - grade.uniforms.lensRain.value) * Math.min(1, dt * 0.6);
   composer.render();
 

@@ -11,7 +11,9 @@ export const MODES = {
 };
 export const MODE_ORDER = ['walk', 'bike', 'moto', 'suv'];
 
-const MOUSE = 0.0022;
+/** Mouse look speed; the Settings menu scales it. */
+export const LOOK = { sensitivity: 1 };
+const BASE_MOUSE = 0.0022;
 const MPH = 2.23694;
 
 /**
@@ -233,8 +235,8 @@ export class Player {
     const cfg = this.cfg;
 
     if (this.mode === 'walk') {
-      this.yaw -= look.x * MOUSE;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - look.y * MOUSE, -1.45, 1.45);
+      this.yaw -= look.x * BASE_MOUSE * LOOK.sensitivity;
+      this.pitch = THREE.MathUtils.clamp(this.pitch - look.y * BASE_MOUSE * LOOK.sensitivity, -1.45, 1.45);
       // running drains stamina; walking or standing gets it back
       const sprint = input.sprint && this.stamina > 0.02 && (axes.x || axes.y);
       this.stamina = THREE.MathUtils.clamp(this.stamina + (sprint ? -0.11 : 0.18) * dt, 0, 1);
@@ -283,8 +285,8 @@ export class Player {
       this.roll += (0 - this.roll) * Math.min(1, dt * 6);
     } else {
       // free look relative to the direction of travel, easing back when you stop moving the mouse
-      this.lookOffset = THREE.MathUtils.clamp(this.lookOffset - look.x * MOUSE, -2.6, 2.6);
-      this.pitch = THREE.MathUtils.clamp(this.pitch - look.y * MOUSE, -1.1, 0.9);
+      this.lookOffset = THREE.MathUtils.clamp(this.lookOffset - look.x * BASE_MOUSE * LOOK.sensitivity, -2.6, 2.6);
+      this.pitch = THREE.MathUtils.clamp(this.pitch - look.y * BASE_MOUSE * LOOK.sensitivity, -1.1, 0.9);
       this.lookIdle = look.x || look.y ? 0 : this.lookIdle + dt;
       if (this.lookIdle > 1.2 && Math.abs(this.speed) > 2) {
         this.lookOffset *= 1 - Math.min(1, dt * 2);

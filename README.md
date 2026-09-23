@@ -68,6 +68,9 @@ where you left it.
 | Space | Jump | jump (on foot) / brake (riding) |
 | 1 2 3 4 | Ride | walk, bicycle, motorcycle, SUV |
 | C | View | third / first person |
+| Tab | Map | full-screen map |
+| V (hold) | | ride wheel |
+| P | | photo mode (Enter saves a PNG) |
 | E | Train | take the train at a green-globe entrance |
 | O | | real OpenStreetMap streets / drawn street grid |
 | R | | rain on / off |

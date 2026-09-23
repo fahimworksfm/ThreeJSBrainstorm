@@ -57,7 +57,7 @@ export class OutlinePass extends Pass {
   render(renderer, writeBuffer, readBuffer) {
     const u = this.material.uniforms;
     u.tDiffuse.value = readBuffer.texture;
-    u.tDepth.value = this.depthSource ? this.depthSource() : readBuffer.depthTexture;
+    u.tDepth.value = (this.depthSource && this.depthSource()) || readBuffer.depthTexture;
     u.near.value = this.camera.near;
     u.far.value = this.camera.far;
     u.texel.value.set(1 / readBuffer.width, 1 / readBuffer.height);
@@ -307,7 +307,7 @@ export class GodRaysPass extends Pass {
   render(renderer, writeBuffer, readBuffer) {
     const u = this.material.uniforms;
     u.tDiffuse.value = readBuffer.texture;
-    u.tDepth.value = this.depthSource ? this.depthSource() : readBuffer.depthTexture;
+    u.tDepth.value = (this.depthSource && this.depthSource()) || readBuffer.depthTexture;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.fsQuad.render(renderer);
   }
