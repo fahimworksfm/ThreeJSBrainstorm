@@ -229,6 +229,10 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   const grass = mask.read();
 
   ctx = mask.begin();
+  for (const p of M.sand) mask.fill(p.pts);
+  const sand = mask.read();
+
+  ctx = mask.begin();
   for (const r of drivable) if (r.rank >= 2 || commercialNames.has(r.norm)) mask.stroke(r.pts, r.width + 1);
   const shopping = mask.read();
   mask.canvas.width = mask.canvas.height = 1; // free the big canvas
@@ -260,6 +264,17 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   );
   if (grassPolys.length) {
     group.add(new THREE.Mesh(flatPolygons(grassPolys, CURB + 0.025, 4), new THREE.MeshStandardMaterial({ color: 0x5f7f3c, roughness: 1 })));
+  }
+  const sandPolys = M.sand.length
+    ? tracePolygons(
+      mask,
+      (i) => Math.min(sand[i], 255 - road[i], 255 - water[i], 255 - grass[i]) / 255,
+      (x, z) => at(sand, x, z) > 127 && !isRoad(x, z) && !isWater(x, z),
+      res * 0.6,
+    )
+    : [];
+  if (sandPolys.length) {
+    group.add(new THREE.Mesh(flatPolygons(sandPolys, CURB + 0.02, 4), new THREE.MeshStandardMaterial({ color: 0xd9c08a, roughness: 1 })));
   }
   const waterPolys = tracePolygons(
     mask,
@@ -838,6 +853,8 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   for (const p of groundPolys) fillPoly(p.pts, p.holes);
   mc.fillStyle = '#7aa870';
   for (const p of grassPolys) fillPoly(p.pts, p.holes);
+  mc.fillStyle = '#e3cf9a';
+  for (const p of sandPolys) fillPoly(p.pts, p.holes);
   mc.fillStyle = '#4f86b8';
   for (const p of waterPolys) fillPoly(p.pts, p.holes);
   mc.fillStyle = '#a9bdd0';

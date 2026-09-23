@@ -24,7 +24,8 @@ function query([s, w, n, e]) {
   relation["building"]["type"="multipolygon"](${b});
   way["leisure"~"^(park|playground|pitch|garden|dog_park)$"](${b});
   way["landuse"~"^(grass|cemetery|recreation_ground|village_green)$"](${b});
-  way["natural"~"^(water|wood|scrub|coastline)$"](${b});
+  way["natural"~"^(water|wood|scrub|coastline|beach|sand)$"](${b});
+  relation["natural"="beach"](${b});
   relation["natural"="water"](${b});
   relation["leisure"="park"](${b});
   way["railway"~"^(subway|rail|light_rail)$"](${b});

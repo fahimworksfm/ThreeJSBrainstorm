@@ -274,18 +274,33 @@ function aim(hero, boneName, childName, dir) {
 }
 
 /** Sitting poses for riding: aim each limb, whatever the rig's local axes are. */
-export function poseHeroRiding(hero, mode) {
+/**
+ * Sitting on a ride. steer (-1..1-ish, radians of front-wheel angle) turns the hands with the bars or
+ * the wheel and the head into the turn; stopped, he glances around.
+ */
+export function poseHeroRiding(hero, mode, steer = 0, t = 0, speed = 0) {
   for (const a of Object.values(hero.actions)) a.setEffectiveWeight(0);
   hero.mixer.update(0);
   hero.root.traverse((o) => o.isSkinnedMesh && o.skeleton.pose());
+  const st = Math.max(-0.6, Math.min(0.6, steer));
   const lean = mode === 'suv' ? 0.05 : mode === 'moto' ? 0.5 : 0.4;
-  aim(hero, 'Spine', 'Neck', [0, 1, lean]);
-  aim(hero, 'Neck', 'Head', [0, 1, lean * 0.2]);
+  // lean the shoulders into the turn on two wheels
+  aim(hero, 'Spine', 'Neck', [mode === 'suv' ? 0 : st * 0.35, 1, lean]);
+  const idle = Math.abs(speed) < 0.5 ? Math.sin(t * 0.6) * 0.35 + Math.sin(t * 1.7) * 0.08 : 0;
+  aim(hero, 'Neck', 'Head', [st * 0.9 + idle, 1, lean * 0.2 + 0.1]);
   const kneeOut = mode === 'moto' ? 0.28 : 0.1;
   for (const [side, s] of [['Left', 1], ['Right', -1]]) {
     aim(hero, `${side}UpLeg`, `${side}Leg`, [s * kneeOut, mode === 'suv' ? -0.05 : -0.35, 1]);
     aim(hero, `${side}Leg`, `${side}Foot`, [0, -1, mode === 'suv' ? 0.35 : 0.15]);
-    const reach = mode === 'suv' ? [s * 0.15, -0.35, 1] : [s * 0.35, -0.55, 1];
+    let reach;
+    if (mode === 'suv') {
+      // hands at ten and two, rolling with the wheel
+      const turn = st * 4 * 0.35;
+      reach = [s * 0.15 * Math.cos(turn), -0.35 + s * Math.sin(turn) * 0.3, 1];
+    } else {
+      // the outside grip pushes forward, the inside one pulls back
+      reach = [s * 0.35, -0.55, 1 + s * st * 1.1];
+    }
     aim(hero, `${side}Arm`, `${side}ForeArm`, reach);
     aim(hero, `${side}ForeArm`, `${side}Hand`, mode === 'suv' ? [-s * 0.3, 0.1, 1] : [-s * 0.05, -0.25, 1]);
   }

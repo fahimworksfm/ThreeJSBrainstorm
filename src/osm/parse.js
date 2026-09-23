@@ -113,6 +113,7 @@ export function parseOSM(data, center) {
   const buildings = [];
   const parks = [];
   const water = [];
+  const sand = [];
   const parkList = () => parks;
   const waterList = () => water;
   const addBuilding = (id, ring, t, holes = []) => {
@@ -152,6 +153,11 @@ export function parseOSM(data, center) {
     const innerRings = joinRings(inners);
     if (t.building && t.building !== 'no') {
       for (const ring of outerRings) addBuilding(r.id * 7 + ring.length, ring, t, innerRings);
+    } else if (t.natural === 'beach') {
+      for (const ring of outerRings) {
+        const pts = W(ring.slice(0, -1));
+        if (pts.length >= 3) sand.push({ pts, name: t.name });
+      }
     } else if (t.natural === 'water' || t.leisure === 'park') {
       for (const ring of outerRings) {
         const pts = W(ring.slice(0, -1));
@@ -183,6 +189,7 @@ export function parseOSM(data, center) {
     const pts = W(w.nodes.slice(0, -1));
     if (pts.length < 3) continue;
     if (t.natural === 'water' || t.waterway === 'riverbank') water.push({ pts, kind: 'water', name: t.name });
+    else if (t.natural === 'beach' || t.natural === 'sand') sand.push({ pts, name: t.name });
     else if (t.leisure || t.landuse || t.natural) {
       const kind = t.landuse === 'cemetery' ? 'cemetery' : t.leisure === 'pitch' ? 'pitch' : t.leisure === 'playground' ? 'playground' : t.natural === 'wood' || t.natural === 'scrub' ? 'wood' : 'park';
       parks.push({ pts, kind, name: t.name, area: Math.abs(signedArea(pts)) });
@@ -212,5 +219,5 @@ export function parseOSM(data, center) {
   for (const r of roads) all.push(...r.pts);
   for (const b of buildings) all.push(b.pts[0]);
   const box = bounds(all.length ? all : [[0, 0]]);
-  return { proj, angle, roads, paths, buildings, parks, water, coast, rails, signals, lamps, trees, stations, entrances, pois, box, nodePos: raw };
+  return { proj, angle, roads, paths, buildings, parks, sand, water, coast, rails, signals, lamps, trees, stations, entrances, pois, box, nodePos: raw };
 }

@@ -91,6 +91,10 @@ where you left it.
 - **Jamaica, Queens**: Jamaica Ave's patty shops and sneaker stores, the LIRR viaduct and Jamaica Station,
   Rufus King Park and King Manor, the Valencia's chasing-bulb marquee, detached houses, and planes heading into JFK.
 
+- **Long Island City, Sunnyside, Jackson Heights, Flushing, Forest Hills, Rockaway Beach**: each with its own
+  train line (the 7 over Queens Blvd and Roosevelt Ave, the E/F under Queens Blvd, the A over the Rockaway
+  Freeway), shopping streets, shop names, and memories to find.
+
 The train map lists all five boroughs; places that aren't built yet are marked "coming soon".
 
 ### Real streets (OpenStreetMap)

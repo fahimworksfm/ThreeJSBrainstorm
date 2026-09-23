@@ -330,8 +330,9 @@ export class Player {
       if (h.root.parent !== veh.root) veh.root.add(h.root);
       h.root.position.set(...seat);
       h.root.rotation.set(0, 0, 0);
-      if (this.heroPose !== this.mode) {
-        poseHeroRiding(h, this.mode);
+      // re-pose every frame (a dozen bones): hands follow the bars, head follows the turn
+      if (chase || this.heroPose !== this.mode) {
+        poseHeroRiding(h, this.mode, this.steer, performance.now() / 1000, this.speed);
         this.heroPose = this.mode;
       }
       if (this.mode === 'bike' && chase) pedalHero(h, this.phase * 0.5);
