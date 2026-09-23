@@ -35,6 +35,23 @@ export class Minimap {
     ctx.scale(s, s);
     ctx.translate(-pos.x, -pos.z);
 
+    if (this.world.mapImage) {
+      // real map: one pre-drawn picture of the whole neighborhood
+      const im = this.world.mapImage;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(im.canvas, im.x0, im.z0, im.w, im.h);
+      const dot = (x, z, r, color) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, z, r / s, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      for (const e of elevated.entrances) dot(e.x, e.z, 3.5, '#2ecc71');
+      for (const it of memories.items) if (!it.done) dot(it.g.position.x, it.g.position.z, 4, '#18b8e8');
+      ctx.restore();
+      this.drawYou(yaw);
+      return;
+    }
     if (D.riverX !== null) {
       ctx.fillStyle = '#4f86b8';
       ctx.fillRect(D.riverX - 4000, pos.z - 4000, 4000, 8000);
@@ -77,7 +94,11 @@ export class Minimap {
     for (const e of elevated.entrances) dot(e.x, e.z, 3.5, '#2ecc71');
     for (const it of memories.items) if (!it.done) dot(it.g.position.x, it.g.position.z, 4, '#18b8e8');
     ctx.restore();
+    this.drawYou(yaw);
+  }
 
+  drawYou(yaw) {
+    const { ctx } = this;
     // you
     ctx.save();
     ctx.translate(SIZE / 2, SIZE / 2);

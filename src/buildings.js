@@ -179,10 +179,235 @@ function makeAwningTexture() {
   return tex;
 }
 
+/** Merge geometries even when some are indexed and some are not. */
+function mergeAll(geos) {
+  const mixed = geos.some((g) => g.index) && geos.some((g) => !g.index);
+  return mergeGeometries(mixed ? geos.map((g) => (g.index ? g.toNonIndexed() : g)) : geos);
+}
+
 function place(g, x, y, z, rotY = 0) {
   if (rotY) g.rotateY(rotY);
   g.translate(x, y, z);
   return g;
+}
+
+/** Walls of a closed ring from y0 to y1, facade UVs running around the outline. */
+function ringWalls(pts, y0, y1, uOff, vOff, tint, outward = true) {
+  const pos = [];
+  const uv = [];
+  const n = pts.length;
+  const ccw = ringIsCCW(pts);
+  let run = uOff * TILE_W;
+  for (let i = 0; i < n; i++) {
+    let a = pts[i];
+    let b = pts[(i + 1) % n];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    // snap each wall to whole windows so the grid doesn't slice a window at the corners
+    const u0 = run / TILE_W;
+    const u1 = (run + l) / TILE_W;
+    run += Math.max(WIN_STEP, Math.round(l / WIN_STEP) * WIN_STEP);
+    const v0 = vOff + y0 / TILE_H;
+    const v1 = vOff + y1 / TILE_H;
+    let ua = u0;
+    let ub = u1;
+    if (ccw !== outward) {
+      [a, b] = [b, a];
+      [ua, ub] = [ub, ua];
+    }
+    pos.push(a[0], y1, a[1], a[0], y0, a[1], b[0], y0, b[1], a[0], y1, a[1], b[0], y0, b[1], b[0], y1, b[1]);
+    uv.push(ua, v1, ua, v0, ub, v0, ua, v1, ub, v0, ub, v1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  paint(g, tint);
+  return g;
+}
+
+/** Counter-clockwise seen from above (+y), with +x east and +z south. */
+function ringIsCCW(pts) {
+  let a = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
+  // x/z with y up: counter-clockwise from above has negative shoelace in (x, z)
+  return a < 0;
+}
+
+function paint(g, tint) {
+  const n = g.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    col[i * 3] = tint.r;
+    col[i * 3 + 1] = tint.g;
+    col[i * 3 + 2] = tint.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+/** Flat roof (or floor) cap for a ring with holes, facing up. */
+function ringCap(pts, holes, y, tint) {
+  const contour = pts.map(([x, z]) => new THREE.Vector2(x, z));
+  const hs = (holes ?? []).map((h) => h.map(([x, z]) => new THREE.Vector2(x, z)));
+  let tris;
+  try {
+    tris = THREE.ShapeUtils.triangulateShape(contour, hs);
+  } catch {
+    return null;
+  }
+  const all = [...contour, ...hs.flat()];
+  const pos = [];
+  const uv = [];
+  for (const t of tris) {
+    const [a, b, c] = t.map((k) => all[k]);
+    const cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    for (const v of cross > 0 ? [a, c, b] : [a, b, c]) {
+      pos.push(v.x, y, v.y);
+      uv.push(0.0005, 0.9995);
+    }
+  }
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return paint(g, tint);
+}
+
+function offsetPts(pts, d) {
+  const n = pts.length;
+  const ccw = ringIsCCW(pts);
+  const out = [];
+  const nrm = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    // outward normal for a counter-clockwise (from above) ring is (dz, -dx)
+    const s = ccw ? -1 : 1;
+    nrm.push([((b[1] - a[1]) / l) * s, (-(b[0] - a[0]) / l) * s]);
+  }
+  for (let i = 0; i < n; i++) {
+    const na = nrm[(i - 1 + n) % n];
+    const nb = nrm[i];
+    let mx = na[0] + nb[0];
+    let mz = na[1] + nb[1];
+    const ml = Math.hypot(mx, mz);
+    if (ml < 1e-6) [mx, mz] = nb;
+    else {
+      mx /= ml;
+      mz /= ml;
+    }
+    const k = Math.min(2.5, 1 / Math.max(0.3, mx * nb[0] + mz * nb[1]));
+    out.push([pts[i][0] + mx * d * k, pts[i][1] + mz * d * k]);
+  }
+  return out;
+}
+
+const WIN_STEP = 2.4;
+const ROOF_TINT = new THREE.Color(0.46, 0.44, 0.42);
+const tmpTint = new THREE.Color();
+
+/** A real building footprint: facade walls, a roof, a cornice, and rooftop clutter. */
+function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeos) {
+  const { poly, holes, h, style } = lot;
+  const base = lot.base ?? CURB;
+  const top = base + h;
+  const r = lot.rand;
+  const uOff = Math.floor(r * 97 % 1 * TILE_COLS) / TILE_COLS;
+  const vOff = Math.floor(r * 13 % 1 * TILE_ROWS) / TILE_ROWS;
+  const tile = `${Math.floor((lot.x0 + lot.x1) / 320)},${Math.floor((lot.z0 + lot.z1) / 320)}`;
+  const list = (byStyle[`${style}|${tile}`] ??= []);
+  roofGeos = byStyle[`__roof|${tile}`] ??= [];
+  list.push(ringWalls(poly, lot.minH ? base + lot.minH : base - 0.6, top, uOff, vOff, tint));
+  for (const hole of holes ?? []) list.push(ringWalls(hole, base, top, uOff, vOff, tint, false));
+  const bx = lot.x1 - lot.x0;
+  const bz = lot.z1 - lot.z0;
+
+  if (lot.gable) {
+    // a pitched roof over the footprint's bounding box, ridge along the long side
+    const { cx, cz, len, wid, ang } = lot.gable;
+    const rh = Math.min(3.2, wid * 0.35);
+    const roof = new THREE.CylinderGeometry(1, 1, len + 0.5, 3, 1, false, Math.PI / 2);
+    roof.rotateZ(Math.PI / 2);
+    roof.scale(1, rh / 1.5, (wid + 0.6) / 1.732);
+    roof.rotateY(-ang);
+    shingleGeos.push(roof.translate(cx, top + rh / 3, cz));
+    const cap = ringCap(poly, holes, top, tmpTint.copy(ROOF_TINT));
+    if (cap) list.push(cap);
+    return;
+  }
+  const cap = ringCap(poly, holes, top, tmpTint.copy(ROOF_TINT).multiplyScalar(0.85 + r * 0.3));
+  if (cap) list.push(cap);
+  if (lot.kind === 'shed' || lot.outer) return;
+
+  // parapet: a lip that sticks out a little, with its top and inner face
+  const out = offsetPts(poly, 0.28);
+  const inner = offsetPts(poly, -0.25);
+  const lip = [];
+  lip.push(ringWalls(out, top - 0.35, top + 0.3, 0, 0, tint));
+  lip.push(ringWalls(inner, top, top + 0.3, 0, 0, tint, false));
+  const cap2 = ringCap(out, [inner], top + 0.3, tint);
+  if (cap2) lip.push(cap2);
+  for (const g of lip) {
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.0005, 0.9995);
+    roofGeos.push(g.deleteAttribute('color'));
+  }
+
+  const inside = (x, z, m) => pointInRing(x, z, poly) && pointInRing(x + m, z, poly) && pointInRing(x - m, z, poly) && pointInRing(x, z + m, poly) && pointInRing(x, z - m, poly);
+  const spot = (m, k) => {
+    for (let t = 0; t < 8; t++) {
+      const x = lot.x0 + hashf(lot.id, k * 17 + t) * bx;
+      const z = lot.z0 + hashf(lot.id, k * 31 + t + 5) * bz;
+      if (inside(x, z, m)) return [x, z];
+    }
+    return null;
+  };
+  // water towers on the classic walk-ups
+  if (h > 12 && h < 60 && lot.area > 180 && hashf(lot.id, 3) < 0.4) {
+    const s = spot(2.4, 1);
+    if (s) {
+      const [tx, tz] = s;
+      const tr = 1.3 + hashf(lot.id, 4) * 0.5;
+      const leg = 2 + hashf(lot.id, 5) * 1.2;
+      woodGeos.push(place(new THREE.CylinderGeometry(tr, tr * 1.04, 3.2, 14), tx, top + leg + 1.6, tz));
+      woodGeos.push(place(new THREE.ConeGeometry(tr * 1.12, 1.3, 14), tx, top + leg + 3.85, tz));
+      for (let k = 0; k < 3; k++) {
+        ironGeos.push(place(new THREE.TorusGeometry(tr * 1.05, 0.05, 4, 20).rotateX(Math.PI / 2), tx, top + leg + 0.5 + k * 1.1, tz));
+      }
+      for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        ironGeos.push(place(new THREE.BoxGeometry(0.16, leg, 0.16), tx + ox * tr * 0.72, top + leg / 2, tz + oz * tr * 0.72));
+      }
+    }
+  }
+  // AC units, vents, stair bulkheads
+  const n = Math.min(5, Math.floor(lot.area / 90));
+  for (let k = 0; k < n; k++) {
+    const s = spot(1, 10 + k);
+    if (!s) continue;
+    const v = hashf(lot.id, 40 + k);
+    if (v < 0.5) roofGeos.push(place(new THREE.BoxGeometry(1.1, 0.85, 0.8), s[0], top + 0.42, s[1]));
+    else if (v < 0.8) roofGeos.push(place(new THREE.CylinderGeometry(0.22, 0.22, 0.9, 8), s[0], top + 0.45, s[1]));
+    else roofGeos.push(place(new THREE.BoxGeometry(2.6, 2.4, 3), s[0], top + 1.2, s[1]));
+  }
+}
+
+function pointInRing(x, z, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i];
+    const [xj, zj] = pts[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function hashf(n, salt) {
+  let h = (n * 374761393 + salt * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 }
 
 export function buildBuildings(layout, shared) {
@@ -200,6 +425,11 @@ export function buildBuildings(layout, shared) {
   const tint = new THREE.Color();
 
   for (const lot of layout.lots) {
+    if (lot.poly) {
+      tint.set(lot.tint).multiplyScalar(0.85 + lot.rand * 0.25);
+      polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeos);
+      continue;
+    }
     const { x0, x1, z0, z1, h, style } = lot;
     const w = x1 - x0;
     const d = z1 - z0;
@@ -306,10 +536,22 @@ export function buildBuildings(layout, shared) {
     }
   }
 
-  for (const [style, geos] of Object.entries(byStyle)) {
+  const styleMats = {};
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xcfc3a8, roughness: 0.9 }); // cream cornices and roof bits
+  for (const [key, geos] of Object.entries(byStyle)) {
+    const style = key.split('|')[0];
+    if (!geos.length) continue;
+    if (style === '__roof') {
+      group.add(new THREE.Mesh(mergeAll(geos), roofMat));
+      continue;
+    }
+    if (styleMats[style]) {
+      group.add(new THREE.Mesh(mergeAll(geos), styleMats[style]));
+      continue;
+    }
     const tex = shared.facade[style];
     const glassy = style === 'glass' || style === 'office';
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = styleMats[style] = new THREE.MeshStandardMaterial({
       map: tex.map,
       normalMap: tex.normalMap,
       normalScale: new THREE.Vector2(1.4, 1.4),
@@ -321,13 +563,13 @@ export function buildBuildings(layout, shared) {
       metalness: glassy ? 0.5 : 0,
     });
     mat.userData.glassy = glassy;
-    group.add(new THREE.Mesh(mergeGeometries(geos), mat));
+    group.add(new THREE.Mesh(mergeAll(geos), mat));
   }
 
   const addMerged = (geos, mat) => {
-    if (geos.length) group.add(new THREE.Mesh(mergeGeometries(geos), mat));
+    if (geos.length) group.add(new THREE.Mesh(mergeAll(geos), mat));
   };
-  addMerged(roofGeos, new THREE.MeshStandardMaterial({ color: 0xcfc3a8, roughness: 0.9 })); // cream cornices and roof bits
+  addMerged(roofGeos, roofMat);
   addMerged(shingleGeos, new THREE.MeshStandardMaterial({ color: 0x2b2624, roughness: 0.9, flatShading: true }));
   addMerged(woodGeos, new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 }));
   const fenceTex = makeFenceTexture();

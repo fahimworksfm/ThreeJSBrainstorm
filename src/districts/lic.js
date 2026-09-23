@@ -6,6 +6,7 @@ export default {
   id: 'lic',
   name: 'Long Island City',
   borough: 'Queens',
+  ll: [40.7452, -73.9505], // real-map center (lat, lon)
   seed: 7077,
   blurb: 'Glass towers on the old docks, the LONG ISLAND gantries, and all of Midtown lit up across the river.',
 

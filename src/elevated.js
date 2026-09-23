@@ -4,23 +4,23 @@ import { CURB, D } from './config.js';
 import { range } from './random.js';
 import { facadeBox } from './buildings.js';
 
-const TRACK_OFFSET = 2.2;
-const ACCEL = 1.2;
+export const TRACK_OFFSET = 2.2;
+export const ACCEL = 1.2;
 
-const STYLES = {
+export const STYLES = {
   // NYC subway: stainless R160-style cars, 8 per train
   subway: { carLen: 17.4, cars: 8, vmax: 15, body: 0xb4bac0, stripe: null, dwell: 9, horn: false },
   // Long Island Rail Road: longer M7-style cars with a blue stripe, faster, sounds its horn
   lirr: { carLen: 25.9, cars: 6, vmax: 22, body: 0xc4c8cc, stripe: '#2a55b8', dwell: 14, horn: true },
 };
 
-function box(w, h, d, x, y, z) {
+export function box(w, h, d, x, y, z) {
   const g = new THREE.BoxGeometry(w, h, d);
   g.translate(x, y, z);
   return g;
 }
 
-function latticeTexture() {
+export function latticeTexture() {
   const c = document.createElement('canvas');
   c.width = 128;
   c.height = 64;
@@ -41,7 +41,7 @@ function latticeTexture() {
   return t;
 }
 
-function trainWindowTexture(stripe) {
+export function trainWindowTexture(stripe) {
   const c = document.createElement('canvas');
   c.width = 1024;
   c.height = 64;
@@ -74,7 +74,7 @@ function trainWindowTexture(stripe) {
   return t;
 }
 
-function stationSignTexture(name, bullets, subtitle) {
+export function stationSignTexture(name, bullets, subtitle) {
   const c = document.createElement('canvas');
   c.width = 1024;
   c.height = 96;

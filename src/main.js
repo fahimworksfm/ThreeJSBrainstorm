@@ -20,7 +20,10 @@ import {
 import { buildBuildings } from './buildings.js';
 import { buildStreets } from './streets.js';
 import { buildElevated } from './elevated.js';
-import { buildSky, buildTrees, setFoliage, buildClouds } from './surroundings.js';
+import { buildSky, buildTrees, setFoliage, buildClouds, buildSkyline, buildIcons } from './surroundings.js';
+import { loadOSM } from './osm/fetch.js';
+import { buildCity } from './osm/city.js';
+import { buildViaduct } from './osm/viaduct.js';
 import { Pedestrians } from './peds.js';
 import { LightKit } from './lightkit.js';
 import { buildRoad } from './road.js';
@@ -139,15 +142,28 @@ loadMichelle()
     if (W && player.hero) W.peds.setSkinned([player.hero, m], LOW ? 6 : 12);
   })
   .catch((e) => console.warn('Crowd character unavailable', e));
+/** Keep out of the river: step back to the nearest dry spot. */
+function stayDry(p, r) {
+  if (!W.isWater || !W.isWater(p.x, p.z)) return false;
+  for (let d = 0.5; d < 6; d += 0.5) {
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      const x = p.x + Math.cos(a) * d;
+      const z = p.z + Math.sin(a) * d;
+      if (!W.isWater(x, z)) {
+        p.x = x + Math.cos(a) * r * 0.5;
+        p.z = z + Math.sin(a) * r * 0.5;
+        return true;
+      }
+    }
+  }
+  return false;
+}
 const worldProxy = {
   groundAt: (x, z) => (W ? W.groundAt(x, z) : 0),
-  collide: (p, r) => (W ? W.grid.collide(p, r) : false),
+  collide: (p, r) => (W ? W.grid.collide(p, r) || stayDry(p, r) : false),
   inside: (x, z, pad) => (W ? W.grid.inside(x, z, pad) : false),
-  roofAt: (x, z, pad) => {
-    if (!W) return null;
-    for (const r of W.roofs.near(x, z, pad)) if (x >= r.x0 - pad && x <= r.x1 + pad && z >= r.z0 - pad && z <= r.z1 + pad) return r;
-    return null;
-  },
+  roofAt: (x, z, pad) => (W ? W.roofs.at(x, z, pad) : null),
 };
 const input = new Input(renderer.domElement);
 const player = new Player(camera, scene, worldProxy, audio, input, shared);
@@ -167,17 +183,37 @@ function disposeTree(root) {
   });
 }
 
-function loadDistrict(id, { arrive = false } = {}) {
-  const def = DISTRICTS[id] ?? DISTRICTS.astoria;
-  if (W) {
-    scene.remove(W.root);
-    W.road.reflector.dispose();
-    disposeTree(W.root);
-  }
-  activateDistrict(def);
-  reseed(def.seed);
+// real OpenStreetMap streets, fetched in the browser; the drawn grid is the fallback
+const FETCH_RADIUS = LOW ? 600 : 760;
+const osmCache = new Map();
+settings.realMap = params.has('realmap') ? params.get('realmap') !== '0' : store.get('realMap', true);
 
-  const root = new THREE.Group();
+async function fetchRealMap(def, onStatus) {
+  if (!settings.realMap || !def.ll) return null;
+  if (osmCache.has(def.id)) return osmCache.get(def.id);
+  const controller = new AbortController();
+  const skip = document.getElementById('skip-real');
+  skip.onclick = (e) => {
+    e.stopPropagation();
+    controller.abort();
+  };
+  fade.classList.add('fetching');
+  try {
+    const data = await loadOSM({
+      id: def.id, lat: def.ll[0], lon: def.ll[1], radius: FETCH_RADIUS, override: params.get('osm'), onStatus, signal: controller.signal,
+    });
+    osmCache.set(def.id, data);
+    return data;
+  } catch (e) {
+    console.warn('OpenStreetMap unavailable, using the drawn map', e);
+    return null;
+  } finally {
+    fade.classList.remove('fetching');
+  }
+}
+
+/** The procedural street grid (always available, even offline). */
+function buildGridWorld(def) {
   const layout = generateLayout();
   const groundAt = makeGroundQuery(layout.groundRects, CURB);
   const buildings = buildBuildings(layout, shared);
@@ -185,16 +221,6 @@ function loadDistrict(id, { arrive = false } = {}) {
   const kit = new LightKit();
   const elevated = buildElevated(shared, kit);
   const landmarks = def.landmarks(layout, shared);
-  const sky = buildSky(shared);
-  const clouds = buildClouds();
-  root.add(
-    buildings.group, streets.group, elevated.group, landmarks.group, kit.build(shared.pool), sky.mesh, clouds.group,
-    buildTrees([...streets.trees, ...landmarks.trees]),
-  );
-
-  const road = buildRoad(shared.noise, D.roadRect, reflectSize());
-  road.setReflections(settings.reflections);
-  root.add(road.reflector, road.plain);
   const traffic = new Traffic(shared, audio);
   // parked cars are solid too
   const parked = traffic.parked.map((c) => ({ x0: c.x - 1, x1: c.x + 1, z0: c.z - 2.35, z1: c.z + 2.35 }));
@@ -203,11 +229,100 @@ function loadDistrict(id, { arrive = false } = {}) {
     layout.lots.filter((l) => l.kind !== 'house' && !l.outer).map((l) => ({ x0: l.x0, x1: l.x1, z0: l.z0, z1: l.z1, top: CURB + l.h + 0.225 })),
   );
   const grid = new ColliderGrid([...layout.colliders, ...elevated.colliders, ...landmarks.colliders, ...streets.colliders, ...parked]);
-  const weather = new Weather(shared, groundAt, streets.steam, quality.rain);
+  return {
+    layout, groundAt, buildings, streets, kit, elevated, landmarks, traffic, roofs, grid,
+    trees: [...streets.trees, ...landmarks.trees], parts: [buildings.group, streets.group, elevated.group, landmarks.group],
+    peds: new Pedestrians(), steam: streets.steam, start: () => def.start(D),
+  };
+}
+
+/** A neighborhood built from real OpenStreetMap data. */
+function buildRealWorld(def, data) {
+  const city = buildCity(data, def, shared, { low: LOW, radius: FETCH_RADIUS });
+  const b = city.box;
+  Object.assign(D, {
+    xMin: b.x0 + 4, xMax: b.x1 - 4, zMin: b.z0 + 4, zMax: b.z1 - 4, riverX: null, parkZ1: null, parkZ0: null,
+    roadRect: { x0: b.x0 - 500, x1: b.x1 + 500, z0: b.z0 - 500, z1: b.z1 + 500 },
+  });
+  const kit = new LightKit();
+  for (const l of city.kitLamps) kit.add(l.x, l.z, l.nx, l.nz, { kind: l.kind, height: l.underEl ? 6.5 : 8.5, arm: l.underEl ? 1.2 : 2.2 });
+  const buildings = buildBuildings({ lots: city.lots, faces: city.faces, signNames: [...city.signNames, ...(def.shops ?? [])].slice(0, 44) }, shared);
+  let elevated = city.elevated ? buildViaduct({ ...city.elevated, shared, kit, spot: city.spot }) : null;
+  if (!elevated || !elevated.entrances.length) {
+    for (const e of city.looseEntrances) kit.add(e.x, e.z, 1, 0, { globe: true, height: 2.4, kind: 'green', pool: 3 });
+    elevated = { group: elevated?.group ?? new THREE.Group(), update: elevated?.update ?? (() => {}), colliders: elevated?.colliders ?? [], rumbleAt: elevated?.rumbleAt ?? (() => 0), events: elevated?.events ?? { braking: false, horn: null }, entrances: city.looseEntrances };
+  }
+  if (!elevated.entrances.length) {
+    const s = city.start();
+    elevated.entrances.push({ x: s.pos[0] + 2, z: s.pos[1], name: def.name });
+  }
+  // Manhattan's towers on the horizon, in their real direction
+  const landmarks = { group: new THREE.Group(), colliders: [], trees: [], update() {} };
+  if (city.midtown) {
+    const [mx, mz] = city.midtown;
+    const d = Math.hypot(mx, mz);
+    const k = Math.min(1, 2600 / d);
+    if (mx < 0 && Math.abs(mx) > Math.abs(mz) * 0.6) {
+      landmarks.group.add(buildSkyline(shared, { x: mx * k + 350, z0: mz * k - 1100, z1: mz * k + 900, depth: 650 }).group);
+    } else landmarks.group.add(buildIcons(shared, mx * k, mz * k).group);
+  }
+  const traffic = new Traffic(shared, audio, { lanes: city.lanes, parked: city.parked });
+  const parked = traffic.parked.map((c) => {
+    const cs = Math.cos(c.rot);
+    const sn = Math.sin(c.rot);
+    const poly = [[-1, -2.35], [1, -2.35], [1, 2.35], [-1, 2.35]].map(([x, z]) => [c.x + x * cs + z * sn, c.z - x * sn + z * cs]);
+    const xs = poly.map((p) => p[0]);
+    const zs = poly.map((p) => p[1]);
+    return { poly, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
+  });
+  const grid = new ColliderGrid([...city.colliders, ...elevated.colliders, ...parked]);
+  const roofs = new ColliderGrid(city.roofs);
+  const streets = city.corners;
+  return {
+    layout: null, groundAt: city.groundAt, buildings, streets, kit, elevated, landmarks, traffic, roofs, grid,
+    trees: city.trees, parts: [city.group, buildings.group, elevated.group, landmarks.group],
+    peds: new Pedestrians(city.routes), steam: city.corners.steam, start: city.start, place: city.place,
+    describe: city.describe, mapImage: city.mapImage, isWater: city.isWater, real: city.counts, city,
+  };
+}
+
+async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
+  const def = DISTRICTS[id] ?? DISTRICTS.astoria;
+  const data = await fetchRealMap(def, onStatus);
+  if (data) onStatus(`Building ${def.name} from real streets…`);
+  await new Promise((r) => setTimeout(r, 30));
+  if (W) {
+    scene.remove(W.root);
+    W.road.reflector.dispose();
+    disposeTree(W.root);
+  }
+  activateDistrict(def);
+  reseed(def.seed);
+
+  let P = null;
+  if (data) {
+    try {
+      P = buildRealWorld(def, data);
+    } catch (e) {
+      console.error('Real map failed to build, using the drawn map', e);
+      activateDistrict(def);
+      reseed(def.seed);
+    }
+  }
+  P ??= buildGridWorld(def);
+  const root = new THREE.Group();
+  const sky = buildSky(shared);
+  const clouds = buildClouds();
+  root.add(...P.parts, P.kit.build(shared.pool), sky.mesh, clouds.group, buildTrees(P.trees));
+
+  const road = buildRoad(shared.noise, D.roadRect, reflectSize());
+  road.setReflections(settings.reflections);
+  root.add(road.reflector, road.plain);
+  const weather = new Weather(shared, P.groundAt, P.steam, quality.rain);
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
-  const memories = new Memories(shared, audio, hud);
-  const peds = new Pedestrians();
-  root.add(traffic.group, weather.group, memories.group, peds.group);
+  const memories = new Memories(shared, audio, hud, P.place ?? null);
+  const peds = P.peds;
+  root.add(P.traffic.group, weather.group, memories.group, peds.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -216,23 +331,27 @@ function loadDistrict(id, { arrive = false } = {}) {
   });
   scene.add(root);
 
-  W = { def, root, layout, groundAt, grid, roofs, peds, clouds, buildings, streets, elevated, landmarks, sky, road, traffic, weather, memories };
+  W = {
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, clouds, buildings: P.buildings,
+    streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
+    describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
+  };
   applyTime(true);
   minimap.setWorld(W);
   hud.setDistrict(`${def.name}, ${def.borough}`);
   store.set('district', def.id);
   renderMenus();
 
+  const s = P.start();
   if (arrive) {
     // step out of the station entrance
-    const e = elevated.entrances[0];
-    const s = def.start(D);
+    const e = W.elevated.entrances[0];
     player.spawn(e.x, e.z, [s.pos[0], 1.7, s.pos[1]]);
     hud.showMemory(`${def.name}, ${def.borough}`, def.blurb, 6000);
   } else {
-    const s = def.start(D);
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
+  if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
   hud.setRide(MODES.walk.name, 'walk');
   const crowd = () => {
     const templates = [player.hero, ...(crowdExtras ?? [])];
@@ -480,8 +599,8 @@ function goTo(id, arrive) {
   fade.querySelector('span').textContent = arrive ? `Taking ${W.def.el.ride} to ${def.name}…` : `${def.name}, ${def.borough}`;
   fade.classList.add('show');
   // give the fade a frame to paint before the heavy rebuild
-  setTimeout(() => {
-    loadDistrict(id, { arrive });
+  setTimeout(async () => {
+    await loadDistrict(id, { arrive, onStatus: (text) => (fade.querySelector('span').textContent = text) });
     setTimeout(() => fade.classList.remove('show'), 350);
   }, 450);
 }
@@ -587,6 +706,12 @@ addEventListener('keydown', (e) => {
     case 'KeyM':
       hud.toast(audio.toggleMute() ? 'Muted' : 'Sound on');
       break;
+    case 'KeyO':
+      settings.realMap = !settings.realMap;
+      store.set('realMap', settings.realMap);
+      hud.toast(settings.realMap ? 'Real OpenStreetMap streets' : 'Drawn street grid');
+      goTo(W.def.id, false);
+      break;
     case 'KeyQ':
       settings.reflections = !settings.reflections;
       W.road.setReflections(settings.reflections && settings.rain);
@@ -610,13 +735,25 @@ addEventListener('keydown', (e) => {
 
 // ---------- start ----------
 applyInk();
-loadDistrict(params.get('district') || store.get('district', 'astoria'));
-if (params.has('cam')) {
-  const [x, z, yaw = 0, pitch = 0, height = 1.68] = params.get('cam').split(',').map(Number);
-  camera.position.set(x, W.groundAt(x, z) + height, z);
-  camera.rotation.set(THREE.MathUtils.degToRad(pitch), THREE.MathUtils.degToRad(yaw), 0, 'YXZ');
-}
-resize();
+const firstDistrict = params.get('district') || store.get('district', 'astoria');
+fade.querySelector('span').textContent = settings.realMap ? 'Loading real streets…' : '';
+fade.classList.add('show');
+loadDistrict(firstDistrict, { onStatus: (text) => (fade.querySelector('span').textContent = text) }).then(() => {
+  if (params.has('cam')) {
+    const [x, z, yaw = 0, pitch = 0, height = 1.68] = params.get('cam').split(',').map(Number);
+    camera.position.set(x, W.groundAt(x, z) + height, z);
+    camera.rotation.set(THREE.MathUtils.degToRad(pitch), THREE.MathUtils.degToRad(yaw), 0, 'YXZ');
+  }
+  resize();
+  for (let k = 0; k < Math.min(1200, (t - 3) * 10); k++) {
+    W.elevated.update(0.1);
+    W.traffic.update(k * 0.1, 0.1, player, camera);
+    W.landmarks.update(k * 0.1, camera, 0.1);
+  }
+  last = performance.now();
+  fade.classList.remove('show');
+  requestAnimationFrame(frame);
+});
 
 // ---------- dynamic resolution: keep it smooth ----------
 let slowTime = 0;
@@ -648,11 +785,6 @@ function adaptResolution(dt) {
 
 // ---------- loop ----------
 let t = Number(params.get('t') || 0) + 3;
-for (let k = 0; k < Math.min(1200, (t - 3) * 10); k++) {
-  W.elevated.update(0.1);
-  W.traffic.update(k * 0.1, 0.1, player, camera);
-  W.landmarks.update(k * 0.1, camera, 0.1);
-}
 let last = performance.now();
 let frames = 0;
 let fpsTime = 0;
@@ -773,7 +905,7 @@ function frame(now) {
   staminaBar.style.width = `${Math.round(player.stamina * 100)}%`;
   staminaBar.parentElement.classList.toggle('low', player.stamina < 0.25);
   if (player.hero && !portraitDone && frames > 5) portraitDone = renderPortrait();
-  hud.setLocation(describeLocation(player.pos.x, player.pos.z, { roof: !!player.roof }));
+  hud.setLocation((W.describe ?? describeLocation)(player.pos.x, player.pos.z, { roof: !!player.roof }));
   hud.setClock(minute * 6);
   grade.uniforms.time.value = t;
   composer.render();
@@ -787,6 +919,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
-
 window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, get world() { return W; }, loadDistrict, setMinute: (m) => { minute = m; applyTime(true); } };

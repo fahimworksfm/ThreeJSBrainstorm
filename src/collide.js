@@ -46,6 +46,10 @@ export class ColliderGrid {
     let hit = false;
     for (const c of this.near(p.x, p.z, r)) {
       if (p.x < c.x0 - r || p.x > c.x1 + r || p.z < c.z0 - r || p.z > c.z1 + r) continue;
+      if (c.poly) {
+        if (pushOutOfPoly(p, r, c.poly)) hit = true;
+        continue;
+      }
       const nx = Math.max(c.x0, Math.min(c.x1, p.x));
       const nz = Math.max(c.z0, Math.min(c.z1, p.z));
       const dx = p.x - nx;
@@ -72,8 +76,74 @@ export class ColliderGrid {
   /** Is the point inside any box (grown by pad)? Used to keep the chase camera out of walls. */
   inside(x, z, pad = 0) {
     for (const c of this.near(x, z, pad)) {
-      if (x > c.x0 - pad && x < c.x1 + pad && z > c.z0 - pad && z < c.z1 + pad) return true;
+      if (x > c.x0 - pad && x < c.x1 + pad && z > c.z0 - pad && z < c.z1 + pad) {
+        if (!c.poly || inPoly(x, z, c.poly) || (pad > 0 && edgeDistance(x, z, c.poly).d < pad)) return true;
+      }
     }
     return false;
   }
+
+  /** The item (a roof) under the point, allowing pad meters of slack around its outline. */
+  at(x, z, pad = 0) {
+    for (const c of this.near(x, z, pad)) {
+      if (x < c.x0 - pad || x > c.x1 + pad || z < c.z0 - pad || z > c.z1 + pad) continue;
+      if (!c.poly || inPoly(x, z, c.poly) || (pad > 0 && edgeDistance(x, z, c.poly).d < pad)) return c;
+    }
+    return null;
+  }
+}
+
+function inPoly(x, z, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i];
+    const [xj, zj] = pts[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function edgeDistance(x, z, pts) {
+  let best = Infinity;
+  let bx = 0;
+  let bz = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const ax = pts[j][0];
+    const az = pts[j][1];
+    const dx = pts[i][0] - ax;
+    const dz = pts[i][1] - az;
+    const l2 = dx * dx + dz * dz;
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0;
+    const cx = ax + dx * t;
+    const cz = az + dz * t;
+    const d2 = (x - cx) ** 2 + (z - cz) ** 2;
+    if (d2 < best) {
+      best = d2;
+      bx = cx;
+      bz = cz;
+    }
+  }
+  return { d: Math.sqrt(best), x: bx, z: bz };
+}
+
+/** Push a circle out of a polygon footprint. */
+function pushOutOfPoly(p, r, pts) {
+  const inside = inPoly(p.x, p.z, pts);
+  const e = edgeDistance(p.x, p.z, pts);
+  if (!inside && e.d >= r) return false;
+  let nx = p.x - e.x;
+  let nz = p.z - e.z;
+  const l = Math.hypot(nx, nz);
+  if (l < 1e-6) return false;
+  nx /= l;
+  nz /= l;
+  if (inside) {
+    // we're in the wall: go back out through the nearest edge
+    p.x = e.x - nx * r;
+    p.z = e.z - nz * r;
+  } else {
+    p.x = e.x + nx * r;
+    p.z = e.z + nz * r;
+  }
+  return true;
 }

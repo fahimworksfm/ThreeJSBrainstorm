@@ -107,11 +107,22 @@ function makeUmbrella(color) {
 }
 
 export class Pedestrians {
-  constructor() {
+  /** routes (real-map mode): [{ path: closed Path around a block, busy }]. */
+  constructor(routes = null) {
     this.group = new THREE.Group();
     const peds = [];
+    const person = () => ({
+      dir: rand() < 0.5 ? 1 : -1, speed: range(1.0, 1.7), phase: rand() * 6.28, side: 0, pause: 0,
+      skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), hair: pick(HAIR), height: range(0.9, 1.08), talk: rand() < 0.18,
+    });
+    for (const r of routes ?? []) {
+      const n = Math.max(1, Math.round((r.path.len / (r.busy ? 9 : 45)) * range(0.7, 1.2)));
+      for (let k = 0; k < n; k++) {
+        peds.push({ ...person(), path: r.path, per: r.path.len, s: rand() * r.path.len, cx: r.path.cx, cz: r.path.cz, reach: r.path.radius });
+      }
+    }
     const inner = (b) => b.c >= 0 && b.r >= 0 && b.c <= D.NX - 2 && b.r <= D.NZ - 2 && !b.park;
-    for (const b of this.blocks()) {
+    for (const b of routes ? [] : this.blocks()) {
       if (!inner(b)) continue;
       const busy = D.commercialNS.has(b.c) || D.commercialNS.has(b.c + 1) || D.commercialEW.has(b.r) || D.commercialEW.has(b.r + 1);
       const n = busy ? Math.floor(range(16, 24)) : Math.floor(range(3, 6));
@@ -120,9 +131,8 @@ export class Pedestrians {
         const rect = { x0: b.x0 + inset, x1: b.x1 - inset, z0: b.z0 + inset, z1: b.z1 - inset };
         const per = 2 * (rect.x1 - rect.x0 + rect.z1 - rect.z0);
         peds.push({
-          rect, per, s: rand() * per, dir: rand() < 0.5 ? 1 : -1, speed: range(1.0, 1.7),
-          phase: rand() * 6.28, side: 0, pause: 0,
-          skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS), hair: pick(HAIR), height: range(0.9, 1.08), talk: rand() < 0.18,
+          ...person(), rect, per, s: rand() * per,
+          cx: (rect.x0 + rect.x1) / 2, cz: (rect.z0 + rect.z1) / 2, reach: Math.hypot(rect.x1 - rect.x0, rect.z1 - rect.z0) / 2,
         });
       }
     }
@@ -318,6 +328,7 @@ export class Pedestrians {
 
   /** Position and heading at distance s around the rectangle. */
   at(p, s) {
+    if (p.path) return p.path.at(s, [0, 0, 0, 0]);
     const { x0, x1, z0, z1 } = p.rect;
     const w = x1 - x0;
     const h = z1 - z0;
@@ -339,7 +350,7 @@ export class Pedestrians {
     const pz = player.pos.z;
     const fast = player.mode !== 'walk' && Math.abs(player.speed) > 2;
     this.peds.forEach((p, i) => {
-      const near = Math.abs(p.rect.x0 - cam.x) < VIEW + 60 && Math.abs(p.rect.z0 - cam.z) < VIEW + 60;
+      const near = Math.abs(p.cx - cam.x) < VIEW + p.reach && Math.abs(p.cz - cam.z) < VIEW + p.reach;
       if (!near) {
         if (p.hidden) return;
         p.hidden = true;

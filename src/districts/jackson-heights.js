@@ -6,6 +6,7 @@ export default {
   id: 'jackson-heights',
   name: 'Jackson Heights',
   borough: 'Queens',
+  ll: [40.7512, -73.8820], // real-map center (lat, lon)
   seed: 7474,
   blurb: 'The 7 roaring over Roosevelt Ave, saris and sweets on 74th St, momos, arepas and a hundred languages.',
 

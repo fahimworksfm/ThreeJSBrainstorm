@@ -69,6 +69,7 @@ where you left it.
 | 1 2 3 4 | Ride | walk, bicycle, motorcycle, SUV |
 | C | View | third / first person |
 | E | Train | take the train at a green-globe entrance |
+| O | | real OpenStreetMap streets / drawn street grid |
 | R | | rain on / off |
 | Q | | wet-street reflections on / off |
 | M | | mute |
@@ -92,6 +93,20 @@ where you left it.
 
 The train map lists all five boroughs; places that aren't built yet are marked "coming soon".
 
+### Real streets (OpenStreetMap)
+
+On a normal website (Vercel, Netlify, your own server) each neighborhood loads its real map live from
+OpenStreetMap's free Overpass API, in the player's browser: real street layout and widths, curbs traced from the
+street network, every building footprint with its real height where it's mapped, parks, water, traffic lights,
+and shop names on the sign boards. Traffic drives the real streets, crowds loop the real blocks, and the el
+follows the real street it runs over. The download (a few MB) is cached in the browser.
+
+If OpenStreetMap can't be reached (offline, a blocked network, or the claude.ai preview, which blocks outside
+data), the game uses its drawn street grid instead. **O** switches between the two. You can also ship a copy of the data
+with the site as `public/osm/<district-id>.json` (an Overpass JSON response), and it will be used first.
+
+Map data © OpenStreetMap contributors, available under the Open Database License.
+
 ## How it works
 
 | File | Role |
@@ -105,7 +120,8 @@ The train map lists all five boroughs; places that aren't built yet are marked "
 | `src/layout.js`, `src/buildings.js`, `src/textures.js` | Blocks, lots, facades, signs, awnings, fire escapes |
 | `src/streets.js`, `src/elevated.js`, `src/traffic.js` | Streets, the el and trains, traffic |
 | `src/surroundings.js`, `src/landmarks/*.js` | Sky, trees, skyline, parks, rivers, set pieces |
-| `src/collide.js` | Grid-accelerated collisions |
+| `src/osm/*.js` | Real-map mode: Overpass download and cache, parsing, curb tracing (marching squares), buildings, props, the el on real streets |
+| `src/collide.js` | Grid-accelerated collisions (boxes and building footprints) |
 | `src/main.js` | Renderer, quality settings, district loading, game loop |
 
 See [docs/TECH-STACK.md](docs/TECH-STACK.md) for other free tools that can push the look further, and how the
@@ -122,3 +138,4 @@ hosting works.
 - `?district=jamaica`, `?time=night` (golden, dusk, night), `?quality=low`
 - `?cam=x,z,yawDeg,pitchDeg,height&fly` puts a static camera anywhere
 - `?shot` hides the title screen, `?t=60` fast-forwards trains and traffic
+- `?realmap=0` forces the drawn grid; `?osm=<url>` loads an Overpass JSON file instead of the live API

@@ -6,6 +6,7 @@ export default {
   id: 'astoria',
   name: 'Astoria',
   borough: 'Queens',
+  ll: [40.7688, -73.9205], // real-map center (lat, lon)
   seed: 1987,
   blurb: 'The N/W rumbling over 31st St, tavernas on 30th Ave, Manhattan glittering across the East River.',
 

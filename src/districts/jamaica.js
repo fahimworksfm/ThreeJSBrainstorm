@@ -6,6 +6,7 @@ export default {
   id: 'jamaica',
   name: 'Jamaica',
   borough: 'Queens',
+  ll: [40.7045, -73.7985], // real-map center (lat, lon)
   seed: 4321,
   blurb: 'Jamaica Ave’s patty shops and sneaker stores, the LIRR hub, King Manor, and planes sliding down toward JFK.',
 

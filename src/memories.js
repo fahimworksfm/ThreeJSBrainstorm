@@ -32,7 +32,8 @@ export function journalAll() {
 
 /** Glowing postcards with light beams; walk up to one to read it. */
 export class Memories {
-  constructor(shared, audio, hud) {
+  /** place (real-map mode): turns a memory's grid placement into a spot on the real streets. */
+  constructor(shared, audio, hud, place = null) {
     this.audio = audio;
     this.hud = hud;
     this.id = D.id;
@@ -48,7 +49,7 @@ export class Memories {
     poolGeo.rotateX(-Math.PI / 2);
     this.items = this.list.map((mem) => {
       const g = new THREE.Group();
-      const [wx, wz] = mem.where(D);
+      const [wx, wz] = place ? place(mem.where) : mem.where(D);
       g.position.set(wx, CURB, wz);
       const card = new THREE.Mesh(
         cardGeo,

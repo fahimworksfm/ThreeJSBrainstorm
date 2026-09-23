@@ -4,6 +4,7 @@ import { D } from './config.js';
 import { isSignalized, signalState } from './signals.js';
 import { sedanGeometry } from './models.js';
 import { rand, range, pick, chance } from './random.js';
+import { Path } from './osm/geo.js';
 
 const BODY_COLORS = [0x3f5a3c, 0xc9a24a, 0x8a2a24, 0xd9d0b4, 0x6f8aa8, 0x3a3d44, 0x1d1e22, 0xb8bcc2, 0x6b7a3a, 0xa0522d, 0x2f4f6f];
 const BORO_TAXI = 0x7cc242;
@@ -79,43 +80,61 @@ function makeBusMaterials() {
 }
 
 export class Traffic {
-  constructor(shared, audio) {
+  /**
+   * spec (real-map mode): { lanes: [{ pts, crossings: [{ s, axis, half }], busy }], parked: [{ x, z, rot }] }.
+   * Without it, lanes come from the district's street grid.
+   */
+  constructor(shared, audio, spec = null) {
     this.audio = audio;
     this.group = new THREE.Group();
     this.lanes = [];
     this.cars = [];
     this.parked = [];
 
+    if (spec) {
+      for (const l of spec.lanes) {
+        const lane = { path: new Path(l.pts), crossings: l.crossings ?? [], cars: [] };
+        if (lane.path.len < 30) continue;
+        this.lanes.push(lane);
+        const n = Math.max(1, Math.round((lane.path.len / (l.busy ? 70 : 150)) * (0.6 + rand() * 0.6)));
+        for (let k = 0; k < n; k++) this.addCar(lane, l.busy);
+      }
+      for (const p of spec.parked) this.parked.push({ ...p, color: pick(BODY_COLORS) });
+    } else this.gridLanes();
+    for (const lane of this.lanes) {
+      const span = lane.path.len;
+      lane.cars.forEach((c, k) => (c.s = ((k + rand() * 0.5) * span) / lane.cars.length));
+    }
+    this.buildMeshes(shared);
+  }
+
+  gridLanes() {
     const { nsW: NS_W, ewW: EW_W, NX, NZ, colX, rowZ } = D;
     const elNS = D.el?.axis === 'ns' && !D.el.underground ? D.el.index : null;
     // two-way roads: drive on the right
+    const addLane = (pts, crossings, busy, n) => {
+      const lane = { path: new Path(pts), crossings, cars: [] };
+      this.lanes.push(lane);
+      for (let k = 0; k < n; k++) this.addCar(lane, busy);
+    };
     for (let i = 0; i < NX; i++) {
       for (const dir of [-1, 1]) {
-        const lane = {
-          // heading south (+z) means driving on the west side
-          axis: 'z', fixed: colX(i) + (dir > 0 ? -3.2 : 3.2), dir, min: D.laneZ0, max: D.laneZ1,
-          crossings: [...Array(NZ).keys()].filter((j) => isSignalized(i, j)).map((j) => rowZ(j)), half: EW_W / 2, cars: [],
-        };
-        this.lanes.push(lane);
+        // heading south (+z) means driving on the west side
+        const x = colX(i) + (dir > 0 ? -3.2 : 3.2);
+        const [a, b] = dir > 0 ? [D.laneZ0, D.laneZ1] : [D.laneZ1, D.laneZ0];
+        const crossings = [...Array(NZ).keys()].filter((j) => isSignalized(i, j)).map((j) => ({ s: (rowZ(j) - a) * dir, axis: 'ns', half: EW_W / 2 }));
         const busy = D.commercialNS.has(i);
-        for (let k = 0; k < (busy ? 4 : 2); k++) this.addCar(lane, busy);
+        addLane([[x, a], [x, b]], crossings, busy, busy ? 4 : 2);
       }
     }
     for (let j = 0; j < NZ; j++) {
       for (const dir of [-1, 1]) {
-        const lane = {
-          axis: 'x', fixed: rowZ(j) + (dir > 0 ? 3.5 : -3.5), dir, min: D.laneX0, max: D.laneX1,
-          crossings: [...Array(NX).keys()].filter((i) => isSignalized(i, j)).map((i) => colX(i)), half: NS_W / 2, cars: [],
-        };
-        this.lanes.push(lane);
+        const z = rowZ(j) + (dir > 0 ? 3.5 : -3.5);
+        const [a, b] = dir > 0 ? [D.laneX0, D.laneX1] : [D.laneX1, D.laneX0];
+        const crossings = [...Array(NX).keys()].filter((i) => isSignalized(i, j)).map((i) => ({ s: (colX(i) - a) * dir, axis: 'ew', half: NS_W / 2 }));
         const busy = D.commercialEW.has(j);
-        for (let k = 0; k < (busy ? 3 : 1); k++) this.addCar(lane, busy);
+        addLane([[a, z], [b, z]], crossings, busy, busy ? 3 : 1);
       }
-    }
-    for (const lane of this.lanes) {
-      lane.cars.sort((a, b) => a.s - b.s);
-      const span = lane.max - lane.min;
-      lane.cars.forEach((c, k) => (c.s = lane.min + ((k + rand() * 0.5) * span) / lane.cars.length));
     }
 
     // parked cars along the curbs of the north-south streets
@@ -132,8 +151,6 @@ export class Traffic {
         }
       }
     }
-
-    this.buildMeshes(shared);
   }
 
   addCar(lane, busy = false) {
@@ -259,43 +276,41 @@ export class Traffic {
 
   update(t, dt, player, camera) {
     const pp = player.position;
+    const onRoad = player.onRoad;
+    const tmp = [0, 0, 0, 0];
     for (const lane of this.lanes) {
-      const axisKey = lane.axis === 'z' ? 'ns' : 'ew';
-      const light = signalState(t, axisKey);
-      const pAlong = lane.axis === 'z' ? pp.z : pp.x;
-      const pLateral = lane.axis === 'z' ? pp.x : pp.z;
-      const playerInLane = Math.abs(pLateral - lane.fixed) < 1.8 && player.onRoad;
+      const path = lane.path;
       for (const car of lane.cars) {
         if (car.hidden) {
-          const start = lane.dir > 0 ? lane.min : lane.max;
-          const sx = lane.axis === 'z' ? lane.fixed : start;
-          const sz = lane.axis === 'z' ? start : lane.fixed;
-          const clear = lane.cars.every((o) => o === car || o.hidden || Math.abs(o.s - start) > 12);
+          const [sx, sz] = path.at(0, tmp);
+          const clear = lane.cars.every((o) => o === car || o.hidden || o.s > 12);
           if (Math.hypot(sx - pp.x, sz - pp.z) > 70 && clear) {
             car.hidden = false;
-            car.s = start;
+            car.s = 0;
           } else continue;
         }
         let target = car.vmax;
-        if (light !== 'G') {
-          for (const cz of lane.crossings) {
-            const stop = cz - lane.dir * (lane.half + 4.2);
-            const d = (stop - car.s) * lane.dir;
-            if (d > -0.5 && d < 45 && (light === 'R' || d > 7)) {
-              target = Math.min(target, Math.sqrt(2 * 5 * Math.max(0, d - 0.3)));
-              break;
-            }
+        for (const cr of lane.crossings) {
+          const d = cr.s - (cr.half + 4.2) - car.s;
+          if (d < -0.5 || d > 45) continue;
+          const light = signalState(t, cr.axis);
+          if (light !== 'G' && (light === 'R' || d > 7)) {
+            target = Math.min(target, Math.sqrt(2 * 5 * Math.max(0, d - 0.3)));
+            break;
           }
         }
         for (const o of lane.cars) {
           if (o === car || o.hidden) continue;
-          const gap = (o.s - car.s) * lane.dir;
+          const gap = o.s - car.s;
           if (gap > 0 && gap < 50) target = Math.min(target, Math.sqrt(2 * 5 * Math.max(0, gap - (car.len + o.len) / 2 - 2.3)));
         }
         let waiting = false;
-        if (playerInLane) {
-          const d = (pAlong - car.s) * lane.dir - car.len / 2;
-          if (d > -1.5 && d < 22) {
+        if (onRoad && car.x !== undefined) {
+          const rx = pp.x - car.x;
+          const rz = pp.z - car.z;
+          const d = rx * car.dx + rz * car.dz - car.len / 2;
+          const lateral = Math.abs(rx * car.dz - rz * car.dx);
+          if (lateral < 1.8 && d > -1.5 && d < 22) {
             target = Math.min(target, Math.sqrt(2 * 7 * Math.max(0, d - 1.8)));
             waiting = d < 9;
           }
@@ -313,8 +328,26 @@ export class Traffic {
         car.braking = target < car.v - 0.2;
         if (car.v < target) car.v = Math.min(target, car.v + 3 * dt);
         else car.v = Math.max(target, car.v - 8 * dt);
-        car.s += car.v * lane.dir * dt;
-        if ((lane.dir > 0 && car.s > lane.max) || (lane.dir < 0 && car.s < lane.min)) car.hidden = true;
+        car.s += car.v * dt;
+        if (car.s > path.len) {
+          car.hidden = true;
+          continue;
+        }
+        path.at(car.s, tmp);
+        car.x = tmp[0];
+        car.z = tmp[1];
+        // ease the heading through corners instead of snapping per segment
+        if (car.dx === undefined) {
+          car.dx = tmp[2];
+          car.dz = tmp[3];
+        } else {
+          const k = Math.min(1, dt * (2 + car.v * 0.5));
+          car.dx += (tmp[2] - car.dx) * k;
+          car.dz += (tmp[3] - car.dz) * k;
+          const l = Math.hypot(car.dx, car.dz) || 1;
+          car.dx /= l;
+          car.dz /= l;
+        }
       }
     }
 
@@ -328,25 +361,20 @@ export class Traffic {
           this.mBusWheels.setMatrixAt(car.busIdx, zero);
           return;
         }
-        const lane = car.lane;
-        const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-        q.setFromAxisAngle(up, yaw);
-        if (lane.axis === 'z') p.set(lane.fixed, 0, car.s);
-        else p.set(car.s, 0, lane.fixed);
+        if (car.x === undefined) return;
+        q.setFromAxisAngle(up, Math.atan2(car.dx, car.dz));
+        p.set(car.x, 0, car.z);
         m.compose(p, q, s);
         this.mBus.setMatrixAt(car.busIdx, m);
         this.mBusWheels.setMatrixAt(car.busIdx, m);
         return;
       }
-      if (car.hidden) {
+      if (car.hidden || car.x === undefined) {
         for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) mesh.setMatrixAt(k, zero);
         return;
       }
-      const lane = car.lane;
-      const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-      q.setFromAxisAngle(up, yaw);
-      if (lane.axis === 'z') p.set(lane.fixed, 0, car.s);
-      else p.set(car.s, 0, lane.fixed);
+      q.setFromAxisAngle(up, Math.atan2(car.dx, car.dz));
+      p.set(car.x, 0, car.z);
       m.compose(p, q, s);
       for (const mesh of [this.mBody, this.mCabin, this.mWheels, this.mHead, this.mTail, this.mBeam]) mesh.setMatrixAt(k, m);
       this.mSign.setMatrixAt(k, car.kind === 'car' ? zero : m);
@@ -362,8 +390,8 @@ export class Traffic {
   }
 
   panFor(camera, lane, car) {
-    const x = lane.axis === 'z' ? lane.fixed : car.s;
-    const z = lane.axis === 'z' ? car.s : lane.fixed;
+    const x = car.x ?? 0;
+    const z = car.z ?? 0;
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
     const to = new THREE.Vector3(x - camera.position.x, 0, z - camera.position.z).normalize();
     return Math.max(-1, Math.min(1, right.dot(to)));
