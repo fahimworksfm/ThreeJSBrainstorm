@@ -65,7 +65,9 @@ const WetRoadShader = {
 
       vec3 viewDir = normalize(cameraPosition - vWorld);
       float fresnel = pow(1.0 - clamp(viewDir.y, 0.0, 1.0), 3.0);
-      float amount = mix(0.18, 0.9, puddle) * mix(0.35, 1.0, fresnel) * mix(0.25, 1.0, wetness);
+      float amount = mix(0.12, 0.75, puddle) * mix(0.3, 1.0, fresnel) * mix(0.25, 1.0, wetness);
+      // the sky is dim in a puddle; lamps and neon stay bright
+      refl *= smoothstep(0.0, 1.2, max(refl.r, max(refl.g, refl.b)));
       vec3 asphalt = color * (0.55 + 0.9 * grain) * (1.0 - puddle * 0.5);
       gl_FragColor = vec4(asphalt + refl * amount, 1.0);
       #include <tonemapping_fragment>
