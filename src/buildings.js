@@ -234,6 +234,9 @@ function ringIsCCW(pts) {
   return a < 0;
 }
 
+// washing on the line: whites, faded denim, bright shirts
+const LAUNDRY = ['#f4f1e8', '#f4f1e8', '#e8e0cc', '#5a7fb0', '#3d5a8a', '#d8453a', '#f2c230', '#7fbf9a', '#e89ab0', '#ffffff'];
+
 function paint(g, tint) {
   const n = g.attributes.position.count;
   const col = new Float32Array(n * 3);
@@ -424,6 +427,7 @@ export function buildBuildings(layout, shared) {
   const porchBulbs = [];
   const porchPools = [];
   const tint = new THREE.Color();
+  const windTime = { value: 0 };
 
   for (const lot of layout.lots) {
     if (lot.poly) {
@@ -615,6 +619,9 @@ export function buildBuildings(layout, shared) {
 
   // ---- fire escapes on the walk-ups
   const fireEscapes = [];
+  const laundryGeos = [];
+  const potGeos = [];
+  const plantGeos = [];
   for (const f of layout.faces) {
     const lot = f.lot;
     if (lot.outer || !['apt', 'corner', 'mixed'].includes(lot.kind)) continue;
@@ -639,6 +646,29 @@ export function buildBuildings(layout, shared) {
         const end = new THREE.PlaneGeometry(1.15, 0.95).rotateY(Math.PI / 2);
         railGeos.push(place(end.translate(off + (sx * fw) / 2, y + 0.5, 0.6), f.x, 0, f.z, ang));
       }
+      // laundry drying over the rail, and a few potted plants
+      if (chance(D.laundry ?? 0.3)) {
+        for (let n = 0, u = -fw / 2 + 0.3; n < 4 && u < fw / 2 - 0.5; n++) {
+          const cw = range(0.4, 0.9);
+          const ch = range(0.35, 0.8);
+          if (chance(0.7)) {
+            const cloth = new THREE.PlaneGeometry(cw, ch, 1, 2);
+            const flap = new Float32Array(cloth.attributes.position.count);
+            for (let i = 0; i < flap.length; i++) flap[i] = 0.5 - cloth.attributes.position.getY(i) / ch;
+            cloth.setAttribute('aFlap', new THREE.BufferAttribute(flap, 1));
+            paint(cloth, tint.set(pick(LAUNDRY)));
+            laundryGeos.push(place(cloth.translate(off + u + cw / 2, y + 0.97 - ch / 2, 1.21), f.x, 0, f.z, ang));
+          }
+          u += cw + range(0.05, 0.3);
+        }
+      }
+      if (chance(0.2)) {
+        const pot = new THREE.CylinderGeometry(0.16, 0.12, 0.26, 8).translate(off + range(-fw / 3, fw / 3), y + 0.17, 0.95);
+        potGeos.push(place(pot, f.x, 0, f.z, ang));
+        const bush = new THREE.IcosahedronGeometry(0.28, 0).scale(1, 0.8, 1);
+        const c = pot.boundingBox ?? (pot.computeBoundingBox(), pot.boundingBox);
+        plantGeos.push(bush.translate((c.min.x + c.max.x) / 2, c.max.y + 0.15, (c.min.z + c.max.z) / 2));
+      }
       if (k < floorsUp - 1) {
         // zig-zag stair up to the next landing
         const run = fw * 0.6;
@@ -651,6 +681,26 @@ export function buildBuildings(layout, shared) {
     for (const g of pieces) ironGeos.push(place(g, f.x, 0, f.z, ang));
   }
   addMerged(ironGeos, new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.6 }));
+  addMerged(potGeos, new THREE.MeshStandardMaterial({ color: 0xa4553a, roughness: 0.9 }));
+  addMerged(plantGeos, new THREE.MeshStandardMaterial({ color: 0x3f7a3a, roughness: 0.9, flatShading: true }));
+  const laundryMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
+  laundryMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = windTime;
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute float aFlap;\nuniform float uTime;\nvoid main() {')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          // hems swing in the breeze
+          float w = sin(uTime * 2.3 + position.x * 1.3 + position.y * 0.4) + 0.4 * sin(uTime * 4.1 + position.z);
+          transformed.x += aFlap * w * 0.07;
+          transformed.z += aFlap * w * 0.05;
+        }`,
+      );
+  };
+  laundryMat.customProgramCacheKey = () => 'laundry';
+  addMerged(laundryGeos, laundryMat);
   const ads = makeAdAtlas();
   const adMat = new THREE.MeshStandardMaterial({ map: ads, emissiveMap: ads, emissive: 0xffffff, emissiveIntensity: 0.3, roughness: 0.7, side: THREE.DoubleSide });
   adMat.userData.billboard = true;
@@ -698,7 +748,6 @@ export function buildBuildings(layout, shared) {
   const awningGeos = [];
   const fruitGeos = [];
   const litterGeos = [];
-  const windTime = { value: 0 };
   const propColliders = [];
   const boards = makeSignAtlas(D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE']);
   for (const f of layout.faces) {

@@ -22,6 +22,7 @@ export default {
   signalEW: [5],
   signalNS: [5],
   edges: { north: 'city', west: 'city' },
+  laundry: 0.55, // washing on the fire escapes
   residential: () => 'row',
   condoChance: () => 0.02,
   condoFloors: [6, 10],

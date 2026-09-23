@@ -28,6 +28,7 @@ export default {
   parkName: 'Astoria Park',
   riverName: 'East River Promenade',
   edges: { north: 'park', west: 'river' },
+  laundry: 0.55, // washing on the fire escapes
   residential: () => 'row',
   condoChance: () => 0.05,
   condoFloors: [7, 11],
