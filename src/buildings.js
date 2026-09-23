@@ -698,6 +698,7 @@ export function buildBuildings(layout, shared) {
   const awningGeos = [];
   const fruitGeos = [];
   const litterGeos = [];
+  const windTime = { value: 0 };
   const propColliders = [];
   const boards = makeSignAtlas(D.shops ?? ['DELI', 'PIZZA', 'BAKERY', 'COFFEE']);
   for (const f of layout.faces) {
@@ -720,7 +721,12 @@ export function buildBuildings(layout, shared) {
       for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / boards.count);
       boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
       if (chance(0.65)) {
-        const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7);
+        const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7, Math.max(1, Math.round(bw / 2)), 2);
+        // how free each vertex is to flap: pinned at the wall, loose at the hem
+        const ay = aw.attributes.position;
+        const flap = new Float32Array(ay.count);
+        for (let i = 0; i < ay.count; i++) flap[i] = 0.5 - ay.getY(i) / 1.7;
+        aw.setAttribute('aFlap', new THREE.BufferAttribute(flap, 1));
         aw.rotateX(-1.05); // slopes down and out from the wall
         const stripe = Math.floor(rand() * 6);
         const auv = aw.attributes.uv;
@@ -781,7 +787,24 @@ export function buildBuildings(layout, shared) {
   addMerged(shopGeos, shopMat);
   const boardMat = new THREE.MeshStandardMaterial({ map: boards.tex, roughness: 0.8, emissive: 0xffffff, emissiveMap: boards.tex, emissiveIntensity: 0.12 });
   addMerged(boardGeos, boardMat);
-  addMerged(awningGeos, new THREE.MeshStandardMaterial({ map: makeAwningTexture(), roughness: 0.9, side: THREE.DoubleSide }));
+  const awningMat = new THREE.MeshStandardMaterial({ map: makeAwningTexture(), roughness: 0.9, side: THREE.DoubleSide });
+  awningMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = windTime;
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute float aFlap;\nuniform float uTime;\nvoid main() {')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          // canvas ripples in the breeze, gusting now and then
+          float gust = 0.6 + 0.4 * sin(uTime * 0.37 + position.x * 0.01);
+          float w = sin(uTime * 3.1 + position.x * 0.8 + position.z * 0.6) + 0.5 * sin(uTime * 5.3 + position.x * 1.7);
+          transformed.y += aFlap * aFlap * w * 0.07 * gust;
+        }`,
+      );
+  };
+  awningMat.customProgramCacheKey = () => 'awning';
+  addMerged(awningGeos, awningMat);
   addMerged(fruitGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: true }));
   addMerged(litterGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
 
@@ -821,6 +844,7 @@ export function buildBuildings(layout, shared) {
   }
 
   function update(t, dt) {
+    windTime.value = t;
     for (const n of neonMats) {
       if (!n.flicker) continue;
       n.timer -= dt;

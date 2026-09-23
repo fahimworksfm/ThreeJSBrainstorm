@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { wetGround } from './fx.js';
-import { steamStack, stackMaterial } from './streetprops.js';
+import { steamStack, stackMaterial, payphone, payphoneMaterial } from './streetprops.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB, D } from './config.js';
 import { LightKit } from './lightkit.js';
@@ -304,6 +304,7 @@ export function buildStreets(layout, shared) {
   const shelter = [];
   const shelterGlass = [];
   const grates = [];
+  const phones = [];
   const tint = (g, hex) => {
     const n = g.attributes.position.count;
     const c = new THREE.Color(hex);
@@ -333,6 +334,13 @@ export function buildStreets(layout, shared) {
   for (let i = 0; i < NX; i++) {
     for (let j = 0; j < NZ; j++) {
       if (!(COMMERCIAL_NS.has(i) || COMMERCIAL_EW.has(j))) continue;
+      // a payphone across the street from them, facing the shops
+      if (chance(0.45)) {
+        const px = colX(i) + NS_W / 2 + 0.9;
+        const pz = rowZ(j) - EW_W / 2 - range(4, 9);
+        phones.push(...payphone(px, pz, Math.PI / 2, CURB));
+        colliders.push({ x0: px - 0.35, x1: px + 0.35, z0: pz - 0.35, z1: pz + 0.35 });
+      }
       // newspaper boxes in a row near the corner
       if (chance(0.6)) {
         const x = colX(i) - NS_W / 2 - 0.9;
@@ -367,6 +375,7 @@ export function buildStreets(layout, shared) {
   }
   add(bags, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: true }));
   add(boxes, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+  add(phones, payphoneMaterial());
   add(shelter, new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: 0.6 }));
   add(shelterGlass, new THREE.MeshStandardMaterial({ color: 0x9fc3de, transparent: true, opacity: 0.28, roughness: 0.2, side: THREE.DoubleSide }));
   const grateCanvas = document.createElement('canvas');

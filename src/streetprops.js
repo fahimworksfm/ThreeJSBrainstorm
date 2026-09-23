@@ -124,3 +124,54 @@ export function litter(x, z, nx, nz, reach, across, rnd, y0, count = 5) {
   }
   return geos;
 }
+
+const remapV = (g, v0, v1) => {
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, v0 + uv.getY(i) * (v1 - v0));
+  return g;
+};
+
+/**
+ * A 70s sidewalk payphone: a steel post, a phone box with a keypad, and a blue TELEPHONE
+ * sign box on top. (x, z) is its spot on the sidewalk, `ang` the way the phone faces.
+ */
+export function payphone(x, z, ang, y0) {
+  const geos = [];
+  const put = (g) => geos.push(g.rotateY(ang).translate(x, y0, z));
+  const post = remapV(new THREE.BoxGeometry(0.12, 2.1, 0.12), 0.02, 0.04).translate(0, 1.05, 0);
+  put(post);
+  put(remapV(new THREE.BoxGeometry(0.46, 0.6, 0.28), 0, 0.5).translate(0, 1.35, 0.16));
+  put(remapV(new THREE.BoxGeometry(0.64, 0.05, 0.4), 0.02, 0.04).translate(0, 1.68, 0.16)); // hood
+  put(remapV(new THREE.BoxGeometry(0.62, 0.3, 0.3), 0.5, 1).translate(0, 2.25, 0.02));
+  return geos;
+}
+
+let phoneTex = null;
+/** Shared payphone material: the top half of the texture is the sign, the bottom the keypad face. */
+export function payphoneMaterial() {
+  if (!phoneTex) {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = '#1d4f9e';
+    x.fillRect(0, 0, 128, 64);
+    x.fillStyle = '#f4f1e8';
+    x.fillRect(0, 26, 128, 14);
+    x.fillStyle = '#1d4f9e';
+    x.font = 'bold 13px Arial, sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText('TELEPHONE', 64, 34);
+    x.fillStyle = '#a9adb2';
+    x.fillRect(0, 64, 128, 64);
+    x.fillStyle = '#2a2c30';
+    x.fillRect(22, 70, 22, 50); // handset
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 3; k++) x.fillRect(64 + k * 14, 76 + r * 11, 9, 7);
+    phoneTex = new THREE.CanvasTexture(c);
+    phoneTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const mat = new THREE.MeshStandardMaterial({ map: phoneTex, roughness: 0.5, metalness: 0.3 });
+  mat.name = 'payphone';
+  return mat;
+}

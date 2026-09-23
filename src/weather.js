@@ -234,6 +234,12 @@ export class Weather {
       this.rings.instanceColor.needsUpdate = true;
     }
 
+    // one breeze for all the steam, swinging around and gusting
+    this.windT = (this.windT ?? 0) + dt;
+    const gust = 0.5 + 0.5 * Math.sin(this.windT * 0.23) * Math.sin(this.windT * 0.61 + 1);
+    const windA = 0.6 + Math.sin(this.windT * 0.05) * 0.8;
+    const wx = Math.cos(windA) * (0.4 + gust * 1.6);
+    const wz = Math.sin(windA) * (0.4 + gust * 1.6);
     for (let e = 0; e < this.emitters.length; e++) {
       const em = this.emitters[e];
       const near = Math.hypot(em.x - cx, em.z - cz) < 140;
@@ -254,6 +260,9 @@ export class Weather {
         this.sp[k3 + 1] += this.sv[k3 + 1] * dt;
         this.sp[k3 + 2] += this.sv[k3 + 2] * dt;
         const t = this.sAge[k] / this.sLife[k];
+        // the higher a puff rises, the more the breeze carries it
+        this.sp[k3] += wx * t * dt;
+        this.sp[k3 + 2] += wz * t * dt;
         this.sSize[k] = 0.5 + t * 4;
         this.sAlpha[k] = Math.pow(Math.sin(Math.PI * t), 1.3) * 0.2 * em.strength;
       }

@@ -5,7 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB } from '../config.js';
 import { signalState } from '../signals.js';
 import { hash01 } from './geo.js';
-import { steamStack, stackMaterial } from '../streetprops.js';
+import { steamStack, stackMaterial, payphone, payphoneMaterial } from '../streetprops.js';
 
 const LAMP_ON = {
   R: new THREE.Color(5, 0.25, 0.15),
@@ -56,6 +56,7 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
   const manholes = [];
   const steam = [];
   const stacks = [];
+  const phones = [];
   const colliders = [];
   const blades = [];
   const names = [];
@@ -162,6 +163,14 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
       const c = corner(j.p, -1, -1, 1.2);
       if (c) baskets.push(new THREE.CylinderGeometry(0.32, 0.26, 0.9, 10, 1, true).translate(c[0], CURB + 0.45, c[1]));
     }
+    // a payphone on some busy corners
+    if (busy(x, z) && hash01(j.id, 12) < 0.4) {
+      const c = corner(j.p, 1, -1, 1.4 + hash01(j.id, 13) * 3);
+      if (c) {
+        phones.push(...payphone(c[0], c[1], Math.atan2(c[0] - x, c[1] - z), CURB));
+        colliders.push({ x0: c[0] - 0.35, x1: c[0] + 0.35, z0: c[1] - 0.35, z1: c[1] + 0.35 });
+      }
+    }
     // now and then a striped Con Ed stack in the road, steaming away
     if (hash01(j.id, 11) < 0.07 && isRoad(x - 4, z + 3)) {
       const st = steamStack(x - 4, z + 3);
@@ -205,6 +214,7 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
   add(hydrants, new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }));
   add(baskets, new THREE.MeshStandardMaterial({ color: 0x2f5a3a, roughness: 0.7, side: THREE.DoubleSide }));
   if (stacks.length) add(stacks, stackMaterial());
+  add(phones, payphoneMaterial());
   add(manholes, new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.4, metalness: 0.8 }));
   if (blades.length) {
     const atlas = signAtlas(names);
