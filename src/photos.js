@@ -9,6 +9,7 @@ const KINDS = {
   pigeons: { label: 'a flock of pigeons', range: 25 },
   hydrant: { label: 'an open fire hydrant', range: 35 },
   steam: { label: 'steam rising from the street', range: 45 },
+  film: { label: 'a film shoot on location', range: 60 },
 };
 
 /** Where each kind of subject is in this world right now: [x, y, z] lists. */
@@ -21,6 +22,7 @@ function gather(W) {
     pigeons: W.pigeons.flocks.filter((f) => f.state !== 'gone').map((f) => [f.birds[0].x, f.birds[0].y + 0.2, f.birds[0].z]),
     hydrant: W.spray.hydrants.map((h) => [h.x + h.dx * 2, 0.8, h.z + h.dz * 2]),
     steam: (W.weather.emitters ?? []).filter((e) => e.strength > 0.5).map((e) => [e.x, e.y + 1.2, e.z]),
+    film: (W.city?.crews ?? []).map((c) => [c.x, 3, c.z]),
   };
 }
 

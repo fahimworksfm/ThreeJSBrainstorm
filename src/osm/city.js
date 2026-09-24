@@ -14,6 +14,7 @@ import {
 } from './geo.js';
 import { buildViaduct } from './viaduct.js';
 import { buildCorners } from './props.js';
+import { buildNycExtras } from './nycextras.js';
 
 const SIDING_TINTS = ['#d3dfea', '#ece4cf', '#d6e8d4', '#efd6d2', '#dedede', '#efe7c2', '#e0d4ea'];
 const BRICK_TINTS = ['#ffffff', '#f0d0c0', '#d8b8a8', '#ffe0cc', '#c8a898'];
@@ -185,6 +186,11 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   const center = data.center ?? def.ll;
   const nyc = data.nyc ?? null; // NYC Open Data for this neighborhood, when the site ships it
   const M = parseOSM(data, center);
+  // the MTA's own list of subway entrances, when the site ships it
+  if (nyc?.entrances?.length) {
+    const title = (n) => n.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+    M.entrances = nyc.entrances.map(([lon, lat, name]) => ({ p: M.proj.toWorld(lat, lon), name: title(name) }));
+  }
   // NYC Open Data, projected into the same world space
   let nycBuildings = null;
   if (nyc?.buildings?.length) {
@@ -1002,13 +1008,22 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     }
   }
 
+  // ---------- NYC Open Data on the street: bike lanes, and film crews on permitted blocks
+  let crews = [];
+  if (nyc) {
+    const extras = buildNycExtras({ nyc, proj: M.proj, chains, isRoad, inBox, curb: CURB });
+    group.add(extras.group);
+    colliders.push(...extras.colliders);
+    crews = extras.crews;
+  }
+
   // ---------- Manhattan on the horizon, in its real direction
   const midtown = M.proj.toWorld(40.754, -73.984);
   const toMid = Math.hypot(midtown[0], midtown[1]);
 
   return {
     M, box, group, mask, groundAt, isRoad, isWater, walkable, spot, inBuilding,
-    lots, faces, signNames, colliders: [...colliders, ...corners.colliders], roofs, corners, lanes, parked, routes, trees, kitLamps,
+    crews, lots, faces, signNames, colliders: [...colliders, ...corners.colliders], roofs, corners, lanes, parked, routes, trees, kitLamps,
     elevated, looseEntrances, mapImage, describe, place, start, midtown: toMid > 1200 ? midtown : null,
     counts: { buildings: lots.length, streets: chains.length, trees: trees.length, lanes: lanes.length, blocks: groundPolys.length },
   };

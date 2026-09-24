@@ -352,6 +352,28 @@ export class CityAudio {
     });
   }
 
+  /** A spray can: a rattle, then the hiss. */
+  spray() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.click(0.25);
+    const s = ctx.createBufferSource();
+    s.buffer = this.white;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 5200;
+    f.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t + 0.25);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.35);
+    g.gain.setValueAtTime(0.22, t + 1.4);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
+    s.connect(f).connect(g).connect(this.master);
+    s.start(t + 0.25, Math.random());
+    s.stop(t + 1.8);
+  }
+
   setRain(on) {
     this.rainOn = on;
     if (this.ctx) this.rainGain.gain.setTargetAtTime(on ? 0.16 : 0, this.ctx.currentTime, 0.8);

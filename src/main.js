@@ -24,6 +24,7 @@ import { nycMinute, liveWeather } from './live.js';
 import { PhotoChallenges } from './photos.js';
 import { Knockables } from './knockables.js';
 import { Radio } from './radio.js';
+import { Graffiti } from './graffiti.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -426,7 +427,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const pigeons = new Pigeons(peds);
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
   const knock = new Knockables(peds, P.grid, audio);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group);
+  const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -436,7 +438,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   scene.add(root);
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -466,6 +468,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   }
   if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
   challenges.setWorld(W);
+  const crew = W.city?.crews?.[0];
+  if (crew) setTimeout(() => hud.toast(`🎬 A film crew is shooting on ${crew.street.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} (real NYC film permit)`), 6000);
   refreshLive(isLive());
   document.body.classList.toggle('realmap', !!W.real); // keeps the OpenStreetMap credit under the map
   hud.setRide(MODES.walk.name, 'walk');
@@ -773,6 +777,10 @@ function goTo(id, arrive) {
   }, 450);
 }
 
+function tagWall() {
+  const r = W.graffiti.spray();
+  if (r) setTimeout(() => hud.toast(r.count === r.total ? `🎨 Every wall in ${W.def.name} tagged!` : `🎨 Wall tagged: ${r.count} / ${r.total} in ${W.def.name}`), 1500);
+}
 function openTravel() {
   if (!hasMetroCard()) {
     hud.toast('🎫 No MetroCard yet: find a memory in this neighborhood to earn one');
@@ -848,6 +856,7 @@ input.addEventListener('button', (e) => {
       break;
     case 'action':
       if (W.nearEntrance) openTravel();
+      else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
       break;
   }
@@ -890,6 +899,7 @@ addEventListener('keydown', (e) => {
     case 'KeyE':
       if (!input.active) break;
       if (W.nearEntrance) openTravel();
+      else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
       break;
     case 'Digit1':
@@ -1381,6 +1391,7 @@ function frame(now) {
   W.spray.update(dt, camera.position, player);
   if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);
   pickInterest(dt);
+  W.graffiti.update(dt, t, player);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl
@@ -1444,6 +1455,10 @@ function frame(now) {
   const climbLabel = fe ? (player.roof ? 'Climb down' : 'Climb') : '';
   input.setAction(near && input.active ? `Take ${W.def.el.ride}` : climbLabel);
   if (fe && !IS_TOUCH && input.active) hud.setPrompt(`Press E to ${player.roof ? 'climb down' : 'climb the fire escape'}`);
+  if (!near && W.graffiti.near && input.active) {
+    input.setAction('Tag');
+    if (!IS_TOUCH) hud.setPrompt('Press E to tag this wall');
+  }
   hud.setSpeed(player.mode === 'walk' ? 0 : player.mph);
   hud.setRide(MODES[player.mode].name, player.mode);
 
