@@ -69,7 +69,7 @@ export class Plaques {
 
   open(it, voices) {
     const text = it.story ? `${it.story}\n\n${it.summary.split(/(?<=\.)\s/)[0]}` : it.summary;
-    this.hud.showMemory(it.title, `${text}  (Wikipedia)`, 16000);
+    this.hud.showMemory(it.title.replace(/\s*\([^)]*\)$/, ''), `${text}  (Wikipedia)`, 16000);
     if (it.voice && voices) {
       this.audio?.pause();
       this.audio = new Audio(`./voices/${it.voice}`);
