@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 const html = readFileSync('dist/index.html', 'utf8');
 const assets = readdirSync('dist/assets');
-const js = readFileSync(`dist/assets/${assets.find((f) => f.endsWith('.js'))}`, 'utf8').replace(/<\/script/gi, '<\\/script');
+const js = readFileSync(`dist/assets/${assets.find((f) => /^index-.*\.js$/.test(f))}`, 'utf8').replace(/<\/script/gi, '<\\/script');
 const css = readFileSync(`dist/assets/${assets.find((f) => f.endsWith('.css'))}`, 'utf8');
 const body = html.match(/<body>([\s\S]*?)<\/body>/)[1];
 const out = `<title>Night Walker NYC</title>

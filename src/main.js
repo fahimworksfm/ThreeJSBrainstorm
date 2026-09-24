@@ -29,6 +29,7 @@ import { Deliveries } from './deliveries.js';
 import { setTerrain, liftAll, heightAt, terrainOn } from './terrain.js';
 import { Plaques } from './plaques.js';
 import { Regulars } from './regulars.js';
+import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -141,6 +142,7 @@ for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.em
 
 const audio = new CityAudio();
 const radio = new Radio(audio);
+let ghosts = null; // created once the HUD exists
 let comicWords = null; // created once the camera exists
 const hud = new HUD();
 const minimap = new Minimap(document.getElementById('minimap'));
@@ -489,6 +491,9 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   }
   if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
   challenges.setWorld(W);
+  ghosts ??= new Ghosts(scene, hud);
+  if (gfx.ghosts) ghosts.join(def.id);
+  else ghosts.leave();
   const crew = W.city?.crews?.[0];
   if (crew) setTimeout(() => hud.toast(`🎬 A film crew is shooting on ${crew.street.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} (real NYC film permit)`), 6000);
   refreshLive(isLive());
@@ -914,6 +919,10 @@ addEventListener('keydown', (e) => {
     if (e.code === 'Enter') captureNext = true;
     return;
   }
+  if (e.code === 'KeyG' && !e.repeat && input.active) {
+    hud.toast(ghosts?.wave() ? `👋 You waved${ghosts.count ? '' : ' (nobody else here right now)'}` : 'Turn on Ghost players in Settings to wave at other walkers');
+    return;
+  }
   if (e.code === 'KeyJ' && !e.repeat && input.active) {
     toggleDelivery();
     return;
@@ -1016,6 +1025,10 @@ function applyGfx() {
   outline.material.uniforms.wobble.value = gfx.boil ? 1.2 : 0;
   outline.material.uniforms.broken.value = gfx.boil ? 0.35 : 0;
   lutPass.enabled = !!shared.lut && gfx.lut !== false;
+  if (ghosts && W) {
+    if (gfx.ghosts && !ghosts.room) ghosts.join(W.def.id);
+    if (!gfx.ghosts && ghosts.room) ghosts.leave();
+  }
   POSE_STEP.value = gfx.twos ? 1 / 12 : 0;
   LOOK.sensitivity = gfx.sensitivity;
   settings.fov = gfx.fov;
@@ -1448,6 +1461,7 @@ function frame(now) {
   W.graffiti.update(dt, t, player);
   W.plaques.update(player, !audio.muted);
   W.regulars.update(dt, t, player);
+  ghosts?.update(dt, player);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);

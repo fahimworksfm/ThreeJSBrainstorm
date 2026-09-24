@@ -9,7 +9,7 @@ export const PRESETS = {
 
 export const DEFAULTS = {
   preset: 'high', ...PRESETS.high,
-  lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, words: true, twos: true, realMap: true, panels: false,
+  lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, ghosts: false, words: true, twos: true, realMap: true, panels: false,
   fov: 58, camera: 'cinematic', sensitivity: 1, volume: 0.8,
 };
 
@@ -23,6 +23,7 @@ const ROWS = [
   { key: 'shafts', label: 'Sun shafts', type: 'toggle' },
   { key: 'cones', label: 'Lamp light cones', type: 'toggle' },
   { key: 'hills', label: 'Real hills (real map)', type: 'toggle' },
+  { key: 'ghosts', label: 'Ghost players online (peer to peer: they can see your IP address)', type: 'toggle' },
   { group: 'Comic style' },
   { key: 'print', label: 'Misprinted color plates', type: 'toggle' },
   { key: 'hatch', label: 'Halftone and hatching', type: 'toggle' },
