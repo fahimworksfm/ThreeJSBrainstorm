@@ -22,6 +22,11 @@ export class OutlinePass extends Pass {
         threshold: { value: new THREE.Vector2(0.04, 0.12) },
         fade: { value: new THREE.Vector2(220, 700) },
         color: { value: new THREE.Color(0.06, 0.04, 0.08) },
+        time: { value: 0 },
+        wobble: { value: 1.2 }, // how far the pen wanders, in pixels
+        boil: { value: 12 }, // redraws per second: hand-drawn lines "boil" like animation on twos
+        broken: { value: 0.35 }, // how much the ink skips, like a dry brush on rough paper
+        resolution: { value: new THREE.Vector2(1, 1) },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -34,20 +39,38 @@ export class OutlinePass extends Pass {
         uniform float near, far, width, strength;
         uniform vec2 threshold, fade;
         uniform vec3 color;
+        uniform float time, wobble, boil, broken;
+        uniform vec2 resolution;
         varying vec2 vUv;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+        }
         float inv(vec2 uv) {
           float z = texture2D(tDepth, uv).x;
           return 1.0 / max(-perspectiveDepthToViewZ(z, near, far), 1e-3);
         }
         void main() {
           vec4 base = texture2D(tDiffuse, vUv);
-          float c = inv(vUv);
-          // brush weight: heavy lines up close, fine lines in the distance
-          vec2 o = texel * width * mix(1.7, 1.0, smoothstep(4.0, 30.0, 1.0 / c));
-          float lap = inv(vUv + vec2(o.x, 0.0)) + inv(vUv - vec2(o.x, 0.0))
-                    + inv(vUv + vec2(0.0, o.y)) + inv(vUv - vec2(0.0, o.y)) - 4.0 * c;
+          // the pen: a new hand-drawn pass every 1/boil seconds, wandering a little off the true edge
+          float frame = floor(time * boil);
+          vec2 px = vUv * resolution;
+          vec2 seed = vec2(frame * 17.0, frame * 31.0);
+          vec2 jitter = (vec2(vnoise(px / 45.0 + seed), vnoise(px / 45.0 + seed + 9.1)) - 0.5) * 2.0 * wobble * texel;
+          vec2 uv = vUv + jitter;
+          float c = inv(uv);
+          // brush weight: heavy lines up close, fine lines in the distance, swelling and thinning along the stroke
+          float swell = 0.7 + 0.6 * vnoise(px / 30.0 + seed * 0.5);
+          vec2 o = texel * width * swell * mix(1.7, 1.0, smoothstep(4.0, 30.0, 1.0 / c));
+          float lap = inv(uv + vec2(o.x, 0.0)) + inv(uv - vec2(o.x, 0.0))
+                    + inv(uv + vec2(0.0, o.y)) + inv(uv - vec2(0.0, o.y)) - 4.0 * c;
           float edge = smoothstep(threshold.x, threshold.y, abs(lap) / c);
           edge *= 1.0 - smoothstep(fade.x, fade.y, 1.0 / c);
+          // dry-brush breaks in the ink
+          edge *= 1.0 - broken * smoothstep(0.55, 0.8, vnoise(px / 6.0 + seed * 1.7));
           gl_FragColor = vec4(mix(base.rgb, color, edge * strength), base.a);
         }`,
     });
@@ -61,6 +84,8 @@ export class OutlinePass extends Pass {
     u.near.value = this.camera.near;
     u.far.value = this.camera.far;
     u.texel.value.set(1 / readBuffer.width, 1 / readBuffer.height);
+    u.resolution.value.set(readBuffer.width, readBuffer.height);
+    u.time.value = performance.now() / 1000;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.fsQuad.render(renderer);
   }

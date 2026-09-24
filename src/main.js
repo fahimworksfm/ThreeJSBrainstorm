@@ -13,6 +13,7 @@ import { PRESETS, DEFAULTS, buildSettings } from './settingsui.js';
 import { loadTexturePack } from './texturepack.js';
 import { N8AOPass } from 'n8ao';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { LUTPass } from 'three/addons/postprocessing/LUTPass.js';
 import { INK, lookAt, nightness, START_TIMES } from './look.js';
 
 import { CURB, D, activateDistrict } from './config.js';
@@ -617,6 +618,10 @@ composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const grade = new ShaderPass(GradeShader);
 composer.addPass(grade);
+// the texture pack's color grade (a LUT), applied to the finished picture the way it was graded in a photo editor
+const lutPass = new LUTPass({ intensity: 1 });
+lutPass.enabled = false;
+composer.addPass(lutPass);
 const smaa = new SMAAPass();
 composer.addPass(smaa);
 
@@ -922,6 +927,9 @@ function applyGfx() {
   grade.uniforms.hatch.value = gfx.hatch ? INK.hatch ?? 0 : 0;
   grade.uniforms.shadowDots.value = gfx.hatch ? INK.shadowDots : 0;
   settings.comicWords = gfx.words;
+  outline.material.uniforms.wobble.value = gfx.boil ? 1.2 : 0;
+  outline.material.uniforms.broken.value = gfx.boil ? 0.35 : 0;
+  lutPass.enabled = !!shared.lut && gfx.lut !== false;
   POSE_STEP.value = gfx.twos ? 1 / 12 : 0;
   LOOK.sensitivity = gfx.sensitivity;
   settings.fov = gfx.fov;
@@ -962,6 +970,11 @@ loadTexturePack(shared)
   .then((n) => {
     if (!n) return;
     console.info(`texture pack: ${n} hand-drawn sheets`);
+    if (shared.lut) {
+      lutPass.lut = shared.lut.texture;
+      lutPass.intensity = shared.lut.intensity;
+      lutPass.enabled = gfx.lut !== false;
+    }
     // keep them across neighborhood changes
     for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.emissiveMap);
     for (const t of [shared.storefront?.map, shared.storefront?.emissiveMap, shared.sidewalk, shared.asphalt, shared.roof, ...Object.values(shared.leaves ?? {})]) if (t) sharedTextures.add(t);

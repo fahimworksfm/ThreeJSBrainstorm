@@ -3,6 +3,8 @@
 // anything missing keeps the generated one. See docs/TEXTURES.md.
 import * as THREE from 'three';
 import { TILE_COLS, TILE_ROWS } from './textures.js';
+import { LUTImageLoader } from 'three/addons/loaders/LUTImageLoader.js';
+import { LUTCubeLoader } from 'three/addons/loaders/LUTCubeLoader.js';
 
 const black = (() => {
   const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
@@ -59,6 +61,12 @@ export async function loadTexturePack(shared, base = './textures/') {
         const map = await load(e.file);
         (shared.signs ??= []).push({ name: e.name, image: map.image, aspect: map.image.width / map.image.height });
         map.dispose();
+        n++;
+      } else if (key === 'lut') {
+        // a color grade made in a photo editor: a graded copy of docs/lut-neutral.png, or a .cube file
+        const loader = /\.cube$/i.test(e.file) ? new LUTCubeLoader() : new LUTImageLoader();
+        const lut = await loader.loadAsync(base + e.file);
+        shared.lut = { texture: lut.texture3D, intensity: e.intensity ?? 1 };
         n++;
       } else if (key.startsWith('leaves-')) {
         // a leaf cluster on a transparent background, for the tree crowns' leaf cards

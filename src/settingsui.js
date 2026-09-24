@@ -9,7 +9,7 @@ export const PRESETS = {
 
 export const DEFAULTS = {
   preset: 'high', ...PRESETS.high,
-  lensRain: true, print: true, hatch: true, words: true, twos: true, realMap: true, panels: false,
+  lensRain: true, print: true, hatch: true, boil: true, lut: true, words: true, twos: true, realMap: true, panels: false,
   fov: 58, camera: 'cinematic', sensitivity: 1, volume: 0.8,
 };
 
@@ -25,6 +25,8 @@ const ROWS = [
   { group: 'Comic style' },
   { key: 'print', label: 'Misprinted color plates', type: 'toggle' },
   { key: 'hatch', label: 'Halftone and hatching', type: 'toggle' },
+  { key: 'boil', label: 'Hand-drawn wobbly lines', type: 'toggle' },
+  { key: 'lut', label: 'Color grade (texture pack)', type: 'toggle' },
   { key: 'twos', label: 'Animate on twos', type: 'toggle' },
   { key: 'words', label: 'Sound-effect words', type: 'toggle' },
   { key: 'lensRain', label: 'Rain on the lens', type: 'toggle' },

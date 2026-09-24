@@ -63,3 +63,19 @@ Keep the style words identical across every sheet so they match each other and t
 
 If your tool has a "tile" or "seamless" option, turn it on. Then drop the files in `public/textures/`, deploy,
 and check the browser console for `texture pack: N hand-drawn sheets`.
+
+## Color grade (a LUT)
+
+Grade the whole game like a photo, in any editor that can adjust colors (Photopea is free, Photoshop, Affinity, GIMP):
+
+1. Take a screenshot of the game at the time of day you want to grade (press **P** for photo mode to hide the HUD).
+2. Open it, then paste `docs/lut-neutral.png` (a thin 1024 × 32 strip of every color) into an empty corner **as its own layer, at 100% size, not scaled**.
+3. Make your adjustments as adjustment layers over **everything** (curves, color balance, hue/saturation, selective color, gradient maps...). Only global color changes work: no blur, grain, vignette, or painting.
+4. When the screenshot looks the way you want, hide the screenshot layer, crop to the strip (exactly 1024 × 32) and export it as `grade.png`.
+5. Put it in `public/textures/` and add to `pack.json`:
+   ```json
+   "lut": { "file": "grade.png", "intensity": 1 }
+   ```
+   `intensity` from 0 to 1 blends between no grade and the full grade. A `.cube` file from DaVinci Resolve or Photoshop (File → Export → Color Lookup Tables) works too: `{ "file": "grade.cube" }`.
+
+Settings → Comic style → **Color grade** turns it on and off to compare.
