@@ -21,6 +21,7 @@ import { DISTRICTS, BOROUGHS } from './districts/index.js';
 import { reseed, chance } from './random.js';
 import { Pigeons } from './pigeons.js';
 import { nycMinute, liveWeather } from './live.js';
+import { PhotoChallenges } from './photos.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -460,6 +461,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
   if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
+  challenges.setWorld(W);
   refreshLive(isLive());
   document.body.classList.toggle('realmap', !!W.real); // keeps the OpenStreetMap credit under the map
   hud.setRide(MODES.walk.name, 'walk');
@@ -1102,6 +1104,33 @@ const camEuler = new THREE.Euler();
 // ---------- photo mode ----------
 let photo = null;
 let captureNext = false;
+const challenges = new PhotoChallenges(store);
+const photoList = document.getElementById('photolist');
+function renderPhotoList() {
+  photoList.replaceChildren();
+  const h = document.createElement('h4');
+  h.textContent = challenges.complete ? `${W.def.name}: all shot!` : `Shoot ${W.def.name}`;
+  photoList.append(h);
+  for (const c of challenges.list) {
+    const row = document.createElement('div');
+    const st = document.createElement('span');
+    st.className = 'stars';
+    st.textContent = '★'.repeat(c.stars) + '☆'.repeat(3 - c.stars);
+    const t = document.createElement('span');
+    t.textContent = c.label;
+    if (c.stars === 3) t.className = 'done';
+    row.append(st, t);
+    photoList.append(row);
+  }
+}
+document.getElementById('snap').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (photo) captureNext = true;
+});
+document.getElementById('photoexit').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (photo) togglePhoto();
+});
 function togglePhoto() {
   if (photo) {
     photo = null;
@@ -1114,6 +1143,7 @@ function togglePhoto() {
     target: new THREE.Vector3(player.pos.x, player.ground + 1.3, player.pos.z),
   };
   document.body.classList.add('photo');
+  renderPhotoList();
 }
 addEventListener('wheel', (e) => {
   if (photo) photo.dist = THREE.MathUtils.clamp(photo.dist * (e.deltaY > 0 ? 1.1 : 0.9), 1.2, 40);
@@ -1135,9 +1165,38 @@ function photoFrame(dt) {
   );
   camera.lookAt(photo.target);
 }
-/** Save the frame that was just drawn as a PNG. */
+/** Save the frame that was just drawn as a comic panel: a white border, an ink frame, a caption box. */
 function savePhoto() {
-  renderer.domElement.toBlob((blob) => {
+  // the challenges look at exactly what this frame shows
+  const got = challenges.shoot(camera);
+  if (got.length) {
+    const best = got.map((c) => `${c.label} ${'★'.repeat(c.stars)}`).join(' · ');
+    hud.toast(challenges.complete ? `Photo set complete! ${best}` : `Got it: ${best}`);
+    renderPhotoList();
+  }
+  const src = renderer.domElement;
+  const pad = Math.round(src.width * 0.025);
+  const panel = document.createElement('canvas');
+  panel.width = src.width + pad * 2;
+  panel.height = src.height + pad * 2;
+  const ctx = panel.getContext('2d');
+  ctx.fillStyle = '#f7f1df';
+  ctx.fillRect(0, 0, panel.width, panel.height);
+  ctx.drawImage(src, pad, pad);
+  ctx.lineWidth = Math.max(4, pad * 0.25);
+  ctx.strokeStyle = '#111';
+  ctx.strokeRect(pad, pad, src.width, src.height);
+  const caption = `${W.def.name}, ${W.def.borough} · ${document.getElementById('clock')?.textContent ?? ''}`.toUpperCase();
+  const fs = Math.round(src.height * 0.032);
+  ctx.font = `600 ${fs}px Oswald, "Arial Narrow", sans-serif`;
+  const cw = ctx.measureText(caption).width + fs;
+  ctx.fillStyle = '#f5c518';
+  ctx.fillRect(pad * 1.6, pad * 1.6, cw, fs * 1.6);
+  ctx.strokeRect(pad * 1.6, pad * 1.6, cw, fs * 1.6);
+  ctx.fillStyle = '#111';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(caption, pad * 1.6 + fs / 2, pad * 1.6 + fs * 0.82);
+  panel.toBlob((blob) => {
     if (!blob) return;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1369,4 +1428,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, get world() { return W; }, loadDistrict, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };

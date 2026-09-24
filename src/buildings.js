@@ -521,6 +521,7 @@ function polygonLot(lot, tint, byStyle, roofGeos, woodGeos, ironGeos, shingleGeo
       const leg = 2 + hashf(lot.id, 5) * 1.2;
       woodGeos.push(place(new THREE.CylinderGeometry(tr, tr * 1.04, 3.2, 14), tx, top + leg + 1.6, tz));
       woodGeos.push(place(new THREE.ConeGeometry(tr * 1.12, 1.3, 14), tx, top + leg + 3.85, tz));
+      subjects.waterTower.push([tx, top + leg + 1.6, tz]);
       for (let k = 0; k < 3; k++) {
         ironGeos.push(place(new THREE.TorusGeometry(tr * 1.05, 0.05, 4, 20).rotateX(Math.PI / 2), tx, top + leg + 0.5 + k * 1.1, tz));
       }
@@ -558,7 +559,11 @@ function hashf(n, salt) {
   return (h >>> 0) / 4294967296;
 }
 
+/** Things worth a photo, collected while building (photo challenges): [x, y, z] each. */
+let subjects = null;
+
 export function buildBuildings(layout, shared) {
+  subjects = { waterTower: [], sign: [], laundry: [] };
   const group = new THREE.Group();
   const byStyle = {};
   const roofGeos = [];
@@ -619,6 +624,7 @@ export function buildBuildings(layout, shared) {
       const leg = range(2, 3.2);
       woodGeos.push(place(new THREE.CylinderGeometry(tr, tr * 1.04, 3.2, 14), tx, top + leg + 1.6, tz));
       woodGeos.push(place(new THREE.ConeGeometry(tr * 1.12, 1.3, 14), tx, top + leg + 3.85, tz));
+      subjects.waterTower.push([tx, top + leg + 1.6, tz]);
       for (let k = 0; k < 3; k++) {
         const hoop = new THREE.TorusGeometry(tr * 1.05, 0.05, 4, 20).rotateX(Math.PI / 2);
         ironGeos.push(place(hoop, tx, top + leg + 0.5 + k * 1.1, tz));
@@ -807,6 +813,7 @@ export function buildBuildings(layout, shared) {
             cloth.setAttribute('aFlap', new THREE.BufferAttribute(flap, 1));
             paint(cloth, tint.set(pick(LAUNDRY)));
             laundryGeos.push(place(cloth.translate(off + u + cw / 2, y + 0.97 - ch / 2, 1.21), f.x, 0, f.z, ang));
+            if (n === 0) subjects.laundry.push([tx + f.nx * 1.2, y + 0.7, tz + f.nz * 1.2]);
           }
           u += cw + range(0.05, 0.3);
         }
@@ -987,6 +994,7 @@ export function buildBuildings(layout, shared) {
         const uv = board.attributes.uv;
         for (let i = 0; i < uv.count; i++) uv.setXY(i, ...boards.uv(slot, uv.getX(i), uv.getY(i)));
         boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
+        subjects.sign.push([tx, CURB + 5.05, tz]);
       }
       if (chance(0.65)) {
         const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7, Math.max(1, Math.round(bw / 2)), 2);
@@ -1150,5 +1158,5 @@ export function buildBuildings(layout, shared) {
     }
   }
 
-  return { group, update, fireEscapes, colliders: propColliders, realSigns: usedPois.size, realBoards, paintedBoards };
+  return { group, update, fireEscapes, colliders: propColliders, realSigns: usedPois.size, realBoards, paintedBoards, subjects };
 }
