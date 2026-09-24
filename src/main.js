@@ -26,6 +26,7 @@ import { Knockables } from './knockables.js';
 import { Radio } from './radio.js';
 import { Graffiti } from './graffiti.js';
 import { Deliveries } from './deliveries.js';
+import { setTerrain, liftAll, heightAt, terrainOn } from './terrain.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -438,6 +439,13 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     o.receiveShadow = !o.material.isMeshBasicMaterial;
   });
   scene.add(root);
+  // real hills (NYC elevation): everything is drawn lifted by the ground under it
+  const hills = gfx.hills !== false && P.city ? setTerrain(data?.nyc?.elevation, P.city.M.proj, P.city.box.x1) : setTerrain(null);
+  if (hills) {
+    liftAll(scene);
+    for (const e of weather.emitters ?? []) e.y += heightAt(e.x, e.z); // steam is its own shader
+    console.info(`terrain: ${def.name} ${hills.low.toFixed(1)}-${hills.high.toFixed(1)} m`);
+  }
 
   W = {
     def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, clouds, buildings: P.buildings,
@@ -1182,6 +1190,8 @@ radioBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   radioBtn.querySelector('.pname').textContent = `📻 ${radio.next()}`;
 });
+let liftTimer = 0;
+
 // ---------- photo mode ----------
 let photo = null;
 let captureNext = false;
@@ -1244,7 +1254,9 @@ function photoFrame(dt) {
     Math.max(0.3, photo.target.y - Math.sin(photo.pitch) * photo.dist),
     photo.target.z + Math.cos(photo.yaw) * cp * photo.dist,
   );
-  camera.lookAt(photo.target);
+  const ht = heightAt(photo.target.x, photo.target.z);
+  camera.position.y += ht;
+  camera.lookAt(photo.target.x, photo.target.y + ht, photo.target.z);
 }
 /** Save the frame that was just drawn as a comic panel: a white border, an ink frame, a caption box. */
 function savePhoto() {
@@ -1400,6 +1412,17 @@ function frame(now) {
     }
   }
   player.update(dt);
+  if (terrainOn()) {
+    // the world is drawn on the hills; the camera rides up with the hero, and never under the ground
+    camera.position.y += heightAt(player.pos.x, player.pos.z);
+    const under = heightAt(camera.position.x, camera.position.z) + 0.5;
+    if (camera.position.y < under) camera.position.y = under;
+    liftTimer -= dt;
+    if (liftTimer <= 0) {
+      liftTimer = 1;
+      liftAll(scene); // things made since (a new graffiti piece, a delivery beam)
+    }
+  }
   W.buildings.update(t, dt);
   W.streets.update(t);
   W.elevated.update(dt);
@@ -1420,7 +1443,7 @@ function frame(now) {
     camera.getWorldDirection(shadowFwd);
     shadowFwd.y = 0;
     shadowFwd.normalize();
-    shadowCenter.set(player.pos.x, 0, player.pos.z).addScaledVector(shadowFwd, SHADOW_HALF * 0.55);
+    shadowCenter.set(player.pos.x, heightAt(player.pos.x, player.pos.z), player.pos.z).addScaledVector(shadowFwd, SHADOW_HALF * 0.55);
     shadowRight.crossVectors(UP, sunDir).normalize();
     shadowUp.crossVectors(sunDir, shadowRight).normalize();
     const texel = (SHADOW_HALF * 2) / SHADOW_RES;

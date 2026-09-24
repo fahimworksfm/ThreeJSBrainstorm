@@ -5,6 +5,7 @@ export function makeProjection(lat0, lon0) {
   const kx = Math.cos((lat0 * Math.PI) / 180) * 111320;
   const kz = 110540;
   const proj = {
+    center: [lat0, lon0],
     angle: 0,
     cos: 1,
     sin: 0,

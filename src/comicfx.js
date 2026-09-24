@@ -1,6 +1,7 @@
 // Comic sound effects that pop up in the world: HONK! RUMBLE SPLASH! SKRRT!
 // Anything can call COMIC.pop(word, x, y, z); main.js wires it to the screen.
 import * as THREE from 'three';
+import { heightAt } from './terrain.js';
 
 export const COMIC = { pop() {} };
 
@@ -60,7 +61,9 @@ export class ComicWords {
         it.el.remove();
         return false;
       }
-      const v = this.v.copy(it.pos).project(this.camera);
+      const v = this.v.copy(it.pos);
+      v.y += heightAt(v.x, v.z);
+      v.project(this.camera);
       const behind = v.z > 1;
       // words drift up a little as they fade
       const x = (v.x * 0.5 + 0.5) * w;

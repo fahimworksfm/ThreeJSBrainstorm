@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { makeAsphalt } from './textures.js';
+import { terrainOn } from './terrain.js';
 
 /**
  * Wet asphalt: a planar reflection of the whole scene, smeared vertically like
@@ -88,7 +89,8 @@ const WetRoadShader = {
 
 /** sheet: optional hand-drawn asphalt texture (texture pack), mapped in world meters. */
 export function buildRoad(noiseTex, rect, pixelSize, sheet = null) {
-  const geo = new THREE.PlaneGeometry(rect.x1 - rect.x0, rect.z1 - rect.z0);
+  // finely divided so the plain road can bend over real hills (terrain.js)
+  const geo = new THREE.PlaneGeometry(rect.x1 - rect.x0, rect.z1 - rect.z0, 160, 160);
   const reflector = new Reflector(geo, {
     shader: WetRoadShader,
     color: 0x0c0d11,
@@ -127,6 +129,8 @@ export function buildRoad(noiseTex, rect, pixelSize, sheet = null) {
     reflector,
     plain,
     setReflections(on) {
+      // a mirror needs a flat street: on hills the plain road takes over
+      on = on && !terrainOn();
       reflector.visible = on;
       plain.visible = !on;
     },

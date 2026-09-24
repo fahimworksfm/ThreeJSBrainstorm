@@ -1,6 +1,7 @@
 // Photo challenges: each neighborhood asks for three shots of things that are really there.
 // A shot counts when the subject is in frame, near enough, and not behind a building.
 import * as THREE from 'three';
+import { heightAt } from './terrain.js';
 
 const KINDS = {
   waterTower: { label: 'a rooftop water tower', range: 90 },
@@ -58,7 +59,8 @@ export class PhotoChallenges {
     const got = [];
     for (const c of this.list) {
       let best = 0;
-      for (const p of have[c.kind]) {
+      for (const q of have[c.kind]) {
+        const p = [q[0], q[1] + heightAt(q[0], q[2]), q[2]]; // drawn on the hills
         const d = camera.position.distanceTo(this.v.set(p[0], p[1], p[2]));
         if (d > KINDS[c.kind].range) continue;
         this.v.project(camera);
