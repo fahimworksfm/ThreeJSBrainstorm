@@ -1,0 +1,48 @@
+# Real landmarks from Wikipedia for each neighborhood, optional AI-written memories (with a free
+# GROQ_API_KEY repository secret), and Kokoro voice recordings of each. Monthly, on change, or by hand.
+name: Stories
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 1 * *'
+  push:
+    paths:
+      - .github/workflows/stories.yml
+      - scripts/fetch-stories.mjs
+      - scripts/voice-stories.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stories
+  cancel-in-progress: false
+
+jobs:
+  stories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Landmarks (and stories, with GROQ_API_KEY)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: node scripts/fetch-stories.mjs public/wiki
+      - name: Voices (Kokoro)
+        run: |
+          npm i --no-save --no-audit --no-fund kokoro-js@1 >/dev/null
+          node scripts/voice-stories.mjs || echo "voices skipped"
+      - name: Commit
+        run: |
+          git config user.name "stories bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p public/wiki public/voices
+          git add public/wiki public/voices
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "Update landmarks, stories and voices"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

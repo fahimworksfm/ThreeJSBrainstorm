@@ -27,6 +27,7 @@ import { Radio } from './radio.js';
 import { Graffiti } from './graffiti.js';
 import { Deliveries } from './deliveries.js';
 import { setTerrain, liftAll, heightAt, terrainOn } from './terrain.js';
+import { Plaques } from './plaques.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -274,6 +275,13 @@ async function fetchRealMap(def, onStatus) {
     } catch {
       /* the map works without it */
     }
+    // real landmarks (Wikipedia), for the historic plaques
+    try {
+      const r = await fetch(`./wiki/${def.id}.json`);
+      if (r.ok && (r.headers.get('content-type') || '').includes('json')) data.wiki = await r.json();
+    } catch {
+      /* no plaques then */
+    }
     osmCache.set(def.id, data);
     return data;
   } catch (e) {
@@ -430,8 +438,9 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
   const knock = new Knockables(peds, P.grid, audio);
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
+  const plaques = new Plaques(data?.wiki, P.city ?? null, store, def.id, hud);
   const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -448,7 +457,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   }
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, plaques, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -1435,6 +1444,7 @@ function frame(now) {
   if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);
   pickInterest(dt);
   W.graffiti.update(dt, t, player);
+  W.plaques.update(player, !audio.muted);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
