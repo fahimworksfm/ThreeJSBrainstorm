@@ -24,16 +24,17 @@ for (const f of readdirSync(wikiDir)) {
     const hash = [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36);
     const file = `${id}-${it.pageid}-${hash}.m4a`;
     if (!existsSync(`${out}/${file}`)) {
+      const wav = '/tmp/voice.wav'; // outside the repo, so a failure never gets committed
       try {
         const audio = await tts.generate(text, { voice });
-        const wav = `${out}/tmp.wav`;
         audio.save(wav);
         execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wav, '-ac', '1', '-c:a', 'aac', '-b:a', '40k', `${out}/${file}`]);
-        unlinkSync(wav);
         made++;
       } catch (e) {
         console.log(`voice: ${id} ${it.title}: ${e.message}`);
         continue;
+      } finally {
+        if (existsSync(wav)) unlinkSync(wav);
       }
     }
     if (it.voice !== file) {

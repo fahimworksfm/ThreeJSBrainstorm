@@ -76,7 +76,7 @@ for (const d of districts) {
     const p = pages.get(h.pageid);
     if (!p?.extract || p.pageprops?.disambiguation !== undefined) continue;
     // lists, neighborhoods-as-a-whole and districts make poor plaques
-    if (/^(List of|Timeline of)|(historic district)$/i.test(h.title)) continue;
+    if (/^(List of|Timeline of)|(historic district)$|, (Queens|Brooklyn|Manhattan|Bronx|Staten Island)$/i.test(h.title)) continue;
     const summary = p.extract.replace(/\s+/g, ' ').trim().slice(0, 420);
     list.push({ title: h.title, lat: h.lat, lon: h.lon, summary, url: `https://en.wikipedia.org/wiki/${encodeURIComponent(h.title.replace(/ /g, '_'))}`, pageid: h.pageid });
     if (list.length >= 12) break;
