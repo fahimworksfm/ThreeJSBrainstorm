@@ -6,6 +6,17 @@ import { JUICE } from './comicfx.js';
 
 const storageKey = (id) => `nightwalker.${id}.collected`;
 
+/** A MetroCard: earned with your first memory anywhere; it opens the trains between neighborhoods. */
+export function hasMetroCard() {
+  try {
+    if (localStorage.getItem('nightwalker.metrocard')) return true;
+    // players from before the card existed already earned it
+    return Object.keys(DISTRICTS).some((id) => loadCollected(id).size > 0);
+  } catch {
+    return true;
+  }
+}
+
 function loadCollected(id) {
   try {
     return new Set(JSON.parse(localStorage.getItem(storageKey(id)) || '[]'));
@@ -123,6 +134,13 @@ export class Memories {
     saveCollected(this.id, this.collected);
     this.audio.chime();
     JUICE.hit(0.3, 0.09);
+    const firstCard = !hasMetroCard();
+    try {
+      localStorage.setItem('nightwalker.metrocard', '1');
+    } catch {
+      /* private mode: the card lasts the session */
+    }
+    if (firstCard) setTimeout(() => this.hud.toast('🎫 MetroCard earned! The trains are open: find a green-globe subway entrance'), 5500);
     const n = this.collected.size;
     this.hud.setCount(n, this.list.length);
     this.hud.setJournal(journalAll());

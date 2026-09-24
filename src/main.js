@@ -41,7 +41,7 @@ import { LightKit, CONES } from './lightkit.js';
 import { buildRoad } from './road.js';
 import { Traffic } from './traffic.js';
 import { Weather } from './weather.js';
-import { Memories } from './memories.js';
+import { Memories, hasMetroCard } from './memories.js';
 import { CityAudio } from './audio.js';
 import { HUD, describeLocation } from './hud.js';
 import { Player, MODES, MODE_ORDER, LOOK } from './player.js';
@@ -774,6 +774,10 @@ function goTo(id, arrive) {
 }
 
 function openTravel() {
+  if (!hasMetroCard()) {
+    hud.toast('🎫 No MetroCard yet: find a memory in this neighborhood to earn one');
+    return;
+  }
   travelOpen = true;
   renderMenus();
   input.pause();
@@ -1435,7 +1439,8 @@ function frame(now) {
   }
   W.nearEscape = fe;
   const stationName = near?.name.replace(/–/g, '-');
-  hud.setPrompt(near && input.active && !IS_TOUCH ? `Press E to take ${W.def.el.ride} from ${stationName}` : '');
+  const card = hasMetroCard();
+  hud.setPrompt(near && input.active && !IS_TOUCH ? (card ? `Press E to take ${W.def.el.ride} from ${stationName}` : 'Find a memory to earn a MetroCard for the trains') : '');
   const climbLabel = fe ? (player.roof ? 'Climb down' : 'Climb') : '';
   input.setAction(near && input.active ? `Take ${W.def.el.ride}` : climbLabel);
   if (fe && !IS_TOUCH && input.active) hud.setPrompt(`Press E to ${player.roof ? 'climb down' : 'climb the fire escape'}`);
