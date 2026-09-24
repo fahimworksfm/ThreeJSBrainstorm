@@ -1066,7 +1066,7 @@ const firstDistrict = params.get('district') || store.get('district', 'astoria')
 fade.querySelector('span').textContent = settings.realMap ? 'Loading real streets…' : '';
 showCard(DISTRICTS[firstDistrict] ?? DISTRICTS.astoria);
 fade.classList.add('show');
-loadTexturePack(shared)
+loadTexturePack(shared, './textures/', { small: LOW })
   .then((n) => {
     if (!n) return;
     console.info(`texture pack: ${n} hand-drawn sheets`);

@@ -20,3 +20,8 @@ writeFileSync(
   `window.__NW_MODELS = { avatar: "${b64('dist/models/readyplayer.me.glb')}", motion: "${b64('dist/models/Soldier.glb')}", michelle: "${b64('dist/models/Michelle.glb')}" };\n`,
 );
 console.log('bytes', out.length, 'script-close occurrences', (js.match(/<\/script/gi) || []).length);
+
+// the claude.ai page has a size cap: it ships only the half-size texture sheets
+const pack = JSON.parse(readFileSync('dist/textures/pack.json', 'utf8'));
+pack._forceHalf = true;
+writeFileSync('dist/artifact-pack.json', JSON.stringify(pack));

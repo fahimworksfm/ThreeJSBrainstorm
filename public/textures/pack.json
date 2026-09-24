@@ -43,6 +43,7 @@
     "meters": 8,
     "mean": 0.057
   },
+  "_half": true,
   "leaves-autumn": {
     "file": "leaves-autumn.png"
   },

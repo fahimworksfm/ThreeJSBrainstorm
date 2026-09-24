@@ -12,7 +12,8 @@ const black = (() => {
   return t;
 })();
 
-export async function loadTexturePack(shared, base = './textures/') {
+/** small: load the half-size copies (phones), when the pack has them. */
+export async function loadTexturePack(shared, base = './textures/', { small = false } = {}) {
   let manifest;
   try {
     const r = await fetch(`${base}pack.json`);
@@ -22,8 +23,9 @@ export async function loadTexturePack(shared, base = './textures/') {
     return 0;
   }
   const loader = new THREE.TextureLoader();
+  const half = manifest._forceHalf || (small && manifest._half);
   const load = async (file, srgb = true) => {
-    const t = await loader.loadAsync(base + file);
+    const t = await loader.loadAsync(base + (half ? file.replace(/(\.\w+)$/, '@half$1') : file));
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
@@ -31,6 +33,7 @@ export async function loadTexturePack(shared, base = './textures/') {
   };
   let n = 0;
   for (const [key, e] of Object.entries(manifest)) {
+    if (key.startsWith('_')) continue;
     try {
       if (key.startsWith('facade-')) {
         const style = key.slice(7);

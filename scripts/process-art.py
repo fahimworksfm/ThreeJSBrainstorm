@@ -28,7 +28,11 @@ def seamless(a, band=12):
 
 
 def save(a, name):
-    Image.fromarray(a.clip(0, 255).astype(np.uint8)).save(OUT + name, quality=88)
+    im = Image.fromarray(a.clip(0, 255).astype(np.uint8))
+    im.save(OUT + name, quality=88)
+    # a half-size copy for phones (texture memory is what runs out first there)
+    stem, ext = name.rsplit('.', 1)
+    im.resize((max(1, im.width // 2), max(1, im.height // 2)), Image.LANCZOS).save(OUT + f'{stem}@half.{ext}', quality=86)
 
 
 def light_cells(glass, cols, rows, seed):
@@ -125,6 +129,7 @@ pack['storefront'] = {'file': 'storefront.jpg', 'mask': 'storefront-mask.png', '
 pack['sidewalk'] = ground('Create_concrete_sidewalk_art_style_2K_20260923164046.jpeg', 'sidewalk', 1024, 6, shift=0.125)
 pack['asphalt'] = ground('Match_dark_grey_city_asphalt_2K_20260923164253.jpeg', 'asphalt', 1024, 9)
 pack['roof'] = ground('Flat_tar-paper_rooftop_texture_2K_20260923164625.jpeg', 'roof', 1024, 8)
+pack['_half'] = True
 json.dump(pack, open(OUT + 'pack.json', 'w'), indent=2)
 print(json.dumps(pack, indent=1))
 
@@ -146,6 +151,7 @@ def leaves(src, out_autumn, out_summer):
     sq[oy:oy + rgba.shape[0], ox:ox + rgba.shape[1]] = rgba
     au = Image.fromarray(sq, 'RGBA').resize((1024, 1024), Image.LANCZOS)
     au.save(OUT + out_autumn, optimize=True)
+    au.resize((512, 512), Image.LANCZOS).save(OUT + out_autumn.replace('.png', '@half.png'), optimize=True)
     hsv = np.asarray(au.convert('RGB').convert('HSV')).astype(np.float32)
     hsv[..., 0] = (0.22 + (hsv[..., 0] / 255 - 0.08) * 0.6).clip(0.16, 0.36) * 255
     hsv[..., 1] *= 0.9
@@ -153,10 +159,12 @@ def leaves(src, out_autumn, out_summer):
     su = Image.fromarray(hsv.clip(0, 255).astype(np.uint8), 'HSV').convert('RGB')
     su.putalpha(au.getchannel('A'))
     su.save(OUT + out_summer, optimize=True)
+    su.resize((512, 512), Image.LANCZOS).save(OUT + out_summer.replace('.png', '@half.png'), optimize=True)
     return {'file': out_autumn}, {'file': out_summer}
 
 
 pack['leaves-autumn'], pack['leaves-summer'] = leaves('Autumn_leaves_cluster_art_matching_2K_20260923171123.jpeg', 'leaves-autumn.png', 'leaves-summer.png')
+pack['_half'] = True
 json.dump(pack, open(OUT + 'pack.json', 'w'), indent=2)
 
 
@@ -165,8 +173,10 @@ def sign(src, key, name):
     im = Image.open(SRC + src).convert('RGB')
     im = im.resize((1024, round(1024 * im.height / im.width)), Image.LANCZOS)
     im.save(OUT + f'{key}.jpg', quality=90)
+    im.resize((512, round(512 * im.height / im.width)), Image.LANCZOS).save(OUT + f'{key}@half.jpg', quality=88)
     return {'file': f'{key}.jpg', 'name': name}
 
 
 pack['sign-himalayan-heights'] = sign('Himalayan_Heights_restaurant_sign_2K_20260923171147.jpeg', 'sign-himalayan-heights', 'HIMALAYAN HEIGHTS RESTAURANT')
+pack['_half'] = True
 json.dump(pack, open(OUT + 'pack.json', 'w'), indent=2)
