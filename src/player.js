@@ -433,7 +433,13 @@ export class Player {
       const v = Math.hypot(this.vel.x, this.vel.z);
       const stepped = animateHero(h, dt, v);
       // look where the camera looks (the camera looks down -z at yaw 0, the model faces +z)
-      const look = Math.atan2(Math.sin(this.yaw + Math.PI - this.facing), Math.cos(this.yaw + Math.PI - this.facing));
+      let look = Math.atan2(Math.sin(this.yaw + Math.PI - this.facing), Math.cos(this.yaw + Math.PI - this.facing));
+      // something worth a glance nearby (a memory, someone passing): he looks at it instead
+      if (this.interest) {
+        const a = Math.atan2(this.interest.x - this.pos.x, this.interest.z - this.pos.z) - this.facing;
+        const rel = Math.atan2(Math.sin(a), Math.cos(a));
+        if (Math.abs(rel) < 1.9) look = rel;
+      }
       if (stepped) heroSecondary(h, stepped, {
         speed: v, turnRate: this.turnRate ?? 0, look, pitch: this.pitch, phase: this.phase, t: performance.now() / 1000,
         air: this.air, vy: this.vy, land: this.land,

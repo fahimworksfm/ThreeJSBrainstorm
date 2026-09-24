@@ -23,6 +23,7 @@ import { Pigeons } from './pigeons.js';
 import { nycMinute, liveWeather } from './live.js';
 import { PhotoChallenges } from './photos.js';
 import { Knockables } from './knockables.js';
+import { Radio } from './radio.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -134,6 +135,7 @@ const sharedTextures = new Set([shared.pool, shared.soft, shared.dot, shared.bea
 for (const f of Object.values(shared.facade)) sharedTextures.add(f.map).add(f.emissiveMap);
 
 const audio = new CityAudio();
+const radio = new Radio(audio);
 let comicWords = null; // created once the camera exists
 const hud = new HUD();
 const minimap = new Minimap(document.getElementById('minimap'));
@@ -868,6 +870,11 @@ addEventListener('keydown', (e) => {
     if (e.code === 'Enter') captureNext = true;
     return;
   }
+  if (e.code === 'KeyN' && !e.repeat && input.active) {
+    hud.toast(`📻 ${radio.next()}`);
+    radioBtn.querySelector('.pname').textContent = `📻 ${radio.station.name}`;
+    return;
+  }
   if (e.code === 'KeyV' && !e.repeat && input.active && !player.roof) {
     rideWheel.show(player.mode);
     return;
@@ -965,6 +972,7 @@ function applyGfx() {
   settings.fov = gfx.fov;
   player.cinematic = gfx.camera !== 'classic';
   audio.setVolume(gfx.volume);
+  radio.setVolume(gfx.volume);
   document.body.classList.toggle('panels', !!gfx.panels);
   resize();
 }
@@ -1103,6 +1111,43 @@ const UP = new THREE.Vector3(0, 1, 0);
 let cullTimer = 0;
 const camEuler = new THREE.Euler();
 
+// ---------- what the hero glances at: an uncollected memory nearby, or someone passing close ----------
+let interestTimer = 0;
+function pickInterest(dt) {
+  interestTimer -= dt;
+  if (interestTimer > 0) return;
+  interestTimer = 0.3;
+  const px = player.pos.x;
+  const pz = player.pos.z;
+  let best = null;
+  let bd = 9;
+  for (const it of W.memories.items) {
+    if (it.done) continue;
+    const d = Math.hypot(it.g.position.x - px, it.g.position.z - pz);
+    if (d < bd) {
+      bd = d;
+      best = { x: it.g.position.x, z: it.g.position.z };
+    }
+  }
+  if (!best) {
+    bd = 4;
+    for (const p of W.peds.peds) {
+      if (!p.last || p.hidden) continue;
+      const d = Math.hypot(p.last.x - px, p.last.z - pz);
+      if (d < bd && d > 0.6) {
+        bd = d;
+        best = { x: p.last.x, z: p.last.z };
+      }
+    }
+  }
+  player.interest = player.mode === 'walk' ? best : null;
+}
+
+const radioBtn = document.getElementById('radiobtn');
+radioBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  radioBtn.querySelector('.pname').textContent = `📻 ${radio.next()}`;
+});
 // ---------- photo mode ----------
 let photo = null;
 let captureNext = false;
@@ -1331,6 +1376,7 @@ function frame(now) {
   W.pigeons.update(t, dt, player);
   W.spray.update(dt, camera.position, player);
   if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);
+  pickInterest(dt);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl
