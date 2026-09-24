@@ -181,7 +181,13 @@ async function films(boro) {
   // shoots from two weeks ago to a month ahead, so there is usually one going on
   const from = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 19);
   const to = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 19);
-  const rows = await all(DATASETS.films, { $where: `startdatetime between '${from}' and '${to}' and borough = '${boro}'` });
+  let rows = await all(DATASETS.films, { $where: `startdatetime between '${from}' and '${to}' and borough = '${boro}'` });
+  // the city publishes permits in batches; if nothing is current, take the borough's latest ones
+  if (!rows?.length) {
+    const q = new URLSearchParams({ $where: `borough = '${boro}'`, $order: 'startdatetime DESC', $limit: '400' });
+    rows = await get(`${HOST}/${DATASETS.films}.json?${q}`);
+    console.log(`  films: nothing current in ${boro}; latest ${rows?.[0]?.startdatetime ?? 'none'}`);
+  }
   // [start, end, category, parking held (street segments)]
   return rows?.map((r) => [r.startdatetime, r.enddatetime, r.subcategoryname ?? r.category ?? '', r.parkingheld ?? '']) ?? null;
 }
