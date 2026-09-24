@@ -25,6 +25,7 @@ import { PhotoChallenges } from './photos.js';
 import { Knockables } from './knockables.js';
 import { Radio } from './radio.js';
 import { Graffiti } from './graffiti.js';
+import { Deliveries } from './deliveries.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -428,7 +429,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
   const knock = new Knockables(peds, P.grid, audio);
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group);
+  const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -438,7 +440,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   scene.add(root);
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -777,6 +779,16 @@ function goTo(id, arrive) {
   }, 450);
 }
 
+function toggleDelivery() {
+  if (W.deliveries.run) {
+    W.deliveries.cancel();
+    hud.toast('Delivery cancelled');
+    return;
+  }
+  const msg = W.deliveries.start(player.pos.x, player.pos.z);
+  hud.toast(msg ?? 'No orders around here right now');
+  if (msg && player.mode === 'walk') setTimeout(() => W.deliveries.run && hud.toast('Tip: grab the bike (2) to get there in time'), 4500);
+}
 function tagWall() {
   const r = W.graffiti.spray();
   if (r) setTimeout(() => hud.toast(r.count === r.total ? `🎨 Every wall in ${W.def.name} tagged!` : `🎨 Wall tagged: ${r.count} / ${r.total} in ${W.def.name}`), 1500);
@@ -881,6 +893,10 @@ addEventListener('keydown', (e) => {
   }
   if (photo) {
     if (e.code === 'Enter') captureNext = true;
+    return;
+  }
+  if (e.code === 'KeyJ' && !e.repeat && input.active) {
+    toggleDelivery();
     return;
   }
   if (e.code === 'KeyN' && !e.repeat && input.active) {
@@ -1157,6 +1173,10 @@ function pickInterest(dt) {
   player.interest = player.mode === 'walk' ? best : null;
 }
 
+document.getElementById('deliverybtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleDelivery();
+});
 const radioBtn = document.getElementById('radiobtn');
 radioBtn.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -1299,7 +1319,7 @@ function updateDial(dt) {
     }
   }
   const hint = document.getElementById('hint');
-  const text = best ? `Nearest: ${best.mem.title} · ${bd < 1000 ? `${Math.round(bd / 10) * 10} m` : `${(bd / 1000).toFixed(1)} km`}` : 'All memories found. Take the train somewhere new.';
+  const text = W.deliveries.hint(player) ?? (best ? `Nearest: ${best.mem.title} · ${bd < 1000 ? `${Math.round(bd / 10) * 10} m` : `${(bd / 1000).toFixed(1)} km`}` : 'All memories found. Take the train somewhere new.');
   if (hint.textContent !== text) hint.textContent = text;
 }
 document.getElementById('pausebtn').addEventListener('click', (e) => {
@@ -1392,6 +1412,8 @@ function frame(now) {
   if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);
   pickInterest(dt);
   W.graffiti.update(dt, t, player);
+  const delivered = W.deliveries.update(dt, t, player);
+  if (delivered) hud.toast(delivered);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl
