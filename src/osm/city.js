@@ -680,7 +680,18 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     const census = [];
     for (const [lon, lat, dbh] of nyc.trees) {
       const [x, z] = M.proj.toWorld(lat, lon);
-      if (inBox(x, z, 2) && !isRoad(x, z) && !inBuilding(x, z, 0.8)) census.push([x, z, 0.95 + Math.min(dbh, 36) / 36 * 1.05]);
+      if (!inBox(x, z, 2)) continue;
+      // street trees stand at the curb, and mapped roads run a little wide: step onto the nearest free sidewalk
+      const free = (px, pz) => !isRoad(px, pz) && !isWater(px, pz) && !inBuilding(px, pz, 0.6);
+      let spot = free(x, z) ? [x, z] : null;
+      for (let r = 0.8; !spot && r <= 3.2; r += 0.8) {
+        for (let k = 0; k < 8 && !spot; k++) {
+          const px = x + Math.cos((k * Math.PI) / 4) * r;
+          const pz = z + Math.sin((k * Math.PI) / 4) * r;
+          if (free(px, pz)) spot = [px, pz];
+        }
+      }
+      if (spot) census.push([spot[0], spot[1], 0.95 + Math.min(dbh, 36) / 36 * 1.05]);
     }
     if (census.length > 20) {
       trees.length = 0;
