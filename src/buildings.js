@@ -258,6 +258,35 @@ function realSign(ctx, y, name, st) {
   }
 }
 
+/** NYC restaurant letter-grade cards, A (blue), B (green), C (orange), side by side. */
+function makeGradeCards() {
+  const c = document.createElement('canvas');
+  c.width = 384;
+  c.height = 160;
+  const ctx = c.getContext('2d');
+  [['A', '#1d56a8'], ['B', '#1e8a4a'], ['C', '#e0701c']].forEach(([letter, color], i) => {
+    const x = i * 128;
+    ctx.fillStyle = '#f7f5ee';
+    ctx.fillRect(x, 0, 128, 160);
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 6, 6, 116, 20);
+    ctx.font = 'bold 12px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('SANITARY INSPECTION', x + 64, 21);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 104px Arial, sans-serif';
+    ctx.fillText(letter, x + 64, 128);
+    ctx.font = 'bold 11px Arial, sans-serif';
+    ctx.fillStyle = '#333';
+    ctx.fillText('NYC HEALTH', x + 64, 150);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
 /** Six striped awning fabrics stacked in one texture. */
 function makeAwningTexture() {
   const pairs = [['#c0392b', '#f4ecd8'], ['#1e6b44', '#f4ecd8'], ['#1d3a6b', '#f4ecd8'], ['#e1a22b', '#fff5dc'], ['#7a2a5a', '#f6e6ee'], ['#b3261e', '#1f1f1f']];
@@ -744,6 +773,7 @@ export function buildBuildings(layout, shared) {
   for (const f of layout.faces) {
     const lot = f.lot;
     if (lot.outer || !['apt', 'corner', 'mixed'].includes(lot.kind)) continue;
+    if (lot.year >= 1946) continue; // post-war buildings have interior stairs, no iron on the front
     if (lot.h < 11 || f.w < 8 || !chance(0.72)) continue;
     const ang = Math.atan2(f.nx, f.nz);
     const fw = Math.min(5.5, f.w - 2.5);
@@ -884,6 +914,7 @@ export function buildBuildings(layout, shared) {
   const paintedBoards = []; // where the texture pack's painted signs went up
   const paintedUse = new Map();
   const realBoards = []; // boards carrying a real (mapped) shop's name
+  const gradeGeos = [];
   const signSlot = (f, center, bw) => {
     // a shop's map point is often mid-building, so match along the facade and ignore depth
     let best = null;
@@ -899,7 +930,16 @@ export function buildBuildings(layout, shared) {
     }
     if (best) {
       usedPois.add(best.poi);
-      realBoards.push({ name: best.name, x: f.x - f.nz * center, z: f.z + f.nx * center, nx: f.nx, nz: f.nz });
+      realBoards.push({ name: best.name, x: f.x - f.nz * center, z: f.z + f.nx * center, nx: f.nx, nz: f.nz, grade: best.poi.grade });
+      // the health department's letter grade, taped inside the window by the door
+      const slotG = 'ABC'.indexOf(best.poi.grade ?? '');
+      if (slotG >= 0) {
+        const along = center - bw / 2 + 0.75;
+        const card = new THREE.PlaneGeometry(0.26, 0.32);
+        const cuv = card.attributes.uv;
+        for (let i = 0; i < cuv.count; i++) cuv.setX(i, (slotG + cuv.getX(i)) / 3);
+        gradeGeos.push(place(card, f.x - f.nz * along + f.nx * 0.08, CURB + 1.7, f.z + f.nx * along + f.nz * 0.08, Math.atan2(f.nx, f.nz)));
+      }
       return slotOf.get(best.name);
     }
     // on the real map a sign names a real shop or there is no sign at all
@@ -1034,6 +1074,10 @@ export function buildBuildings(layout, shared) {
   awningMat.customProgramCacheKey = () => 'awning';
   addMerged(awningGeos, awningMat);
   addMerged(fruitGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: true }));
+  if (gradeGeos.length) {
+    const gradeTex = makeGradeCards();
+    addMerged(gradeGeos, new THREE.MeshStandardMaterial({ map: gradeTex, roughness: 0.7, emissive: 0xffffff, emissiveMap: gradeTex, emissiveIntensity: 0.15 }));
+  }
   addMerged(litterGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
 
   const neonMats = [];

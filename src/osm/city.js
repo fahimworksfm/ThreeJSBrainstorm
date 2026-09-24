@@ -183,7 +183,17 @@ function clipToBox(pts, box) {
 
 export function buildCity(data, def, shared, { low = false, radius = 620 } = {}) {
   const center = data.center ?? def.ll;
+  const nyc = data.nyc ?? null; // NYC Open Data for this neighborhood, when the site ships it
   const M = parseOSM(data, center);
+  // NYC Open Data, projected into the same world space
+  let nycBuildings = null;
+  if (nyc?.buildings?.length) {
+    nycBuildings = new Buckets(30);
+    for (const [lon, lat, h, year] of nyc.buildings) {
+      const [x, z] = M.proj.toWorld(lat, lon);
+      nycBuildings.add(x, z, x, z, { x, z, h, year });
+    }
+  }
   const a = Math.abs(M.angle);
   // the fetched square turns with the grid; keep to the part that's fully covered
   const R = radius / (Math.cos(a) + Math.sin(a));
@@ -331,6 +341,17 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     const type = b.type ?? 'yes';
     let floors;
     let h = b.h;
+    // NYC's own footprint survey: the measured roof height and the year it went up
+    let year = 0;
+    if (nycBuildings) {
+      let best = 0;
+      for (const n of nycBuildings.near(cx, cz, Math.max(bb.x1 - bb.x0, bb.z1 - bb.z0) / 2 + 2)) {
+        if (!pointInPoly(n.x, n.z, pts)) continue;
+        if (n.h > best) best = n.h;
+        if (n.year) year = Math.max(year, n.year);
+      }
+      if (!(h > 2) && best > 2.5) h = best;
+    }
     if (h > 2) floors = Math.max(1, Math.round((h - 0.6) / FLOOR_H));
     else {
       if (/^(garage|garages|shed|hut|kiosk|carport)$/.test(type)) floors = 1;
@@ -371,8 +392,13 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
       style = pickBy(['brick', 'brick', 'stone', 'deco'], r2);
       tint = pickBy(BRICK_TINTS, hash01(b.id, 8));
     }
+    // built after the war: plain brick slabs, or glass once they get tall and recent
+    if (year >= 1946 && (kind === 'apt' || kind === 'mixed')) {
+      style = year >= 1985 && h > 30 ? 'glass' : 'brick';
+      if (style === 'glass') kind = 'condo';
+    }
     const lot = {
-      poly: pts, holes: b.holes, h, minH: b.minH, style, tint, kind, rand: r, id: b.id, area: b.area, floors,
+      poly: pts, holes: b.holes, h, minH: b.minH, style, tint, kind, rand: r, id: b.id, area: b.area, floors, year,
       x0: bb.x0, x1: bb.x1, z0: bb.z0, z1: bb.z1, outer, base: CURB,
     };
     if (outer) {
@@ -413,6 +439,28 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     lots.push(lot);
     if (!b.minH) colliders.push({ poly: pts, x0: bb.x0, x1: bb.x1, z0: bb.z0, z1: bb.z1 });
     if (!lot.gable && !b.minH) roofs.push({ poly: pts, x0: bb.x0, x1: bb.x1, z0: bb.z0, z1: bb.z1, top: CURB + h + 0.3 });
+  }
+
+  // restaurant inspection grades: the letter card goes to the mapped shop with the same name nearby
+  if (nyc?.restaurants?.length) {
+    const key = (n) => n.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const eats = M.pois.filter((p) => /^(restaurant|cafe|fast_food|bar|pub|ice_cream|bakery|deli|convenience)$/.test(p.trade ?? ''));
+    for (const [lon, lat, name, grade] of nyc.restaurants) {
+      const [x, z] = M.proj.toWorld(lat, lon);
+      const k = key(name);
+      let best = null;
+      let bd = 60;
+      for (const p of eats) {
+        const d = Math.hypot(p.p[0] - x, p.p[1] - z);
+        const pk = key(p.name);
+        const same = pk && k && (pk === k || pk.startsWith(k) || k.startsWith(pk));
+        if (same && d < bd) {
+          bd = d;
+          best = p;
+        }
+      }
+      if (best && !best.grade) best.grade = grade;
+    }
   }
 
   // ---------- street faces: storefronts where a facade looks onto a shopping street
@@ -627,8 +675,20 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
       }
     }
   }
+  // NYC's street tree census: every real street tree, sized by its trunk
+  if (nyc?.trees?.length) {
+    const census = [];
+    for (const [lon, lat, dbh] of nyc.trees) {
+      const [x, z] = M.proj.toWorld(lat, lon);
+      if (inBox(x, z, 2) && !isRoad(x, z) && !inBuilding(x, z, 0.8)) census.push([x, z, 0.95 + Math.min(dbh, 36) / 36 * 1.05]);
+    }
+    if (census.length > 20) {
+      trees.length = 0;
+      trees.push(...census);
+    }
+  }
   // trees mapped in OSM (street tree census) replace the guesses when there are plenty
-  const mappedTrees = M.trees.filter(([x, z]) => inBox(x, z, 2) && !isRoad(x, z) && !inBuilding(x, z, 0.8));
+  const mappedTrees = nyc?.trees?.length ? [] : M.trees.filter(([x, z]) => inBox(x, z, 2) && !isRoad(x, z) && !inBuilding(x, z, 0.8));
   if (mappedTrees.length > 150) {
     trees.length = 0;
     for (const [x, z] of mappedTrees) trees.push([x, z, 1.3 + hash01(Math.round(x * 7), Math.round(z * 3)) * 0.6]);

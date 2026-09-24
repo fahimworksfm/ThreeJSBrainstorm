@@ -77,6 +77,7 @@ export const START_TIMES = {
   golden: { label: 'Golden hour', minute: 16 * 60 + 50 },
   dusk: { label: 'Dusk', minute: 19 * 60 + 5 },
   night: { label: 'Night', minute: 22 * 60 + 10 },
+  live: { label: 'Live NYC', minute: 0, live: true }, // real New York time and weather
 };
 
 function lerpDeep(a, b, t) {

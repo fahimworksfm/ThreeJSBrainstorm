@@ -20,6 +20,7 @@ import { CURB, D, activateDistrict } from './config.js';
 import { DISTRICTS, BOROUGHS } from './districts/index.js';
 import { reseed, chance } from './random.js';
 import { Pigeons } from './pigeons.js';
+import { nycMinute, liveWeather } from './live.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -259,6 +260,13 @@ async function fetchRealMap(def, onStatus) {
       id: def.id, lat: def.ll[0], lon: def.ll[1], radius: FETCH_RADIUS, override: params.get('osm'), onStatus, onBytes, signal: controller.signal,
     });
     bar.style.width = '100%';
+    // NYC Open Data (real heights, the tree census, restaurant grades), when the site ships it
+    try {
+      const r = await fetch(`./nyc/${def.id}.json`);
+      if (r.ok && (r.headers.get('content-type') || '').includes('json')) data.nyc = await r.json();
+    } catch {
+      /* the map works without it */
+    }
     osmCache.set(def.id, data);
     return data;
   } catch (e) {
@@ -452,6 +460,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
   if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
+  refreshLive(isLive());
   document.body.classList.toggle('realmap', !!W.real); // keeps the OpenStreetMap credit under the map
   hud.setRide(MODES.walk.name, 'walk');
   const crowd = () => {
@@ -466,7 +475,23 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
 
 // ---------- the look: one inked comic style, lit by the time of day ----------
 const MINUTES_PER_SECOND = 0.5; // a full day takes 48 real minutes
-let minute = START_TIMES[settings.startAt].minute;
+let minute = START_TIMES[settings.startAt].live ? nycMinute() : START_TIMES[settings.startAt].minute;
+// Live NYC: the weather reading for the current neighborhood, refreshed every ten minutes
+let live = null;
+let liveTimer = 0;
+const isLive = () => !!START_TIMES[settings.startAt].live;
+async function refreshLive(announce = false) {
+  liveTimer = 600;
+  if (!isLive() || !W?.def.ll) {
+    live = null;
+    return;
+  }
+  const w = await liveWeather(...W.def.ll);
+  if (!w) return;
+  live = w;
+  applyTime(true);
+  if (announce) hud.toast(`Live: ${w.temp}°F, ${w.label} in ${W.def.name} · weather by Open-Meteo.com`);
+}
 let materialTimer = 0;
 let rainyNight = Math.random() < 0.5;
 let wasNight = false;
@@ -501,7 +526,7 @@ function applyTime(force = false) {
   const L = lookAt(minute);
   const [fr, fg, fb, density] = L.fog;
   scene.fog.color.setRGB(fr, fg, fb);
-  scene.fog.density = density;
+  scene.fog.density = density * (live?.haze ?? 1);
   scene.background.setRGB(fr, fg, fb);
   hemi.color.setRGB(...L.hemiSky);
   hemi.groundColor.setRGB(...L.hemiGround);
@@ -532,14 +557,14 @@ function applyTime(force = false) {
   const nite = nightness(minute);
   RIM.color.value.setRGB(...L.sun).lerp(tmpColor.setRGB(0.55, 0.7, 1.25), nite);
   RIM.strength.value = 0.6 + nite * 0.15;
-  W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount);
+  W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount * (live ? 0.35 + live.cloud * 1.1 : 1));
   W.road.setColor(tmpColor.setRGB(...L.road));
 
   // weather: some nights it rains
   const night = nightness(minute) > 0.75;
   if (night && !wasNight) rainyNight = Math.random() < 0.5;
   wasNight = night;
-  const rain = settings.rainOverride ?? (night && rainyNight);
+  const rain = settings.rainOverride ?? (live ? live.rain : night && rainyNight);
   if (rain !== settings.rain || force) {
     settings.rain = rain;
     W.weather.setEnabled(rain);
@@ -706,7 +731,8 @@ function renderMenus() {
       e.stopPropagation();
       settings.startAt = id;
       store.set('startAt', id);
-      minute = st.minute;
+      minute = st.live ? nycMinute() : st.minute;
+      refreshLive(true);
       applyTime(true);
       renderMenus();
     });
@@ -1208,7 +1234,11 @@ function frame(now) {
     requestAnimationFrame(frame);
     return;
   }
-  minute = (minute + dt * MINUTES_PER_SECOND) % 1440;
+  if (isLive()) {
+    minute = nycMinute();
+    liveTimer -= dt;
+    if (liveTimer <= 0) refreshLive();
+  } else minute = (minute + dt * MINUTES_PER_SECOND) % 1440;
   applyTime();
   // the ride wheel takes the mouse while it's open
   if (rideWheel.open) {
