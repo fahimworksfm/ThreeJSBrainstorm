@@ -72,6 +72,9 @@ export function normName(name) {
   return ALIASES[n] ?? n;
 }
 
+/** "WEST 44 STREET" and "West 44th Street" both become "w 44 st" (ordinals dropped). */
+export const streetKey = (n) => normName(n ?? '').replace(/\b(\d+)(st|nd|rd|th)\b/g, '$1');
+
 const SHORT = [
   [/\bStreet\b/g, 'St'], [/\bAvenue\b/g, 'Ave'], [/\bBoulevard\b/g, 'Blvd'], [/\bRoad\b/g, 'Rd'],
   [/\bPlace\b/g, 'Pl'], [/\bDrive\b/g, 'Dr'], [/\bParkway\b/g, 'Pkwy'], [/\bExpressway\b/g, 'Expy'],

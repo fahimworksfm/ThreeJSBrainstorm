@@ -4,6 +4,8 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { bboxAround } from '../src/osm/fetch.js';
+import { streetKey } from '../src/osm/geo.js';
+import { existsSync } from 'node:fs';
 
 const RADIUS = 760; // keep in step with FETCH_RADIUS in src/main.js
 const out = process.argv[2] ?? 'public/nyc';
@@ -274,6 +276,18 @@ async function elevation([s, w, n, e]) {
     }
   }
   return { n: N, box: [s, w, n, e], m: grid };
+}
+
+/** Only the permits on streets this neighborhood's map actually has (the whole borough is a lot). */
+function keepLocal(rows, id) {
+  const file = `public/osm/${id}.json`;
+  if (!rows || !existsSync(file)) return rows;
+  const names = new Set();
+  for (const e of JSON.parse(readFileSync(file, 'utf8')).elements ?? []) if (e.tags?.highway && e.tags.name) names.add(streetKey(e.tags.name));
+  return rows.filter(([, , , held]) => String(held).split(',').some((seg) => {
+    const m = seg.match(/^\s*(.+?)\s+between\s+(.+?)\s+and\s+(.+?)\s*$/i);
+    return m && names.has(streetKey(m[1])) && names.has(streetKey(m[2]));
+  }));
 }
 
 let ok = 0;

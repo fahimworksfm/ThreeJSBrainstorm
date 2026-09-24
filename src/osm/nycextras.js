@@ -2,10 +2,7 @@
 // and film crews (trucks, balloon lights, NO PARKING signs) on the blocks with a real film permit.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { normName } from './geo.js';
-
-/** "WEST 44 STREET" and "West 44th Street" both become "w 44 st". */
-export const streetKey = (n) => normName(n ?? '').replace(/\b(\d+)(st|nd|rd|th)\b/g, '$1');
+import { streetKey } from './geo.js';
 
 function quad(ax, az, bx, bz, w, y) {
   const dx = bx - ax;
