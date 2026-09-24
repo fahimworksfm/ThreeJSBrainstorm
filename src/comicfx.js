@@ -4,6 +4,19 @@ import * as THREE from 'three';
 
 export const COMIC = { pop() {} };
 
+/**
+ * Game feel shared by everything: trauma (0..1) shakes the camera and fades out; hitstop (seconds)
+ * all but freezes the world for a beat so a crash or a find lands.
+ */
+export const JUICE = {
+  trauma: 0,
+  hitstop: 0,
+  hit(trauma, stop = 0) {
+    this.trauma = Math.min(1, this.trauma + trauma);
+    this.hitstop = Math.max(this.hitstop, stop);
+  },
+};
+
 const COLORS = [
   ['#ffd23b', '#e0301e'], ['#ff4fd8', '#1b1b6b'], ['#39d0ff', '#0b2a6b'], ['#ff5a36', '#ffd23b'], ['#9dff4a', '#0f3b1a'],
 ];

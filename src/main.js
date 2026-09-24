@@ -7,7 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
 import { RIM, rimLight, setWet } from './fx.js';
-import { COMIC, ComicWords } from './comicfx.js';
+import { COMIC, ComicWords, JUICE } from './comicfx.js';
 import { BigMap, RideWheel } from './menus.js';
 import { PRESETS, DEFAULTS, buildSettings } from './settingsui.js';
 import { loadTexturePack } from './texturepack.js';
@@ -22,6 +22,7 @@ import { reseed, chance } from './random.js';
 import { Pigeons } from './pigeons.js';
 import { nycMinute, liveWeather } from './live.js';
 import { PhotoChallenges } from './photos.js';
+import { Knockables } from './knockables.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -422,7 +423,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const peds = P.peds;
   const pigeons = new Pigeons(peds);
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group);
+  const knock = new Knockables(peds, P.grid, audio);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -432,7 +434,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   scene.add(root);
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -1276,7 +1278,13 @@ const tmpDir = new THREE.Vector3();
 
 function frame(now) {
   // rAF can hand us a timestamp from before a long rebuild; never run time backwards
-  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
+  const raw = Math.max(0, Math.min(0.05, (now - last) / 1000));
+  // hitstop: the world all but stops for a beat
+  let dt = raw;
+  if (JUICE.hitstop > 0) {
+    JUICE.hitstop -= raw;
+    dt = raw * 0.05;
+  }
   last = now;
   t += dt;
 
@@ -1322,6 +1330,7 @@ function frame(now) {
   W.peds.update(dt, camera.position, player, settings.rain);
   W.pigeons.update(t, dt, player);
   W.spray.update(dt, camera.position, player);
+  if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
   if (sun.castShadow) {
     // center the shadows ahead of where you look, snapped to shadow texels so edges don't crawl

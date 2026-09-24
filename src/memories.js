@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CURB, D } from './config.js';
 import { DISTRICTS } from './districts/index.js';
 import { makePostcard } from './textures.js';
+import { JUICE } from './comicfx.js';
 
 const storageKey = (id) => `nightwalker.${id}.collected`;
 
@@ -121,6 +122,7 @@ export class Memories {
     this.collected.add(it.mem.id);
     saveCollected(this.id, this.collected);
     this.audio.chime();
+    JUICE.hit(0.3, 0.09);
     const n = this.collected.size;
     this.hud.setCount(n, this.list.length);
     this.hud.setJournal(journalAll());

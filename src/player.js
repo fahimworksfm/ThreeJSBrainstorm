@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { D } from './config.js';
+import { JUICE } from './comicfx.js';
 import { loadHero, animateHero, heroSecondary, poseHeroRiding, pedalHero } from './hero.js';
 import { buildGuy, poseGuy, buildBicycle, buildMotorcycle, buildSUV, buildCockpits, makeSpeedo } from './models.js';
 
@@ -314,6 +315,7 @@ export class Player {
       if (this.world.collide(this.pos, cfg.radius) && Math.abs(this.speed) > 1) {
         this.shake = Math.min(1, Math.abs(this.speed) / 12);
         this.audio.thud?.(this.shake);
+        JUICE.hit(this.shake * 0.8, 0.04 + this.shake * 0.06);
         this.speed *= -0.25;
       }
       this.yaw = this.heading + this.lookOffset;
@@ -346,6 +348,7 @@ export class Player {
       if (this.air <= 0) {
         // touch down: a quick squash in the knees and the camera
         this.land = Math.min(1, -this.vy / 6);
+        if (this.land > 0.5) JUICE.hit(this.land * 0.25);
         this.air = 0;
         this.vy = 0;
         this.audio.footstep?.(true, true);
@@ -411,6 +414,7 @@ export class Player {
       h.root.rotation.set(0, 0, 0);
       // re-pose every frame (a dozen bones): hands follow the bars, head follows the turn
       if (chase || this.heroPose !== this.mode) {
+        h.root.scale.set(1, 1, 1);
         poseHeroRiding(h, this.mode, this.steer, performance.now() / 1000, this.speed);
         this.heroPose = this.mode;
       }
@@ -422,6 +426,9 @@ export class Player {
         this.heroPose = null;
       }
       h.root.position.set(this.pos.x, this.ground + this.air - this.land * 0.08, this.pos.z);
+      // squash on landing, a little stretch while rising fast
+      const sq = this.land * 0.13 - Math.min(0.06, Math.max(0, this.vy) * 0.012);
+      h.root.scale.set(1 + sq * 0.5, 1 - sq, 1 + sq * 0.5);
       h.root.rotation.set(0, this.facing, 0);
       const v = Math.hypot(this.vel.x, this.vel.z);
       const stepped = animateHero(h, dt, v);
@@ -490,6 +497,15 @@ export class Player {
     if (snap) this.camPos.copy(want);
     else this.camPos.lerp(want, 1 - Math.exp(-dt * 10));
     cam.position.copy(this.camPos);
+    // trauma shake: smooth, squared so small knocks stay small, fading out
+    JUICE.trauma = Math.max(0, JUICE.trauma - dt * 1.6);
+    const tr = JUICE.trauma * JUICE.trauma;
+    if (tr > 0.001) {
+      const k = tt * 24;
+      cam.position.x += (Math.sin(k * 1.1) + Math.sin(k * 2.3 + 1)) * 0.18 * tr;
+      cam.position.y += (Math.sin(k * 1.7 + 2) + Math.sin(k * 3.1)) * 0.14 * tr;
+      cam.position.z += (Math.sin(k * 1.3 + 4) + Math.sin(k * 2.9 + 3)) * 0.18 * tr;
+    }
     if (cine) cam.lookAt(target.x - bx * 9, target.y + 0.15 - pitch * 6, target.z - bz * 9);
     else cam.lookAt(target.x - bx * 2, target.y + 0.3, target.z - bz * 2);
   }
