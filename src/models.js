@@ -34,7 +34,7 @@ function limb(a, b, r, mat) {
 const rbox = (w, h, d, r, mat, x = 0, y = 0, z = 0) => mesh(new RoundedBoxGeometry(w, h, d, 3, r), mat, x, y, z);
 
 // olive bomber, cream tee, dark jeans, white sneakers, brown backpack
-const COLORS = {
+export const COLORS = {
   skin: 0x8d5a3b,
   jacket: 0x4a5a36,
   tee: 0xe9dfc6,

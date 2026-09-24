@@ -28,6 +28,7 @@ import { Graffiti } from './graffiti.js';
 import { Deliveries } from './deliveries.js';
 import { setTerrain, liftAll, heightAt, terrainOn } from './terrain.js';
 import { Plaques } from './plaques.js';
+import { Regulars } from './regulars.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
 import {
@@ -439,8 +440,9 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const knock = new Knockables(peds, P.grid, audio);
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
   const plaques = new Plaques(data?.wiki, P.city ?? null, store, def.id, hud);
+  const regulars = new Regulars(P.layout?.faces ?? P.city?.faces ?? [], P.streets.openHydrants ?? [], def.name, () => nightness(minute), hud, audio);
   const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -457,7 +459,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   }
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, plaques, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, plaques, regulars, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -1445,6 +1447,7 @@ function frame(now) {
   pickInterest(dt);
   W.graffiti.update(dt, t, player);
   W.plaques.update(player, !audio.muted);
+  W.regulars.update(dt, t, player);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);
   heroLight.position.set(camera.position.x, player.ground + 2.4, camera.position.z);
