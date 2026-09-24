@@ -167,8 +167,8 @@ export function buildNycExtras({ nyc, proj, chains, isRoad, inBox, curb }) {
   const now = Date.now();
   // shooting today first, then the nearest in time
   const films = (nyc.films ?? [])
-    .map(([start, end, what, held]) => ({ start: Date.parse(start), end: Date.parse(end), what, held }))
-    .sort((a, b) => Math.abs((a.start + a.end) / 2 - now) - Math.abs((b.start + b.end) / 2 - now));
+    .map(([start, end, what, held]) => ({ when: Date.parse(start ?? end) || Date.parse(end) || 0, what, held }))
+    .sort((a, b) => Math.abs(a.when - now) - Math.abs(b.when - now));
   const trucks = [];
   const poles = [];
   const lights = [];
