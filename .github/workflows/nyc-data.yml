@@ -1,11 +1,11 @@
 # Downloads NYC Open Data for each neighborhood (building heights and years, street trees,
-# restaurant grades) into public/nyc/ and commits it. Runs when the fetcher changes, monthly, or by hand.
+# restaurant grades, street events) into public/nyc/ and commits it. Runs when the fetcher changes, weekly, or by hand.
 name: NYC data
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 7 1 * *'
+    - cron: '0 7 * * 1' # weekly: street events and film permits change fast
   push:
     paths:
       - .github/workflows/nyc-data.yml

@@ -12,7 +12,7 @@ const out = process.argv[2] ?? 'public/nyc';
 const only = process.argv.slice(3);
 mkdirSync(out, { recursive: true });
 const HOST = 'https://data.cityofnewyork.us/resource';
-const DATASETS = { buildings: '5zhs-2jue', trees: 'uvpi-gqnh', restaurants: '43nn-pn8j', bikes: 'mzxg-pwib', films: 'tg4x-b46p' };
+const DATASETS = { buildings: '5zhs-2jue', trees: 'uvpi-gqnh', restaurants: '43nn-pn8j', bikes: 'mzxg-pwib', films: 'tg4x-b46p', events: 'tvpp-9vvx' };
 // the MTA publishes on the state portal
 const NY_HOST = 'https://data.ny.gov/resource';
 const ENTRANCES = 'i9wp-a4ja';
@@ -243,6 +243,28 @@ async function films(boro) {
   return rows?.map((r) => [r.startdatetime, r.enddatetime, r.subcategoryname ?? r.category ?? '', r.parkingheld ?? '']) ?? null;
 }
 
+/**
+ * Permitted street events (block parties, street fairs, farmers markets, Open Streets) from yesterday to
+ * six weeks ahead: [start, end, type, location ("X between A and B"), name].
+ */
+async function events(boro) {
+  const f = await schema('events');
+  if (!f) return null;
+  const start = f.find(/start_date/i);
+  const end = f.find(/end_date/i);
+  const type = f.find(/event_type/i);
+  const loc = f.find(/event_location/i);
+  const name = f.find(/event_name/i);
+  const borough = f.find(/borough/i);
+  if (!start || !loc) return null;
+  const from = new Date(Date.now() - 864e5).toISOString().slice(0, 19);
+  const to = new Date(Date.now() + 42 * 864e5).toISOString().slice(0, 19);
+  const rows = await all(DATASETS.events, { $where: `${start} between '${from}' and '${to}'${borough ? ` and upper(${borough}) = '${boro.toUpperCase()}'` : ''}` });
+  const OUT = /block party|festival|fair|street event|farmers? market|open street|sidewalk sale|plaza/i;
+  return rows?.filter((r) => OUT.test(r[type] ?? '') && / between /i.test(r[loc] ?? ''))
+    .map((r) => [r[start], r[end] ?? '', r[type] ?? '', r[loc], r[name] ?? '']) ?? null;
+}
+
 /** Minimal PNG reader for 8-bit RGB/RGBA, non-interlaced (what the terrain tiles are). */
 function readPNG(buf) {
   let p = 8;
@@ -345,7 +367,9 @@ for (const d of districts) {
   const t0 = Date.now();
   const data = {
     buildings: await buildings(box), trees: await trees(box), restaurants: await restaurants(box),
-    entrances: await entrances(box), bikes: await bikes(box), films: d.boro ? await films(d.boro.replace(/^The /, '')) : null,
+    entrances: await entrances(box), bikes: await bikes(box),
+    films: d.boro ? keepLocal(await films(d.boro.replace(/^The /, '')), d.id) : null,
+    events: d.boro ? keepLocal(await events(d.boro.replace(/^The /, '')), d.id) : null,
     elevation: await elevation(box), far: await far(d),
   };
   const got = Object.entries(data).filter(([, v]) => v?.length || v?.m?.length || v?.c?.length);
