@@ -28,6 +28,15 @@ export class Weather {
     );
     this.rain.frustumCulled = false;
     this.group.add(this.rain);
+    // snow: slow flakes drifting through the same volume as the rain
+    this.snowPos = new Float32Array(N * 3);
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.BufferAttribute(this.snowPos, 3).setUsage(THREE.DynamicDrawUsage));
+    this.flakes = new THREE.Points(fg, new THREE.PointsMaterial({ size: 0.11, map: shared.dot, color: 0xf4f8ff, transparent: true, depthWrite: false }));
+    this.flakes.frustumCulled = false;
+    this.flakes.visible = false;
+    this.snowing = false;
+    this.group.add(this.flakes);
 
     const S = (this.S = 500);
     this.splash = new Float32Array(S * 4); // x, y, z, life
@@ -148,6 +157,13 @@ export class Weather {
     this.sv[k * 3 + 2] = range(-0.15, 0.15);
   }
 
+  /** Snow instead of rain (it takes the rain's place while it falls). */
+  setSnow(on) {
+    this.snowing = on;
+    this.flakes.visible = on;
+    if (on) this.setEnabled(false);
+  }
+
   setEnabled(on) {
     this.enabled = on;
     this.rain.visible = on;
@@ -164,6 +180,28 @@ export class Weather {
     this.intensity += (target - this.intensity) * Math.min(1, dt * 0.5);
     const cx = cam.x;
     const cz = cam.z;
+    if (this.snowing) {
+      const d = this.drops;
+      const p = this.snowPos;
+      const half = RAIN_W / 2;
+      this.snowT = (this.snowT ?? 0) + dt;
+      for (let i = 0; i < this.N; i++) {
+        const i3 = i * 3;
+        let y = d[i3 + 1] - (0.9 + (i % 7) * 0.08) * dt;
+        if (y < 0) y += RAIN_H;
+        d[i3 + 1] = y;
+        // each flake wanders on its own little breeze
+        const sway = Math.sin(this.snowT * 0.8 + i) * 0.35;
+        const rx = ((((d[i3] + 0.25 * dt - cx + half) % RAIN_W) + RAIN_W) % RAIN_W) - half;
+        const rz = ((((d[i3 + 2] - cz + half) % RAIN_W) + RAIN_W) % RAIN_W) - half;
+        d[i3] = cx + rx;
+        d[i3 + 2] = cz + rz;
+        p[i3] = d[i3] + sway;
+        p[i3 + 1] = y;
+        p[i3 + 2] = d[i3 + 2] + Math.cos(this.snowT * 0.6 + i * 1.3) * 0.25;
+      }
+      this.flakes.geometry.attributes.position.needsUpdate = true;
+    }
     if (this.enabled) {
       const d = this.drops;
       const p = this.rainPos;

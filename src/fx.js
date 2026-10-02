@@ -87,3 +87,40 @@ export function setWet(root, wet) {
     m.needsUpdate = true;
   });
 }
+
+/** How white the ground is (0..1): snow builds up while it snows and melts off after. */
+export const SNOW = { amount: { value: 0 } };
+
+/**
+ * Let snow settle on everything that faces up (sidewalks, roofs, ledges, car tops). Patches each material once,
+ * the first time it snows, so on dry days nothing is recompiled.
+ */
+export function snowCover(root) {
+  root.traverse((o) => {
+    if (o.isSkinnedMesh || o.userData.noSnow) return; // people don't get snowed on
+    for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
+      if (m.userData.snow || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial) || m.transparent) continue;
+      m.userData.snow = true;
+      const prev = m.onBeforeCompile;
+      m.onBeforeCompile = (shader, renderer) => {
+        prev?.call(m, shader, renderer);
+        shader.uniforms.uSnow = SNOW.amount;
+        shader.fragmentShader = shader.fragmentShader
+          .replace('void main() {', 'uniform float uSnow;\nvoid main() {')
+          .replace(
+            '#include <normal_fragment_maps>',
+            `#include <normal_fragment_maps>
+            {
+              // how much this bit of surface faces the sky
+              float up = dot(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz));
+              // as bright as the scene's other pale surfaces, not paper white (the golden light and bloom blow that out)
+              diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.6, 0.63, 0.7), uSnow * smoothstep(0.6, 0.9, up));
+            }`,
+          );
+      };
+      const key = m.customProgramCacheKey?.bind(m);
+      m.customProgramCacheKey = () => `${key ? key() : ''}snow`;
+      m.needsUpdate = true;
+    }
+  });
+}

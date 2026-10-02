@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutlinePass, PaintPass, GradeShader, GodRaysPass } from './postfx.js';
-import { RIM, rimLight, setWet } from './fx.js';
+import { RIM, rimLight, setWet, SNOW, snowCover } from './fx.js';
 import { COMIC, ComicWords, JUICE } from './comicfx.js';
 import { BigMap, RideWheel } from './menus.js';
 import { PRESETS, DEFAULTS, buildSettings } from './settingsui.js';
@@ -37,6 +37,7 @@ import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
 import { FoodStops } from './food.js';
+import { Taxi } from './taxi.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -487,9 +488,11 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
   W.season = params.get('season') ?? season();
+  if (params.get('weather') === 'snow') SNOW.amount.value = 0.85; // trying it out: start with a snowy street
   // what the blocks really sound like (311 noise complaints)
   W.soundscape = new Soundscape(data?.nyc?.noise, P.city?.M.proj, audio);
   W.food = new FoodStops(P.buildings.realBoards, store, hud);
+  W.taxi = new Taxi(root, P.city?.isRoad ?? ((x, z) => P.groundAt(x, z) < 0.05), store, hud);
   // the daily postcard: a real storefront somewhere in this neighborhood
   const faces = P.layout?.faces ?? P.city?.faces ?? [];
   const boards = P.buildings.realBoards?.length ? P.buildings.realBoards : faces.filter((f) => f.shop && !f.lot?.outer && f.w > 5).map((f) => ({ x: f.x, z: f.z, nx: f.nx, nz: f.nz, name: f.names?.[0] ?? null }));
@@ -601,6 +604,7 @@ let materialTimer = 0;
 let rainyNight = Math.random() < 0.5;
 let wasNight = false;
 const tmpColor = new THREE.Color();
+const snowRoad = new THREE.Color(0.42, 0.44, 0.48);
 const skySun = new THREE.Vector3(0, 1, 0);
 const raysColor = new THREE.Color(1, 0.8, 0.5);
 let raysLevel = 0;
@@ -667,13 +671,23 @@ function applyTime(force = false) {
   RIM.color.value.setRGB(...L.sun).lerp(tmpColor.setRGB(0.55, 0.7, 1.25), nite);
   RIM.strength.value = 0.6 + nite * 0.15;
   W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount * (live ? 0.35 + live.cloud * 1.1 : 1));
-  W.road.setColor(tmpColor.setRGB(...L.road));
+  // plowed streets go a slushy grey under snow
+  W.road.setColor(tmpColor.setRGB(...L.road).lerp(snowRoad, SNOW.amount.value * 0.55));
 
   // weather: some nights it rains
   const night = nightness(lookMin()) > 0.75;
   if (night && !wasNight) rainyNight = Math.random() < 0.5;
   wasNight = night;
-  const rain = settings.rainOverride ?? (live ? live.rain : night && rainyNight);
+  // snow: on real snowy days (Live NYC), or ?weather=snow; it falls instead of rain
+  const snow = params.get('weather') === 'snow' || (!!live?.snow && settings.rainOverride == null);
+  if (snow !== W.weather.snowing) {
+    W.weather.setSnow(snow);
+    if (snow) {
+      for (const g of [W.peds.group, W.regulars.group]) g.traverse((o) => (o.userData.noSnow = true));
+      snowCover(W.root);
+    }
+  }
+  const rain = !snow && (settings.rainOverride ?? (live ? live.rain : night && rainyNight));
   if (rain !== settings.rain || force) {
     settings.rain = rain;
     W.weather.setEnabled(rain);
@@ -896,6 +910,44 @@ function tagWall() {
   const r = W.graffiti.spray();
   if (r) setTimeout(() => hud.toast(r.count === r.total ? `🎨 Every wall in ${W.def.name} is yours!` : `🎨 ${r.buffed ? `Went over ${r.buffed}. ` : ''}Walls: ${r.count} / ${r.total} in ${W.def.name}`), 1500);
 }
+/** Where a cab goes: the nearest memory not found yet, else today's postcard spot. */
+function cabDestination() {
+  let best = null;
+  let bd = Infinity;
+  for (const it of W.memories.items ?? []) {
+    if (it.done) continue;
+    const d = Math.hypot(it.g.position.x - player.pos.x, it.g.position.z - player.pos.z);
+    if (d > 40 && d < bd) {
+      bd = d;
+      best = { x: it.g.position.x, z: it.g.position.z, label: 'the next memory' };
+    }
+  }
+  const t = W.daily?.target;
+  if (!best && t && !W.daily.solved) best = { x: t.x + t.nx * 3, z: t.z + t.nz * 3, label: "today's postcard spot" };
+  return best;
+}
+function takeCab() {
+  const dest = cabDestination();
+  if (!dest) return;
+  const fare = W.taxi.fare(dest);
+  if (W.food.cash < fare) {
+    hud.toast(`💸 The fare's about $${fare}: do a delivery (J) first`);
+    return;
+  }
+  store.set('spent', store.get('spent', 0) + fare);
+  fade.querySelector('span').textContent = '🚕';
+  fade.classList.add('show');
+  setTimeout(() => {
+    // out on the sidewalk a few steps from where you asked to go
+    const [x, z] = W.city?.spot ? W.city.spot(dest.x + 2, dest.z + 2) : [dest.x + 2, dest.z + 2];
+    player.pos.set(x, 0, z);
+    player.vel?.set(0, 0, 0);
+    W.taxi.drive();
+    fade.classList.remove('show');
+    fade.querySelector('span').textContent = '';
+    hud.toast(`🚕 $${fare} with tip. Here's ${dest.label}.`);
+  }, 900);
+}
 function rentBike() {
   const msg = W.transit.rent();
   if (msg) hud.toast(msg);
@@ -1014,8 +1066,17 @@ input.addEventListener('button', (e) => {
     case 'map':
       toggleMap();
       break;
+    case 'taxi': {
+      const msg = W.taxi.hail(player);
+      if (msg) hud.toast(msg);
+      break;
+    }
+    case 'postcard':
+      showPostcard(!postcardEl.classList.contains('show'));
+      break;
     case 'action':
-      if (W.nearEntrance) openTravel();
+      if (W.atCab) takeCab();
+      else if (W.nearEntrance) openTravel();
       else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
       else if (W.food.near) hud.toast(W.food.buy(player));
@@ -1053,6 +1114,11 @@ addEventListener('keydown', (e) => {
     toggleDelivery();
     return;
   }
+  if (e.code === 'KeyT' && !e.repeat && input.active) {
+    const msg = W.taxi.hail(player);
+    if (msg) hud.toast(msg);
+    return;
+  }
   if (e.code === 'KeyK' && !e.repeat && input.active) {
     showPostcard(!postcardEl.classList.contains('show'));
     return;
@@ -1072,7 +1138,8 @@ addEventListener('keydown', (e) => {
       break;
     case 'KeyE':
       if (!input.active) break;
-      if (W.nearEntrance) openTravel();
+      if (W.atCab) takeCab();
+      else if (W.nearEntrance) openTravel();
       else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
       else if (W.food.near) hud.toast(W.food.buy(player));
@@ -1610,7 +1677,10 @@ function frame(now) {
   W.plaques.update(player, !audio.muted);
   W.regulars.update(dt, t, player);
   W.soundscape.update(dt, camera, minute);
+  // snow settles over a minute or so, and melts off slower
+  SNOW.amount.value += ((W.weather.snowing ? 0.85 : 0) - SNOW.amount.value) * Math.min(1, dt * (W.weather.snowing ? 0.03 : 0.01));
   W.food.update(dt, player);
+  W.taxi.update(dt, player);
   ghosts?.update(dt, player);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);
@@ -1686,7 +1756,14 @@ function frame(now) {
     input.setAction('Tag');
     if (!IS_TOUCH) hud.setPrompt(W.graffiti.near.rival ? `Press E to go over ${W.graffiti.near.rival}` : 'Press E to tag this wall');
   }
-  if (!near && !fe && !W.graffiti.near && W.food.near && input.active) {
+  const atCab = W.taxi.waiting && Math.hypot(player.pos.x - W.taxi.stop.x, player.pos.z - W.taxi.stop.z) < 5;
+  W.atCab = atCab;
+  if (atCab && input.active) {
+    const dest = cabDestination();
+    input.setAction('Ride');
+    if (!IS_TOUCH) hud.setPrompt(dest ? `Press E to ride to ${dest.label} ($${W.taxi.fare(dest)})` : 'Nowhere left to go: every memory here is found');
+  }
+  if (!near && !fe && !W.graffiti.near && !atCab && W.food.near && input.active) {
     input.setAction('Eat');
     if (!IS_TOUCH) hud.setPrompt(W.food.prompt);
   }

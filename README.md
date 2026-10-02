@@ -42,6 +42,10 @@ greenmarkets go up on their real blocks (stalls, barricades, no traffic), with a
 film crews park on the blocks named in real film permits; and the soundscape comes from the last month of 311
 noise complaints (parties at night, construction by day, horns, dogs, ice cream trucks), pooled to ~50 m.
 
+**Snow and cabs:** on real snowy days (Live NYC) snow falls and settles on sidewalks, roofs and car tops
+(`?weather=snow` to try it). **T** hails a yellow cab: it pulls up at the curb and **E** rides to the next memory
+you haven't found (or today's postcard spot) for a fare out of delivery money. On phones: the Taxi and 📮 buttons.
+
 **Food stops:** the real pizzerias, delis, cafés and bakeries on the map sell a slice, a chopped cheese or a
 coffee (E) for what deliveries have earned; for a minute after, running doesn't tire you.
 
@@ -98,7 +102,8 @@ where you left it.
 | V (hold) | | ride wheel |
 | P | | photo mode (Enter saves a PNG) |
 | E | Train | take the train at a green-globe entrance / tag a wall / unlock a Citi Bike |
-| K | | today's postcard: find the storefront in the picture (one a day, keep the streak) |
+| T | Taxi | hail a yellow cab, E to ride |
+| K | 📮 | today's postcard: find the storefront in the picture (one a day, keep the streak) |
 | J | | take a delivery |
 | N | | radio: next station |
 | G | | wave at other walkers (ghost players, off by default) |
