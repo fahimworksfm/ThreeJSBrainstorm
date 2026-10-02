@@ -502,7 +502,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   W.food = new FoodStops(P.buildings.realBoards, store, hud);
   root.add(W.food.group); // the bodega cats
   // ferries on the real ferry routes
-  W.ferries = buildFerries(P.city?.M.ferries);
+  W.ferries = buildFerries(P.city?.M.ferries, P.city?.box);
   root.add(W.ferries.group);
   W.taxi = new Taxi(root, P.city?.isRoad ?? ((x, z) => P.groundAt(x, z) < 0.05), store, hud);
   // the daily postcard: a real storefront somewhere in this neighborhood

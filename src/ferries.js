@@ -33,7 +33,36 @@ function nycFerry() {
   return { g, len: 26, speed: 9 };
 }
 
-export function buildFerries(routes) {
+/**
+ * Past the edge of the map there is no water drawn (just the plain ground), so lay a wide strip of harbor
+ * under each route wherever it runs outside the map box.
+ */
+function harbor(path, box, width = 220) {
+  const pos = [];
+  const f = [0, 0, 0, 0];
+  const g = [0, 0, 0, 0];
+  const out = (x, z) => x < box.x0 + 20 || x > box.x1 - 20 || z < box.z0 + 20 || z > box.z1 - 20;
+  for (let s = 0; s + 20 <= path.len; s += 20) {
+    path.at(s, f);
+    path.at(s + 20, g);
+    if (!out(f[0], f[1]) && !out(g[0], g[1])) continue;
+    const w = width / 2;
+    const a = [f[0] + f[3] * w, f[1] - f[2] * w];
+    const b = [f[0] - f[3] * w, f[1] + f[2] * w];
+    const c = [g[0] + g[3] * w, g[1] - g[2] * w];
+    const d = [g[0] - g[3] * w, g[1] + g[2] * w];
+    pos.push(a[0], 0.03, a[1], b[0], 0.03, b[1], c[0], 0.03, c[1], b[0], 0.03, b[1], d[0], 0.03, d[1], c[0], 0.03, c[1]);
+  }
+  if (!pos.length) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x1f3c4c, roughness: 0.25, metalness: 0.2, side: THREE.DoubleSide }));
+  mesh.userData.noShadow = true;
+  return mesh;
+}
+
+export function buildFerries(routes, box = null) {
   const group = new THREE.Group();
   const boats = [];
   // the longest few routes (the map splits some into pieces)
@@ -41,6 +70,8 @@ export function buildFerries(routes) {
     const path = new Path(resample(r.pts, 8));
     if (path.len < 300) continue;
     const sif = /staten island/i.test(`${r.name} ${r.operator}`);
+    const water = box && harbor(path, box);
+    if (water) group.add(water);
     for (const k of [0, 1]) {
       const b = sif ? statenIslandFerry() : nycFerry();
       b.g.traverse((o) => (o.castShadow = o.isMesh));
