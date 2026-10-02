@@ -99,6 +99,54 @@ async function buildings(box) {
     .filter(Boolean);
 }
 
+/**
+ * The city past the edge of the playable map, for the skyline ring: every building out to FAR meters,
+ * pooled into a coarse grid of [column, row, height m, cover 0..100] cells (CELL meters, rows north-up).
+ */
+const FAR = 2600;
+const CELL = 36;
+async function far(d) {
+  const f = await schema('buildings');
+  if (!f?.geo) return null;
+  const height = f.find(/^height_?roof$/i) ?? f.find(/height/i);
+  const area = f.find(/shape_area/i);
+  const [s, w, n, e] = bboxAround(d.lat, d.lon, FAR);
+  const where = `within_box(${f.geo}, ${n}, ${w}, ${s}, ${e}) and ${height} > 12`;
+  // a simplified outline is plenty for a centroid, and a fraction of the download
+  let rows = await all(DATASETS.buildings, { $select: [`simplify(${f.geo}, 0.00003) as g`, height, area].filter(Boolean).join(','), $where: where });
+  let geo = 'g';
+  if (!rows) {
+    rows = await all(DATASETS.buildings, { $select: [f.geo, height, area].filter(Boolean).join(','), $where: `within_box(${f.geo}, ${n}, ${w}, ${s}, ${e})` });
+    geo = f.geo;
+  }
+  if (!rows) return null;
+  const kx = 111320 * Math.cos((d.lat * Math.PI) / 180);
+  const cells = new Map();
+  for (const b of rows) {
+    const c = centroid(b[geo]);
+    const h = Number(b[height]) * 0.3048;
+    if (!c || !h) continue;
+    const x = (c[0] - d.lon) * kx;
+    const y = (c[1] - d.lat) * 110540;
+    if (Math.hypot(x, y) < RADIUS - 80 || Math.hypot(x, y) > FAR) continue;
+    const key = `${Math.round(x / CELL)},${Math.round(y / CELL)}`;
+    const a = (Number(b[area]) || 1500) * 0.0929; // square feet to square meters
+    const cell = cells.get(key) ?? { max: 0, sum: 0, area: 0 };
+    cell.max = Math.max(cell.max, h);
+    cell.sum += h * a;
+    cell.area += a;
+    cells.set(key, cell);
+  }
+  const out = [];
+  for (const [key, c] of cells) {
+    const cover = Math.min(1, c.area / (CELL * CELL));
+    if (cover < 0.1) continue;
+    const [i, j] = key.split(',').map(Number);
+    out.push([i, j, Math.round((c.max + c.sum / c.area) / 2), Math.round(cover * 100)]);
+  }
+  return { cell: CELL, lat: d.lat, lon: d.lon, c: out };
+}
+
 async function trees(box) {
   const f = await schema('trees');
   if (!f) return null;
@@ -298,16 +346,16 @@ for (const d of districts) {
   const data = {
     buildings: await buildings(box), trees: await trees(box), restaurants: await restaurants(box),
     entrances: await entrances(box), bikes: await bikes(box), films: d.boro ? await films(d.boro.replace(/^The /, '')) : null,
-    elevation: await elevation(box),
+    elevation: await elevation(box), far: await far(d),
   };
-  const got = Object.entries(data).filter(([, v]) => v?.length || v?.m?.length);
+  const got = Object.entries(data).filter(([, v]) => v?.length || v?.m?.length || v?.c?.length);
   if (!got.length) {
     console.log(`nyc: ${d.id}: nothing (outside the city's data, or the portal is down)`);
     continue;
   }
   writeFileSync(`${out}/${d.id}.json`, JSON.stringify(data));
   ok++;
-  console.log(`nyc: ${d.id} ${got.map(([k, v]) => `${v.length ?? v.m.length} ${k}`).join(', ')} in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  console.log(`nyc: ${d.id} ${got.map(([k, v]) => `${v.length ?? v.m?.length ?? v.c.length} ${k}`).join(', ')} in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   await sleep(1000);
 }
 console.log(`nyc: ${ok}/${districts.length} neighborhoods`);
