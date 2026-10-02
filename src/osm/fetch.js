@@ -14,6 +14,7 @@ export const KEEP_TAGS = new Set([
   'roof:shape', 'leisure', 'landuse', 'natural', 'waterway', 'railway', 'bridge', 'tunnel', 'layer', 'covered', 'area',
   'service', 'access', 'oneway', 'junction', 'lanes', 'width', 'footway', 'type',
   'cuisine', 'opening_hours', 'brand', // shop signs
+  'route', 'operator', // ferry routes
 ]);
 
 /** Shrink an Overpass response: fewer tags, fewer digits. */
@@ -60,6 +61,7 @@ export function query([s, w, n, e]) {
   relation["natural"="water"](${b});
   relation["leisure"="park"](${b});
   way["railway"~"^(subway|rail|light_rail)$"](${b});
+  way["route"="ferry"](${b});
   node["highway"~"^(traffic_signals|street_lamp)$"](${b});
   node["natural"="tree"](${b});
   node["railway"~"^(station|subway_entrance)$"](${b});
