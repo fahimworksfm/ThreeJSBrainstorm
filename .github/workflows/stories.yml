@@ -45,5 +45,6 @@ jobs:
           git add public/wiki public/voices
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
           git commit -m "Update landmarks, stories and voices"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
+          # a newer run may have committed the same files meanwhile: keep this run's fresh copies
+          git pull --rebase -X theirs origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
