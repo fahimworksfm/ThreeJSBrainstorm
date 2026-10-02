@@ -51,6 +51,7 @@ export class HUD {
       hud: document.getElementById('hud'),
       district: document.getElementById('district'),
       prompt: document.getElementById('prompt'),
+      board: document.getElementById('board'),
       ride: document.getElementById('ride'),
       rideName: document.getElementById('ride-name'),
       rideSpeed: document.getElementById('ride-speed'),
@@ -73,6 +74,14 @@ export class HUD {
     const safe = (text || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     this.el.prompt.innerHTML = safe.replace(/^Press (\w+) /, '<kbd>$1</kbd> ');
     this.el.prompt.classList.toggle('show', !!text);
+  }
+
+  /** The live countdown board (subway arrivals, a Citi Bike dock); html is built from escaped text. */
+  setBoard(html) {
+    if (html === this.lastBoard) return;
+    this.lastBoard = html;
+    if (html) this.el.board.innerHTML = html;
+    this.el.board.classList.toggle('show', !!html);
   }
 
   /** Which ride you're on, for the HUD chip. */

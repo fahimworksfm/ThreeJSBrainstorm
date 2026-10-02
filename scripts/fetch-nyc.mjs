@@ -156,11 +156,12 @@ async function entrances(box) {
   const name = f.find(/stop_name|station_name/i);
   const type = f.find(/entrance_type/i);
   const routes = f.find(/daytime_routes|routes/i);
+  const stop = f.find(/gtfs_stop_id/i);
   if (!lat || !lon) return null;
   const [s, w, n, e] = box;
   const rows = await all(ENTRANCES, { $where: `${lat} between ${s} and ${n} and ${lon} between ${w} and ${e}` }, NY_HOST);
-  // [lon, lat, station, entrance type, routes]
-  return rows?.map((r) => [r5(Number(r[lon])), r5(Number(r[lat])), r[name] ?? '', r[type] ?? '', r[routes] ?? '']) ?? null;
+  // [lon, lat, station, entrance type, routes, GTFS stop id (for live arrivals)]
+  return rows?.map((r) => [r5(Number(r[lon])), r5(Number(r[lat])), r[name] ?? '', r[type] ?? '', r[routes] ?? '', (stop && r[stop]) ?? '']) ?? null;
 }
 
 async function bikes(box) {

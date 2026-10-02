@@ -1,10 +1,10 @@
 // The Settings tab: graphics presets, effect switches and sliders, saved in the browser.
 
 export const PRESETS = {
-  low: { ratio: 1, shadows: false, shadowRes: 2048, ao: false, reflections: false, bloom: true, shafts: false, cones: true },
-  medium: { ratio: 1.25, shadows: true, shadowRes: 2048, ao: false, reflections: true, bloom: true, shafts: true, cones: true },
-  high: { ratio: 1.5, shadows: true, shadowRes: 3072, ao: true, reflections: true, bloom: true, shafts: true, cones: true },
-  ultra: { ratio: 2, shadows: true, shadowRes: 4096, ao: true, reflections: true, bloom: true, shafts: true, cones: true },
+  low: { ratio: 1, shadows: false, shadowRes: 2048, ao: false, reflections: false, bloom: true, shafts: false, cones: true, paint: false },
+  medium: { ratio: 1.25, shadows: true, shadowRes: 2048, ao: false, reflections: true, bloom: true, shafts: true, cones: true, paint: false },
+  high: { ratio: 1.5, shadows: true, shadowRes: 3072, ao: true, reflections: true, bloom: true, shafts: true, cones: true, paint: false },
+  ultra: { ratio: 2, shadows: true, shadowRes: 4096, ao: true, reflections: true, bloom: true, shafts: true, cones: true, paint: false },
 };
 
 export const DEFAULTS = {
@@ -28,6 +28,7 @@ const ROWS = [
   { key: 'print', label: 'Misprinted color plates', type: 'toggle' },
   { key: 'hatch', label: 'Halftone and hatching', type: 'toggle' },
   { key: 'boil', label: 'Hand-drawn wobbly lines', type: 'toggle' },
+  { key: 'paint', label: 'Painted distance (brush strokes)', type: 'toggle' },
   { key: 'lut', label: 'Color grade (texture pack)', type: 'toggle' },
   { key: 'twos', label: 'Animate on twos', type: 'toggle' },
   { key: 'words', label: 'Sound-effect words', type: 'toggle' },

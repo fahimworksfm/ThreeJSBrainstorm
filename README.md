@@ -30,6 +30,12 @@ It's a static site, so it's free to host:
 
 On a phone, open the link and use **Add to Home Screen** to install it as a full-screen app.
 
+**Live transit (Vercel):** `api/transit.js` is a free serverless function that reads the MTA's GTFS-realtime
+subway feeds and Citi Bike's GBFS feed (both free, no keys) and caches them for 20-30 seconds. In game, the
+subway stairs show a countdown board with the real next trains, and the real Citi Bike docks stand on the
+sidewalk with the bikes free right now (E unlocks one). On hosts without the function (local dev, the claude.ai
+copy) the boards and docks just don't appear. `?api=<url>` points the game at another copy of the function.
+
 ## The look
 
 One art style: black ink outlines from the depth buffer, flat cel-shaded color bands, halftone dots in the shadows,
@@ -65,13 +71,18 @@ where you left it.
 | WASD / arrows | left thumb | walk / drive |
 | Mouse | right thumb | look around |
 | Shift | Run | hurry / boost |
-| Space | Jump | jump (on foot) / brake (riding) |
+| Space | Jump | jump (on foot) / bunny hop (bicycle; steer in the air to spin) / brake (motorcycle, SUV) |
+| Shift (bicycle) | | manual: chain hops, spins and manuals into combos |
 | 1 2 3 4 | Ride | walk, bicycle, motorcycle, SUV |
 | C | View | third / first person |
 | Tab | Map | full-screen map |
 | V (hold) | | ride wheel |
 | P | | photo mode (Enter saves a PNG) |
-| E | Train | take the train at a green-globe entrance |
+| E | Train | take the train at a green-globe entrance / tag a wall / unlock a Citi Bike |
+| K | | today's postcard: find the storefront in the picture (one a day, keep the streak) |
+| J | | take a delivery |
+| N | | radio: next station |
+| G | | wave at other walkers (ghost players, off by default) |
 | O | | real OpenStreetMap streets / drawn street grid |
 | R | | rain on / off |
 | Q | | wet-street reflections on / off |

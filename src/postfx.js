@@ -96,6 +96,117 @@ export class OutlinePass extends Pass {
   }
 }
 
+/**
+ * Painterly distance: a Kuwahara filter (each pixel takes the calmest of four neighborhoods) turns far
+ * buildings and the sky into flat brush strokes, like a painted background plate, while the street up
+ * close stays crisp for the ink lines drawn after it. It writes back into the same buffer, so the scene
+ * depth stays where the passes after it expect it.
+ */
+export class PaintPass extends Pass {
+  constructor(camera, radius = 3) {
+    super();
+    this.camera = camera;
+    this.needsSwap = false;
+    this.material = new THREE.ShaderMaterial({
+      defines: { R: radius },
+      uniforms: {
+        tDiffuse: { value: null },
+        tDepth: { value: null },
+        texel: { value: new THREE.Vector2() },
+        near: { value: 0.1 },
+        far: { value: 1000 },
+        strength: { value: 1 },
+        fade: { value: new THREE.Vector2(35, 160) }, // meters: crisp before, fully painted after
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `
+        #include <packing>
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tDepth;
+        uniform vec2 texel, fade;
+        uniform float near, far, strength;
+        varying vec2 vUv;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        void main() {
+          vec4 base = texture2D(tDiffuse, vUv);
+          float z = texture2D(tDepth, vUv).x;
+          float dist = z >= 0.99999 ? 1e5 : -perspectiveDepthToViewZ(z, near, far);
+          float k = strength * smoothstep(fade.x, fade.y, dist);
+          if (k < 0.01) { gl_FragColor = base; return; }
+          // brush strokes lean one way, with a little jitter so the sky doesn't tile
+          vec2 step = texel * (1.0 + 0.6 * hash(floor(vUv / texel / 9.0)));
+          vec3 m[4];
+          vec3 s[4];
+          for (int q = 0; q < 4; q++) { m[q] = vec3(0.0); s[q] = vec3(0.0); }
+          for (int j = 0; j <= R; j++) {
+            for (int i = 0; i <= R; i++) {
+              vec3 a = texture2D(tDiffuse, vUv + vec2(-i, -j) * step).rgb;
+              vec3 b = texture2D(tDiffuse, vUv + vec2(i, -j) * step).rgb;
+              vec3 c = texture2D(tDiffuse, vUv + vec2(-i, j) * step).rgb;
+              vec3 d = texture2D(tDiffuse, vUv + vec2(i, j) * step).rgb;
+              m[0] += a; s[0] += a * a;
+              m[1] += b; s[1] += b * b;
+              m[2] += c; s[2] += c * c;
+              m[3] += d; s[3] += d * d;
+            }
+          }
+          float n = float((R + 1) * (R + 1));
+          vec3 best = base.rgb;
+          float low = 1e9;
+          for (int q = 0; q < 4; q++) {
+            vec3 mean = m[q] / n;
+            vec3 v = abs(s[q] / n - mean * mean);
+            float var = v.r + v.g + v.b;
+            if (var < low) { low = var; best = mean; }
+          }
+          gl_FragColor = vec4(mix(base.rgb, best, k), base.a);
+        }`,
+    });
+    this.fsQuad = new FullScreenQuad(this.material);
+    this.copy = new FullScreenQuad(new THREE.ShaderMaterial({
+      uniforms: { tDiffuse: { value: null } },
+      depthTest: false,
+      depthWrite: false,
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main() { gl_FragColor = texture2D(tDiffuse, vUv); }',
+    }));
+    this.rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+  }
+
+  setSize(w, h) {
+    this.rt.setSize(w, h);
+  }
+
+  render(renderer, writeBuffer, readBuffer) {
+    const u = this.material.uniforms;
+    if (this.rt.width !== readBuffer.width || this.rt.height !== readBuffer.height) this.rt.setSize(readBuffer.width, readBuffer.height);
+    u.tDiffuse.value = readBuffer.texture;
+    u.tDepth.value = (this.depthSource && this.depthSource()) || readBuffer.depthTexture;
+    u.near.value = this.camera.near;
+    u.far.value = this.camera.far;
+    u.texel.value.set(1 / readBuffer.width, 1 / readBuffer.height);
+    renderer.setRenderTarget(this.rt);
+    this.fsQuad.render(renderer);
+    // back into the same buffer, color only: the depth the next passes read stays untouched
+    const clear = renderer.autoClear;
+    renderer.autoClear = false;
+    this.copy.material.uniforms.tDiffuse.value = this.rt.texture;
+    renderer.setRenderTarget(readBuffer);
+    this.copy.render(renderer);
+    renderer.autoClear = clear;
+  }
+
+  dispose() {
+    this.material.dispose();
+    this.fsQuad.dispose();
+    this.copy.material.dispose();
+    this.copy.dispose();
+    this.rt.dispose();
+  }
+}
+
 /** Final look: color grade, cel banding, halftone ink, PS1 pixels and dither, grain, vignette. */
 export const GradeShader = {
   uniforms: {

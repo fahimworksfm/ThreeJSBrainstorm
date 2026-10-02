@@ -32,6 +32,10 @@ export class Player {
     this.pos = new THREE.Vector3();
     this.ground = 0;
     this.air = 0; // height of a jump above the ground
+    this.spin = 0; // how far the bike has turned in the air (tricks)
+    this.hang = 0;
+    this.wheelie = 0;
+    this.tricks = null;
     this.vy = 0;
     this.land = 0;
     this.yaw = 0;
@@ -182,6 +186,8 @@ export class Player {
       const side = new THREE.Vector3(Math.cos(this.heading), 0, -Math.sin(this.heading));
       this.pos.addScaledVector(side, this.cfg.radius + 0.6);
     }
+    this.spin = 0;
+    this.wheelie = 0;
     const next = this.vehicles[mode];
     if (next) {
       next.parked = null;
@@ -305,11 +311,16 @@ export class Player {
         this.speed *= 1 - Math.min(1, dt * (this.mode === 'bike' ? 0.25 : 0.45));
         if (Math.abs(this.speed) < 0.05) this.speed = 0;
       }
-      if (input.brake) this.speed *= 1 - Math.min(1, dt * 3);
+      if (input.brake && this.mode !== 'bike') this.speed *= 1 - Math.min(1, dt * 3); // on the bike Space hops
       // steering gets gentler at speed so you can still thread traffic at 50 mph
       const steerLimit = cfg.steerMax / (1 + Math.abs(this.speed) * 0.06);
       this.steer += (-axes.x * steerLimit - this.steer) * Math.min(1, dt * 5);
-      this.heading += (this.speed / cfg.wheelbase) * Math.tan(this.steer) * dt;
+      if (this.mode === 'bike' && this.air > 0) this.spin -= axes.x * 8 * dt; // in the air, steering spins the bike
+      else this.heading += (this.speed / cfg.wheelbase) * Math.tan(this.steer) * dt;
+      // manual: hold Shift on the bike to ride on the back wheel
+      const manual = this.mode === 'bike' && input.sprint && this.air === 0 && this.speed > 2.5;
+      this.wheelie += ((manual ? 0.42 : 0) - this.wheelie) * Math.min(1, dt * 6);
+      this.tricks?.manual(this, dt, manual);
       this.pos.x += -Math.sin(this.heading) * this.speed * dt;
       this.pos.z += -Math.cos(this.heading) * this.speed * dt;
       if (this.world.collide(this.pos, cfg.radius) && Math.abs(this.speed) > 1) {
@@ -336,12 +347,20 @@ export class Player {
     this.pos.x = cx;
     this.pos.z = cz;
 
-    // jumping, on foot only
+    // jumping on foot, bunny hops on the bike
     const jump = this.input.takeJump();
     if (this.mode === 'walk' && jump && this.air === 0 && this.vy === 0) {
       this.vy = 4.4;
       this.audio.footstep?.(true, true);
     }
+    if (this.mode === 'bike' && jump && this.air === 0 && this.vy === 0 && this.speed > 2 && !this.roof) {
+      this.vy = 4.9;
+      this.spin = 0;
+      this.hang = 0;
+      this.tricks?.hop(this);
+      this.audio.thud?.(0.15);
+    }
+    if (this.air > 0) this.hang += dt;
     if (this.vy !== 0 || this.air > 0) {
       this.air += this.vy * dt;
       this.vy -= 12 * dt;
@@ -352,6 +371,10 @@ export class Player {
         this.air = 0;
         this.vy = 0;
         this.audio.footstep?.(true, true);
+        if (this.mode === 'bike') {
+          if (this.tricks && !this.tricks.land(this, this.spin, this.hang)) this.speed *= 0.15; // bailed
+          this.spin = 0;
+        }
       }
     }
     this.land *= 1 - Math.min(1, dt * 7);
@@ -379,8 +402,12 @@ export class Player {
     if (veh) {
       // from the driver's seat the cockpit replaces the outside of the vehicle
       for (const c of veh.root.children) c.visible = chase || c === veh.beam;
-      this.setVehicleTransform(veh, this.pos.x, this.pos.z, this.heading, this.roll);
+      this.setVehicleTransform(veh, this.pos.x, this.pos.z, this.heading + this.spin, this.roll);
       veh.root.position.y += this.bump;
+      if (this.mode === 'bike') {
+        veh.root.position.y += this.air + this.wheelie * 0.45;
+        veh.root.rotation.x = -this.wheelie;
+      }
       for (const w of veh.wheels) w.rotation.x += (this.speed / veh.radius) * dt;
       if (veh.steer) veh.steer.rotation.y = this.steer;
       if (veh.steerGroups) for (const s of veh.steerGroups) s.rotation.y = this.steer;

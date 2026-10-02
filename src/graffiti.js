@@ -1,21 +1,25 @@
 // Graffiti: a few blank walls per neighborhood are marked as tag spots. Walk up, press E, and a
-// piece goes up (bubble letters, outline, drips) and stays there between visits.
+// piece goes up (bubble letters, outline, drips) and stays there between visits. Rival crews hold some
+// walls with chrome throw-ups; go over them to take the wall. Leave a piece alone for a day or two and a
+// crew might go over yours.
 import * as THREE from 'three';
 import { COMIC, JUICE } from './comicfx.js';
 
 const WORDS = ['NITE', 'WALKR', 'QNS', 'BKLYN', 'ZEPH', 'KAZE', 'DUST', 'LUX', 'SOHO', 'BX', 'RIDE', 'SLICE', 'ECHO', 'NOVA', 'HYPE'];
+const CREWS = ['TKO', 'RIS', 'MAD', 'FX', 'IRAK', 'BTM', 'KD', 'OTB'];
+const CHROME = ['#f2f2f2', '#9aa3ad', '#0a0a0a'];
 const PALETTES = [
   ['#ff4fd8', '#ffd23b', '#1b1b6b'], ['#39d0ff', '#ffffff', '#0b2a6b'], ['#9dff4a', '#ffd23b', '#0f3b1a'],
   ['#ff5a36', '#ffd23b', '#2a0b0b'], ['#c86bff', '#39d0ff', '#1a0b2a'], ['#ffd23b', '#ff4fd8', '#111111'],
 ];
 
 /** A tag as a transparent canvas: fat letters with a fill gradient, a thick outline, a 3D drop, drips. */
-function paintTag(word, seed) {
+function paintTag(word, seed, crew = false) {
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 256;
   const x = c.getContext('2d');
-  const [fillA, fillB, line] = PALETTES[seed % PALETTES.length];
+  const [fillA, fillB, line] = crew ? CHROME : PALETTES[seed % PALETTES.length];
   x.translate(256, 138);
   x.rotate(((seed % 7) - 3) * 0.02);
   x.font = `900 ${Math.min(210, 1050 / word.length)}px "Bangers", "Arial Black", Impact, sans-serif`;
@@ -89,10 +93,31 @@ export class Graffiti {
       new THREE.CylinderGeometry(0.09, 0.09, 0.32, 10).translate(0, 0, 0),
       new THREE.MeshStandardMaterial({ color: 0xff4fd8, emissive: 0x551144, roughness: 0.4, metalness: 0.4 }),
     );
+    // the crews: some walls start out theirs, and a piece of yours left a day or more may get gone over
+    const now = Date.now();
+    let changed = false;
+    this.news = null;
+    spots.forEach((s, i) => {
+      const own = done[s.id];
+      const roll = ((h = (h * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      if (!own && roll < 0.4) {
+        done[s.id] = { crew: CREWS[Math.floor(roll * 1000) % CREWS.length], seed: i * 7 };
+        changed = true;
+      } else if (own && !own.crew && own.t && now - own.t > 86400000 && Math.random() < 0.3) {
+        const crew = CREWS[Math.floor(Math.random() * CREWS.length)];
+        done[s.id] = { crew, seed: own.seed, was: own.word };
+        this.news = `🎨 ${crew} went over your ${own.word} piece. Take it back!`;
+        changed = true;
+      }
+    });
+    if (changed) store.set(this.key, done);
     spots.forEach((s, i) => {
       const ang = Math.atan2(s.nx, s.nz);
       s.y = 1.9;
-      if (done[s.id]) {
+      if (done[s.id]?.crew) {
+        this.paint(s, done[s.id].crew, done[s.id].seed, true);
+        s.rival = done[s.id].crew;
+      } else if (done[s.id]) {
         this.paint(s, done[s.id].word, done[s.id].seed);
       } else {
         s.marker = new THREE.Group();
@@ -111,14 +136,15 @@ export class Graffiti {
     this.spraying = null;
   }
 
+  /** Walls that are yours (not a crew's). */
   get count() {
-    return Object.keys(this.store.get(this.key, {})).length;
+    return Object.values(this.store.get(this.key, {})).filter((v) => !v.crew).length;
   }
 
-  paint(s, word, seed) {
+  paint(s, word, seed, crew = false) {
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(3.6, 1.8),
-      new THREE.MeshStandardMaterial({ map: paintTag(word, seed), transparent: true, depthWrite: false, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2 }),
+      new THREE.MeshStandardMaterial({ map: paintTag(word, seed, crew), transparent: true, depthWrite: false, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2 }),
     );
     mesh.rotation.y = Math.atan2(s.nx, s.nz);
     mesh.position.set(s.x, s.y, s.z);
@@ -135,7 +161,7 @@ export class Graffiti {
         s.can.rotation.y = t * 1.5;
         s.can.position.y = 1.2 + Math.sin(t * 2 + s.index) * 0.08;
       }
-      if (s.tag || player.mode !== 'walk') continue;
+      if ((s.tag && !s.rival) || player.mode !== 'walk') continue;
       if (Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < 3) this.near = s;
     }
     const sp = this.spraying;
@@ -147,8 +173,13 @@ export class Graffiti {
       sp.mesh.scale.x = 0.2 + k * 0.8;
       if (k >= 1) {
         this.spraying = null;
-        COMIC.pop('TSSSS!', sp.s.x + sp.s.nx, 2.4, sp.s.z + sp.s.nz, { size: 1, cooldown: 1 });
-        JUICE.hit(0.1);
+        COMIC.pop(sp.buffed ? 'BUFFED!' : 'TSSSS!', sp.s.x + sp.s.nx, 2.4, sp.s.z + sp.s.nz, { size: sp.buffed ? 1.3 : 1, cooldown: 1 });
+        JUICE.hit(sp.buffed ? 0.2 : 0.1);
+        if (sp.old) {
+          this.group.remove(sp.old);
+          sp.old.material.map.dispose();
+          sp.old.material.dispose();
+        }
       }
     }
   }
@@ -164,13 +195,19 @@ export class Graffiti {
       s.marker = null;
       s.can = null;
     }
+    // going over a crew's throw-up: the old piece stays under the new one until it's done
+    const old = s.rival ? s.tag : null;
+    const buffed = s.rival ?? null;
+    s.rival = null;
     const mesh = this.paint(s, word, seed);
     mesh.material.opacity = 0;
-    this.spraying = { s, mesh, t: 0 };
+    mesh.position.addScaledVector(new THREE.Vector3(s.nx, 0, s.nz), 0.01);
+    this.spraying = { s, mesh, t: 0, old, buffed };
     this.audio?.spray?.();
     const done = this.store.get(this.key, {});
-    done[s.id] = { word, seed };
+    done[s.id] = { word, seed, t: Date.now() };
     this.store.set(this.key, done);
-    return { count: Object.keys(done).length, total: this.spots.length };
+    if (buffed) this.store.set('crews.covered', this.store.get('crews.covered', 0) + 1);
+    return { count: this.count, total: this.spots.length, buffed };
   }
 }

@@ -93,6 +93,22 @@ h3 { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: v
   opacity: 0; transition: opacity 0.25s; white-space: nowrap;
 }
 #prompt.show { opacity: 1; }
+/* live countdown board, like the ones on the platforms */
+#board {
+  position: absolute; left: 50%; top: 18%; transform: translateX(-50%) translateY(-6px);
+  background: #0b0c0e; border: 2px solid #2a2d33; border-radius: 6px; padding: 8px 12px 10px;
+  color: #ffb43a; font: 600 14px/1.25 ui-monospace, "SF Mono", Menlo, Consolas, monospace; min-width: 260px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+}
+#board.show { opacity: 1; transform: translateX(-50%); }
+#board .head { color: #fff; font-family: inherit; letter-spacing: 0.04em; margin-bottom: 6px; white-space: nowrap; }
+#board .head.citi { color: #9fd3ff; }
+#board .live { color: #3dff7a; font-size: 10px; margin-left: 6px; animation: blink 1.6s steps(2) infinite; }
+#board .row { display: flex; align-items: center; gap: 6px; margin-top: 4px; white-space: nowrap; }
+#board .dir { color: #b9bcc4; width: 92px; font-size: 12px; }
+#board .bullet { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 800 13px/1 Helvetica, Arial, sans-serif; font-style: normal; margin-left: 6px; }
+#board small { color: #9a7a40; font-size: 10px; }
+@keyframes blink { 50% { opacity: 0.35; } }
 
 #picker .boro { grid-column: 1 / -1; margin: 8px 0 -2px; font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
 #picker, #styles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
@@ -728,3 +744,24 @@ body.realmap #osmcredit { display: block; }
 #photolist .done { text-decoration: line-through; opacity: 0.6; }
 body.photo #photolist { display: block; }
 body.touch #photobar .k { display: none; }
+
+/* the daily postcard */
+#postcard {
+  position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: 120px; width: 220px; padding: 8px 8px 6px;
+  background: #f7f1df; color: #111; border: 3px solid #111; box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.45);
+  transform: rotate(-2deg) translateX(-130%); transition: transform 0.4s cubic-bezier(.2, 1.4, .4, 1); pointer-events: none;
+}
+#postcard.show { transform: rotate(-2deg); }
+#postcard img { display: block; width: 100%; aspect-ratio: 3 / 2; border: 2px solid #111; background: #333; }
+#postcard .pc-head { font: 400 18px/1 "Bangers", Impact, sans-serif; letter-spacing: 0.05em; margin-bottom: 6px; }
+#postcard .pc-head kbd { float: right; font-size: 11px; }
+#postcard .heat { font: 700 13px "Comic Neue", sans-serif; margin-top: 5px; text-align: center; }
+#postcard.solved img { filter: saturate(0.6); }
+/* badges */
+#badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+#badges .badge-sum { grid-column: 1 / -1; color: var(--dim); margin: 0 0 4px; }
+#badges .badge { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; opacity: 0.45; filter: grayscale(1); }
+#badges .badge.got { opacity: 1; filter: none; border-color: rgba(245, 197, 24, 0.6); background: rgba(245, 197, 24, 0.08); }
+#badges .icon { font-size: 26px; }
+#badges b { display: block; }
+#badges small { color: var(--dim); }

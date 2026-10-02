@@ -43,6 +43,8 @@
       <div id="topleft">
         <div id="prompt"></div>
       </div>
+      <div id="board" aria-live="polite"></div>
+      <div id="postcard"><div class="pc-head">📮 Where am I? <kbd>K</kbd></div><img alt="Today's postcard: find this storefront" /><div class="heat"></div></div>
       <div id="dial">
         <div id="dial-ring"></div>
         <div id="dial-core"><span id="dial-icon">🚶</span></div>
@@ -92,6 +94,7 @@
         <nav class="tabs">
           <button data-tab="play" class="on">Play</button>
           <button data-tab="journal">Journal</button>
+          <button data-tab="badges">Badges</button>
           <button data-tab="settings">Settings</button>
           <button data-tab="controls">Controls</button>
         </nav>
@@ -114,6 +117,10 @@
           <div id="journal"></div>
           <button id="reset">Clear journal</button>
         </section>
+        <section class="pane" data-pane="badges" hidden>
+          <h3>Badges</h3>
+          <div id="badges"></div>
+        </section>
         <section class="pane" data-pane="settings" hidden>
           <div id="settings"></div>
         </section>
@@ -131,6 +138,8 @@
               <dt>P</dt><dd>photo mode</dd>
               <dt>N</dt><dd>radio: next station</dd>
               <dt>J</dt><dd>take a delivery / cancel</dd>
+              <dt>Space / Shift</dt><dd>on the bike: bunny hop (steer in the air to spin) / manual</dd>
+              <dt>K</dt><dd>today's postcard: find the place in the picture</dd>
               <dt>G</dt><dd>wave at other walkers (Settings: Ghost players)</dd>
               <dt>E</dt><dd>take the train (at a green-globe entrance)</dd>
               <dt>R</dt><dd>rain on / off</dd>

@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { OutlinePass, GradeShader, GodRaysPass } from './postfx.js';
+import { OutlinePass, PaintPass, GradeShader, GodRaysPass } from './postfx.js';
 import { RIM, rimLight, setWet } from './fx.js';
 import { COMIC, ComicWords, JUICE } from './comicfx.js';
 import { BigMap, RideWheel } from './menus.js';
@@ -29,6 +29,9 @@ import { Deliveries } from './deliveries.js';
 import { setTerrain, liftAll, heightAt, terrainOn } from './terrain.js';
 import { Plaques } from './plaques.js';
 import { Regulars } from './regulars.js';
+import { Transit } from './transit.js';
+import { Achievements, Daily } from './achievements.js';
+import { Tricks } from './tricks.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -145,6 +148,7 @@ const radio = new Radio(audio);
 let ghosts = null; // created once the HUD exists
 let comicWords = null; // created once the camera exists
 const hud = new HUD();
+const achievements = new Achievements(store, hud, DISTRICTS);
 const minimap = new Minimap(document.getElementById('minimap'));
 const compass = new Compass(document.getElementById('compass'));
 const staminaBar = document.querySelector('#stamina i');
@@ -205,6 +209,7 @@ function toggleMap() {
 COMIC.pop = (...a) => settings.comicWords && comicWords.pop(...a);
 const input = new Input(renderer.domElement);
 const player = new Player(camera, scene, worldProxy, audio, input, shared);
+player.tricks = new Tricks(hud, store);
 if (params.has('fly')) player.update = () => {};
 
 const reflectSize = () => new THREE.Vector2(innerWidth * pixelRatio * 0.5, innerHeight * pixelRatio * 0.5);
@@ -443,8 +448,9 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
   const plaques = new Plaques(data?.wiki, P.city ?? null, store, def.id, hud);
   const regulars = new Regulars(P.layout?.faces ?? P.city?.faces ?? [], P.streets.openHydrants ?? [], def.name, () => nightness(minute), hud, audio);
+  const transit = new Transit(P.elevated.entrances, P.city ?? null, data?.nyc, def, hud);
   const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group, transit.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
@@ -461,10 +467,17 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   }
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, plaques, regulars, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, plaques, regulars, transit, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
+  // the daily postcard: a real storefront somewhere in this neighborhood
+  const faces = P.layout?.faces ?? P.city?.faces ?? [];
+  const boards = P.buildings.realBoards?.length ? P.buildings.realBoards : faces.filter((f) => f.shop && !f.lot?.outer && f.w > 5).map((f) => ({ x: f.x, z: f.z, nx: f.nx, nz: f.nz, name: f.names?.[0] ?? null }));
+  W.daily = new Daily(store, hud, def.id, boards, P.describe ?? describeLocation);
+  postcardIn = W.daily.target ? 40 : -1;
+  achievements.visit(def.id);
+  if (graffiti.news) setTimeout(() => hud.toast(graffiti.news), 6000);
   // far building tiles can be skipped once the fog has swallowed them
   W.cullables = [];
   if (W.real) {
@@ -668,6 +681,11 @@ function setAO(on) {
   renderPass.enabled = !on;
 }
 const aoDepth = () => (ao?.enabled ? ao.beautyRenderTarget.depthTexture : null);
+// far streets and the sky as brush strokes (High and Ultra), before the ink goes on top
+const paint = new PaintPass(camera, 3);
+paint.depthSource = aoDepth;
+paint.enabled = false;
+composer.addPass(paint);
 const outline = new OutlinePass(camera);
 outline.depthSource = aoDepth;
 composer.addPass(outline);
@@ -815,7 +833,52 @@ function toggleDelivery() {
 }
 function tagWall() {
   const r = W.graffiti.spray();
-  if (r) setTimeout(() => hud.toast(r.count === r.total ? `🎨 Every wall in ${W.def.name} tagged!` : `🎨 Wall tagged: ${r.count} / ${r.total} in ${W.def.name}`), 1500);
+  if (r) setTimeout(() => hud.toast(r.count === r.total ? `🎨 Every wall in ${W.def.name} is yours!` : `🎨 ${r.buffed ? `Went over ${r.buffed}. ` : ''}Walls: ${r.count} / ${r.total} in ${W.def.name}`), 1500);
+}
+function rentBike() {
+  const msg = W.transit.rent();
+  if (msg) hud.toast(msg);
+  if (msg?.startsWith('🚲')) {
+    ride('bike');
+    achievements.bump('citibike');
+  }
+}
+
+// ---------- the daily postcard ----------
+let postcardIn = -1;
+const postcardEl = document.getElementById('postcard');
+/** Render the postcard view once, from across the street, then put the camera back. */
+function snapPostcard() {
+  const v = W.daily.view();
+  const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
+  camera.position.set(v.from[0], v.from[1] + heightAt(v.from[0], v.from[2]), v.from[2]);
+  camera.lookAt(v.at[0], v.at[1] + heightAt(v.at[0], v.at[2]), v.at[2]);
+  camera.updateMatrixWorld();
+  composer.render();
+  const src = renderer.domElement;
+  const c = document.createElement('canvas');
+  c.width = 360;
+  c.height = 240;
+  const ctx = c.getContext('2d');
+  const sw = Math.min(src.width, src.height * 1.5);
+  const sh = sw / 1.5;
+  ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+  camera.position.copy(keep.p);
+  camera.quaternion.copy(keep.q);
+  W.daily.image = c.toDataURL('image/jpeg', 0.85);
+  postcardEl.querySelector('img').src = W.daily.image;
+  showPostcard(true, 9000);
+}
+let postcardTimer = null;
+function showPostcard(on, ms = 0) {
+  if (!W.daily?.image) {
+    if (on) hud.toast('📮 No postcard in this neighborhood today');
+    return;
+  }
+  postcardEl.classList.toggle('show', on);
+  postcardEl.classList.toggle('solved', !!W.daily.solved);
+  clearTimeout(postcardTimer);
+  if (on && ms) postcardTimer = setTimeout(() => postcardEl.classList.remove('show'), ms);
 }
 function openTravel() {
   if (!hasMetroCard()) {
@@ -894,6 +957,7 @@ input.addEventListener('button', (e) => {
       if (W.nearEntrance) openTravel();
       else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
+      else if (W.transit.near) rentBike();
       break;
   }
 });
@@ -927,6 +991,10 @@ addEventListener('keydown', (e) => {
     toggleDelivery();
     return;
   }
+  if (e.code === 'KeyK' && !e.repeat && input.active) {
+    showPostcard(!postcardEl.classList.contains('show'));
+    return;
+  }
   if (e.code === 'KeyN' && !e.repeat && input.active) {
     hud.toast(`📻 ${radio.next()}`);
     radioBtn.querySelector('.pname').textContent = `📻 ${radio.station.name}`;
@@ -945,6 +1013,7 @@ addEventListener('keydown', (e) => {
       if (W.nearEntrance) openTravel();
       else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
+      else if (W.transit.near) rentBike();
       break;
     case 'Digit1':
     case 'Digit2':
@@ -1025,6 +1094,7 @@ function applyGfx() {
   outline.material.uniforms.wobble.value = gfx.boil ? 1.2 : 0;
   outline.material.uniforms.broken.value = gfx.boil ? 0.35 : 0;
   lutPass.enabled = !!shared.lut && gfx.lut !== false;
+  paint.enabled = !!gfx.paint && !LOW;
   if (ghosts && W) {
     if (gfx.ghosts && !ghosts.room) ghosts.join(W.def.id);
     if (!gfx.ghosts && ghosts.room) ghosts.leave();
@@ -1056,6 +1126,7 @@ for (const tab of document.querySelectorAll('.tabs button')) {
     e.stopPropagation();
     for (const t of document.querySelectorAll('.tabs button')) t.classList.toggle('on', t === tab);
     for (const p of document.querySelectorAll('.pane')) p.hidden = p.dataset.pane !== tab.dataset.tab;
+    if (tab.dataset.tab === 'badges') achievements.render(document.getElementById('badges'));
   });
 }
 
@@ -1436,6 +1507,7 @@ function frame(now) {
     }
   }
   player.update(dt);
+  player.tricks.update(dt);
   if (terrainOn()) {
     // the world is drawn on the hills; the camera rides up with the hero, and never under the ground
     camera.position.y += heightAt(player.pos.x, player.pos.z);
@@ -1521,6 +1593,11 @@ function frame(now) {
     }
   }
   W.nearEscape = fe;
+  W.transit.update(dt, player, near);
+  if (postcardIn > 0 && --postcardIn === 0 && !photo) snapPostcard();
+  if (W.daily.update(dt, player) === 'solved') showPostcard(true, 6000);
+  postcardEl.querySelector('.heat').textContent = W.daily.solved ? '✅ Solved, come back tomorrow' : W.daily.heat;
+  achievements.update(dt, { minute, roof: !!player.roof, golden: minute >= 1050 && minute <= 1170 && !settings.rain });
   const stationName = near?.name.replace(/–/g, '-');
   const card = hasMetroCard();
   hud.setPrompt(near && input.active && !IS_TOUCH ? (card ? `Press E to take ${W.def.el.ride} from ${stationName}` : 'Find a memory to earn a MetroCard for the trains') : '');
@@ -1529,7 +1606,11 @@ function frame(now) {
   if (fe && !IS_TOUCH && input.active) hud.setPrompt(`Press E to ${player.roof ? 'climb down' : 'climb the fire escape'}`);
   if (!near && W.graffiti.near && input.active) {
     input.setAction('Tag');
-    if (!IS_TOUCH) hud.setPrompt('Press E to tag this wall');
+    if (!IS_TOUCH) hud.setPrompt(W.graffiti.near.rival ? `Press E to go over ${W.graffiti.near.rival}` : 'Press E to tag this wall');
+  }
+  if (!near && !fe && W.transit.near && input.active) {
+    input.setAction('Citi Bike');
+    if (!IS_TOUCH) hud.setPrompt('Press E to unlock a Citi Bike');
   }
   hud.setSpeed(player.mode === 'walk' ? 0 : player.mph);
   hud.setRide(MODES[player.mode].name, player.mode);
