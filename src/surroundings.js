@@ -99,10 +99,14 @@ export function buildTrees(positions, leaves = null) {
 }
 
 const AUTUMN = [0xd9822b, 0xe3a531, 0xc4542a, 0xe8c547, 0xb86420, 0x9aa03a, 0xd06a2a];
-/** Recolor tree crowns: summer greens or autumn oranges. */
+/** Recolor tree crowns: summer greens, spring blossom, autumn oranges, or bare winter branches. */
 export function setFoliage(crowns, kind) {
   const c = new THREE.Color();
   const cards = crowns.userData.cards;
+  // winter: leaves gone, just the branches
+  crowns.visible = kind !== 'bare';
+  if (cards) cards.visible = kind !== 'bare';
+  if (kind === 'bare') return;
   if (cards) {
     const L = cards.userData.leaves;
     cards.material.map = (kind === 'autumn' ? L.autumn : L.summer) ?? L.autumn ?? L.summer;
@@ -112,7 +116,8 @@ export function setFoliage(crowns, kind) {
     const h = (Math.sin(i * 12.9898) * 43758.5453) % 1;
     const r = Math.abs(h);
     if (kind === 'autumn') c.set(AUTUMN[Math.floor(r * AUTUMN.length)]).multiplyScalar(0.85 + r * 0.25);
-    else c.setHSL(0.27 + r * 0.08, 0.45, 0.28 + r * 0.12);
+    else if (kind === 'spring' && r < 0.3) c.setHSL(0.92 + r * 0.1, 0.55, 0.78); // callery pears and cherries in bloom
+    else c.setHSL(0.27 + r * 0.08, kind === 'spring' ? 0.55 : 0.45, (kind === 'spring' ? 0.36 : 0.28) + r * 0.12);
     if (cards) c.multiplyScalar(0.45); // shadowed inside of the crown
     crowns.setColorAt(i, c);
   }

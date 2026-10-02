@@ -33,6 +33,8 @@ import { Transit } from './transit.js';
 import { Achievements, Daily } from './achievements.js';
 import { Tricks } from './tricks.js';
 import { buildFarCity } from './farcity.js';
+import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
+import { season, holiday, buildDecor } from './holidays.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -455,10 +457,13 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const knock = new Knockables(peds, P.grid, audio);
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
   const plaques = new Plaques(data?.wiki, P.city ?? null, store, def.id, hud);
-  const regulars = new Regulars(P.layout?.faces ?? P.city?.faces ?? [], P.streets.openHydrants ?? [], def.name, () => nightness(minute), hud, audio);
+  const regulars = new Regulars(P.layout?.faces ?? P.city?.faces ?? [], P.streets.openHydrants ?? [], def.name, () => nightness(lookMin()), hud, audio);
   const transit = new Transit(P.elevated.entrances, P.city ?? null, data?.nyc, def, hud);
+  // the real calendar: today's season on the trees, and the holiday's decorations out
+  const decor = buildDecor(P.layout?.faces ?? P.city?.faces ?? [], params.get('holiday') ?? holiday());
   const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group, transit.group);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group, transit.group, decor.group);
+  decor.group.name = 'decor';
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
     if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial || o.userData.noShadow) return;
@@ -479,6 +484,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
+  W.season = params.get('season') ?? season();
   // the daily postcard: a real storefront somewhere in this neighborhood
   const faces = P.layout?.faces ?? P.city?.faces ?? [];
   const boards = P.buildings.realBoards?.length ? P.buildings.realBoards : faces.filter((f) => f.shop && !f.lot?.outer && f.w > 5).map((f) => ({ x: f.x, z: f.z, nx: f.nx, nz: f.nz, name: f.names?.[0] ?? null }));
@@ -549,6 +555,37 @@ async function refreshLive(announce = false) {
   applyTime(true);
   if (announce) hud.toast(`Live: ${w.temp}°F, ${w.label} in ${W.def.name} · weather by Open-Meteo.com`);
 }
+// live mode: the look follows today's real sunrise and sunset, and the sun shines from its real direction
+let sunCache = null;
+function realSun() {
+  if (!isLive() || !W?.def.ll) return null;
+  const now = new Date();
+  const key = `${W.def.id}|${now.toDateString()}`;
+  if (sunCache?.key !== key) sunCache = { key, times: sunTimes(now, ...W.def.ll) };
+  return sunCache.times;
+}
+/** The minute of the look's timeline for the clock's minute: the same, unless live. */
+function lookMin() {
+  const times = realSun();
+  return times ? lookMinuteFor(minute, times) : minute;
+}
+/** Turn a look's sun direction to the real sun's compass bearing, keeping its height. */
+function aimRealSun(v) {
+  const proj = W?.city?.M.proj;
+  if (!proj || !realSun()) return;
+  const [lat, lon] = W.def.ll;
+  const { az } = sunPosition(new Date(), lat, lon);
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180);
+  const [ox, oz] = proj.toWorld(lat, lon);
+  const [ex, ez] = proj.toWorld(lat, lon + 1 / kx);
+  const [nx, nz] = proj.toWorld(lat + 1 / 110540, lon);
+  const a = (az * Math.PI) / 180;
+  const hx = (ex - ox) * Math.sin(a) + (nx - ox) * Math.cos(a);
+  const hz = (ez - oz) * Math.sin(a) + (nz - oz) * Math.cos(a);
+  const flat = Math.hypot(v.x, v.z);
+  const k = flat / (Math.hypot(hx, hz) || 1);
+  v.set(hx * k, v.y, hz * k);
+}
 let materialTimer = 0;
 let rainyNight = Math.random() < 0.5;
 let wasNight = false;
@@ -580,7 +617,7 @@ function applyInk() {
 }
 
 function applyTime(force = false) {
-  const L = lookAt(minute);
+  const L = lookAt(lookMin());
   const [fr, fg, fb, density] = L.fog;
   scene.fog.color.setRGB(fr, fg, fb);
   scene.fog.density = density * (live?.haze ?? 1);
@@ -590,7 +627,9 @@ function applyTime(force = false) {
   hemi.intensity = L.hemi;
   sun.color.setRGB(...L.sun);
   sun.intensity = L.sunI;
-  sunDir.set(...L.sunDir).normalize();
+  sunDir.set(...L.sunDir);
+  aimRealSun(sunDir);
+  sunDir.normalize();
   const castNow = renderer.shadowMap.enabled && L.sunI > 0.7;
   if (castNow !== sun.castShadow) {
     sun.castShadow = castNow;
@@ -603,22 +642,24 @@ function applyTime(force = false) {
   g.contrast.value = L.contrast;
   g.shadowTint.value.set(...L.shadowTint);
   g.highlightTint.value.set(...L.highlightTint);
-  heroLight.intensity = nightness(minute) * 5;
-  W.sky.set({ ...L.sky, amount: L.sky.amount * 0.45 });
+  heroLight.intensity = nightness(lookMin()) * 5;
   // sun shafts: strongest with a low sun, gone at night
-  skySun.set(...L.sky.sunDir).normalize();
+  skySun.set(...L.sky.sunDir);
+  aimRealSun(skySun);
+  skySun.normalize();
+  W.sky.set({ ...L.sky, sunDir: [skySun.x, skySun.y, skySun.z], amount: L.sky.amount * 0.45 });
   const low = skySun.y;
   raysLevel = THREE.MathUtils.smoothstep(low, -0.04, 0.06) * (0.35 + 1.05 * (1 - THREE.MathUtils.smoothstep(low, 0.2, 0.6)));
   raysColor.setRGB(...L.sun);
   // rim light: warm sunlight by day, cool neon-blue at night
-  const nite = nightness(minute);
+  const nite = nightness(lookMin());
   RIM.color.value.setRGB(...L.sun).lerp(tmpColor.setRGB(0.55, 0.7, 1.25), nite);
   RIM.strength.value = 0.6 + nite * 0.15;
   W.clouds.set(L.sky.cloud, L.sky.shade, L.sky.amount * (live ? 0.35 + live.cloud * 1.1 : 1));
   W.road.setColor(tmpColor.setRGB(...L.road));
 
   // weather: some nights it rains
-  const night = nightness(minute) > 0.75;
+  const night = nightness(lookMin()) > 0.75;
   if (night && !wasNight) rainyNight = Math.random() < 0.5;
   wasNight = night;
   const rain = settings.rainOverride ?? (live ? live.rain : night && rainyNight);
@@ -642,7 +683,7 @@ function applyTime(force = false) {
 /** Facades brighter by day, windows and neon brighter by night, no specular anywhere. */
 function updateMaterials(L, first) {
   W.root.traverse((o) => {
-    if (first && o.userData.foliage) setFoliage(o, W.def.foliage ?? 'autumn');
+    if (first && o.userData.foliage) setFoliage(o, W.season);
     const m = o.material;
     if (!m || Array.isArray(m)) return;
     m.userData.onLight?.(L);
@@ -1517,7 +1558,7 @@ function frame(now) {
   }
   player.update(dt);
   player.tricks.update(dt);
-  if (terrainOn()) {
+  if (terrainOn() && !params.has('fly')) { // fly mode places the camera itself
     // the world is drawn on the hills; the camera rides up with the hero, and never under the ground
     camera.position.y += heightAt(player.pos.x, player.pos.z);
     const under = heightAt(camera.position.x, camera.position.z) + 0.5;
@@ -1606,7 +1647,7 @@ function frame(now) {
   if (postcardIn > 0 && --postcardIn === 0 && !photo) snapPostcard();
   if (W.daily.update(dt, player) === 'solved') showPostcard(true, 6000);
   postcardEl.querySelector('.heat').textContent = W.daily.solved ? '✅ Solved, come back tomorrow' : W.daily.heat;
-  achievements.update(dt, { minute, roof: !!player.roof, golden: minute >= 1050 && minute <= 1170 && !settings.rain });
+  achievements.update(dt, { minute, roof: !!player.roof, golden: lookMin() >= 1050 && lookMin() <= 1170 && !settings.rain });
   const stationName = near?.name.replace(/–/g, '-');
   const card = hasMetroCard();
   hud.setPrompt(near && input.active && !IS_TOUCH ? (card ? `Press E to take ${W.def.el.ride} from ${stationName}` : 'Find a memory to earn a MetroCard for the trains') : '');
@@ -1665,4 +1706,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, heightAt, get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };

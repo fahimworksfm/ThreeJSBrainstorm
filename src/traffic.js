@@ -198,10 +198,16 @@ export class Traffic {
     const buv = beam.attributes.uv;
     for (let i = 0; i < buv.count; i++) buv.setY(i, 1 - buv.getY(i));
 
+    // every car is written into an off-scene copy; each frame only the cars in view are copied into the
+    // drawn twin, packed to the front, so the GPU never touches the rest (see draw())
+    this.pairs = [];
     const inst = (geo, mat) => {
       const m = new THREE.InstancedMesh(geo, mat, N);
-      m.frustumCulled = false;
-      this.group.add(m);
+      const d = new THREE.InstancedMesh(geo, mat, N);
+      d.frustumCulled = false;
+      d.count = 0;
+      this.group.add(d);
+      this.pairs.push([m, d]);
       return m;
     };
     this.mBody = inst(body, new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.7 }));
@@ -397,12 +403,44 @@ export class Traffic {
       this.mChecker.setMatrixAt(k, car.kind === 'yellow' ? m : zero);
       this.mTail.setColorAt(k, car.braking || car.v < 0.3 ? c.setRGB(7, 0.3, 0.2) : c.setRGB(2.4, 0.1, 0.08));
     });
-    for (const mesh of [this.mBody, this.mCabin, this.mChrome, this.mWheels, this.mHead, this.mTail, this.mSign, this.mChecker, this.mBeam]) {
-      mesh.instanceMatrix.needsUpdate = true;
-    }
-    this.mTail.instanceColor.needsUpdate = true;
+    this.draw(camera);
     this.mBus.instanceMatrix.needsUpdate = true;
     this.mBusWheels.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Copy the cars the camera can see (within the fog) into the drawn meshes. */
+  draw(camera) {
+    const body = this.mBody.instanceMatrix.array;
+    const frustum = (this._frustum ??= new THREE.Frustum());
+    const sphere = (this._sphere ??= new THREE.Sphere(new THREE.Vector3(), 3.5));
+    if (camera) frustum.setFromProjectionMatrix(this._m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const cx = camera?.position.x ?? 0;
+    const cz = camera?.position.z ?? 0;
+    const seen = (this._seen ??= new Int32Array(this.count));
+    let n = 0;
+    for (let k = 0; k < this.count; k++) {
+      const o = k * 16;
+      if (body[o] === 0 && body[o + 2] === 0) continue; // hidden (scaled to nothing)
+      const x = body[o + 12];
+      const z = body[o + 14];
+      if (Math.abs(x - cx) > 520 || Math.abs(z - cz) > 520) continue;
+      if (camera && !frustum.intersectsSphere(sphere.set(this._p.set(x, body[o + 13] + 0.8, z), 3.5))) continue;
+      seen[n++] = k;
+    }
+    for (const [src, dst] of this.pairs) {
+      const a = src.instanceMatrix.array;
+      const b = dst.instanceMatrix.array;
+      for (let j = 0; j < n; j++) b.set(a.subarray(seen[j] * 16, seen[j] * 16 + 16), j * 16);
+      dst.count = n;
+      dst.instanceMatrix.needsUpdate = true;
+      if (src.instanceColor) {
+        if (!dst.instanceColor) dst.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.count * 3), 3);
+        const ca = src.instanceColor.array;
+        const cb = dst.instanceColor.array;
+        for (let j = 0; j < n; j++) cb.set(ca.subarray(seen[j] * 3, seen[j] * 3 + 3), j * 3);
+        dst.instanceColor.needsUpdate = true;
+      }
+    }
   }
 
   panFor(camera, lane, car) {

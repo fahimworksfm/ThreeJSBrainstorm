@@ -30,6 +30,13 @@ It's a static site, so it's free to host:
 
 On a phone, open the link and use **Add to Home Screen** to install it as a full-screen app.
 
+**The real calendar and sky:** pick **Live NYC** as the start time and the game runs on New York's clock and
+weather, golden hour comes at today's real sunset (worked out on the device, NOAA's solar formula), and the
+sun lights the real streets from its real compass bearing, so on Manhattanhenge evenings it sets straight
+down the cross streets. Always, the trees follow the real season (bare in winter, blossom in spring, orange
+in the fall), and the holidays put decorations out: jack-o'-lanterns all October, lights from
+December into the new year, flags around the Fourth. `?season=` and `?holiday=` override them for testing.
+
 **Live transit (Vercel):** `api/transit.js` is a free serverless function that reads the MTA's GTFS-realtime
 subway feeds and Citi Bike's GBFS feed (both free, no keys) and caches them for 20-30 seconds. In game, the
 subway stairs show a countdown board with the real next trains, and the real Citi Bike docks stand on the
@@ -171,4 +178,5 @@ hosting works.
 - `?district=jamaica`, `?time=night` (golden, dusk, night), `?quality=low`
 - `?cam=x,z,yawDeg,pitchDeg,height&fly` puts a static camera anywhere
 - `?shot` hides the title screen, `?t=60` fast-forwards trains and traffic
+- `?season=bare|spring|summer|autumn`, `?holiday=halloween|winter|july4` try other times of year
 - `?realmap=0` forces the drawn grid; `?osm=<url>` loads an Overpass JSON file instead of the live API
