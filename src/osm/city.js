@@ -319,7 +319,8 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
       [box.x0 - E, box.x0 - 3.5, box.z0 - 3.5, box.z1 + 3.5],
       [box.x1 + 3.5, box.x1 + E, box.z0 - 3.5, box.z1 + 3.5],
     ].map(([x0, x1, z0, z1]) => {
-      const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+      // divided every ~25 m so it follows the hills like everything else (terrain.js lifts vertices)
+      const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, Math.max(1, Math.ceil((x1 - x0) / 25)), Math.max(1, Math.ceil((z1 - z0) / 25)));
       g.rotateX(-Math.PI / 2);
       g.translate((x0 + x1) / 2, CURB - 0.01, (z0 + z1) / 2);
       const uv = g.attributes.uv;

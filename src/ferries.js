@@ -42,18 +42,22 @@ function harbor(path, box, width = 220) {
   const f = [0, 0, 0, 0];
   const g = [0, 0, 0, 0];
   const out = (x, z) => x < box.x0 + 20 || x > box.x1 - 20 || z < box.z0 + 20 || z > box.z1 - 20;
+  // above the ground ring (CURB) everywhere; split across into strips so the hills' lift follows it closely
+  const y = 0.4;
+  const N = 10;
   for (let s = 0; s + 20 <= path.len; s += 20) {
     path.at(s, f);
     path.at(s + 20, g);
     if (!out(f[0], f[1]) && !out(g[0], g[1])) continue;
-    const w = width / 2;
-    const a = [f[0] + f[3] * w, f[1] - f[2] * w];
-    const b = [f[0] - f[3] * w, f[1] + f[2] * w];
-    const c = [g[0] + g[3] * w, g[1] - g[2] * w];
-    const d = [g[0] - g[3] * w, g[1] + g[2] * w];
-    // 40 cm up: far out, a few centimeters is too close for the depth buffer to tell from the ground
-    const y = 0.4;
-    pos.push(a[0], y, a[1], b[0], y, b[1], c[0], y, c[1], b[0], y, b[1], d[0], y, d[1], c[0], y, c[1]);
+    for (let k = 0; k < N; k++) {
+      const u0 = (k / N - 0.5) * width;
+      const u1 = ((k + 1) / N - 0.5) * width;
+      const a = [f[0] + f[3] * u0, f[1] - f[2] * u0];
+      const b = [f[0] + f[3] * u1, f[1] - f[2] * u1];
+      const c = [g[0] + g[3] * u0, g[1] - g[2] * u0];
+      const d = [g[0] + g[3] * u1, g[1] - g[2] * u1];
+      pos.push(a[0], y, a[1], b[0], y, b[1], c[0], y, c[1], b[0], y, b[1], d[0], y, d[1], c[0], y, c[1]);
+    }
   }
   if (!pos.length) return null;
   const geo = new THREE.BufferGeometry();
@@ -98,7 +102,7 @@ export function buildFerries(routes, box = null) {
         }
       }
       b.path.at(b.s, f);
-      b.g.position.set(f[0], Math.sin(b.t * 0.7) * 0.15, f[1]);
+      b.g.position.set(f[0], 0.45 + Math.sin(b.t * 0.7) * 0.15, f[1]);
       b.g.rotation.set(Math.sin(b.t * 0.5) * 0.01, Math.atan2(f[2] * b.dir, f[3] * b.dir), Math.sin(b.t * 0.6) * 0.015);
     }
   }
