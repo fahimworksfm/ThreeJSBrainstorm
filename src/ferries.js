@@ -51,7 +51,9 @@ function harbor(path, box, width = 220) {
     const b = [f[0] - f[3] * w, f[1] + f[2] * w];
     const c = [g[0] + g[3] * w, g[1] - g[2] * w];
     const d = [g[0] - g[3] * w, g[1] + g[2] * w];
-    pos.push(a[0], 0.03, a[1], b[0], 0.03, b[1], c[0], 0.03, c[1], b[0], 0.03, b[1], d[0], 0.03, d[1], c[0], 0.03, c[1]);
+    // 40 cm up: far out, a few centimeters is too close for the depth buffer to tell from the ground
+    const y = 0.4;
+    pos.push(a[0], y, a[1], b[0], y, b[1], c[0], y, c[1], b[0], y, b[1], d[0], y, d[1], c[0], y, c[1]);
   }
   if (!pos.length) return null;
   const geo = new THREE.BufferGeometry();
