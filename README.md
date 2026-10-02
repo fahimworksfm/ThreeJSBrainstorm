@@ -42,6 +42,10 @@ greenmarkets go up on their real blocks (stalls, barricades, no traffic), with a
 film crews park on the blocks named in real film permits; and the soundscape comes from the last month of 311
 noise complaints (parties at night, construction by day, horns, dogs, ice cream trucks), pooled to ~50 m.
 
+**Map, storms, sharing:** the full map (Tab) marks food stops, Citi Bike docks, landmarks, graffiti walls,
+today's street events and film shoots. Real thunderstorms (Live NYC, or `?weather=storm`) bring lightning and
+rolling thunder. **Pause → Share** copies a link that opens the game right where you're standing.
+
 **Snow and cabs:** on real snowy days (Live NYC) snow falls and settles on sidewalks, roofs and car tops
 (`?weather=snow` to try it). **T** hails a yellow cab: it pulls up at the curb and **E** rides to the next memory
 you haven't found (or today's postcard spot) for a fare out of delivery money. On phones: the Taxi and 📮 buttons.
@@ -195,5 +199,6 @@ hosting works.
 - `?district=jamaica`, `?time=night` (golden, dusk, night), `?quality=low`
 - `?cam=x,z,yawDeg,pitchDeg,height&fly` puts a static camera anywhere
 - `?shot` hides the title screen, `?t=60` fast-forwards trains and traffic
+- `?weather=snow|storm` tries the weather; `?district=<id>&at=x,z,facing` opens at a spot (what Share copies)
 - `?season=bare|spring|summer|autumn`, `?holiday=halloween|winter|july4` try other times of year
 - `?realmap=0` forces the drawn grid; `?osm=<url>` loads an Overpass JSON file instead of the live API

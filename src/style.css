@@ -428,6 +428,7 @@ body.touch #subtitle #subtitle-title { font-size: 16px; }
   font: 500 13px Oswald, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; color: #eee;
 }
 #bigmap .bm-legend span { display: flex; align-items: center; gap: 7px; }
+#bigmap .bm-legend { flex-wrap: wrap; max-width: min(760px, calc(100vw - 56px)); justify-content: flex-end; }
 #bigmap .bm-legend i { width: 12px; height: 12px; display: inline-block; border: 2px solid #111; border-radius: 50%; }
 #bigmap .you { background: #1aa3ff; border-color: #fff !important; }
 #bigmap .mem { background: #f5c518; border-radius: 0 !important; transform: rotate(45deg) scale(0.85); }

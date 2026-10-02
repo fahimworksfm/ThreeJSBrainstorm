@@ -12,6 +12,7 @@ export class BigMap {
       <div class="bm-legend">
         <span><i class="you"></i>You</span><span><i class="mem"></i>Memory</span>
         <span><i class="st"></i>Station</span><span><i class="el"></i>Train line</span>
+        <span>🍕 Food</span><span>🚲 Citi Bike</span><span>📜 Landmark</span><span>🎨 Wall</span><span>🎪 Event</span><span>🎬 Film shoot</span>
       </div>
       <div class="bm-hint">Tab to close</div>`;
     document.body.appendChild(this.el);
@@ -126,6 +127,29 @@ export class BigMap {
       ctx.strokeStyle = '#111';
       ctx.stroke();
     }
+    // everything else worth walking to, as little badges (dimmed when done or empty)
+    const badge = (x, z, icon, dim = false) => {
+      ctx.save();
+      ctx.translate(x, z);
+      ctx.scale(1 / s, 1 / s);
+      ctx.globalAlpha = dim ? 0.45 : 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(12, 12, 16, 0.85)';
+      ctx.fill();
+      ctx.font = '13px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(icon, 0, 1);
+      ctx.restore();
+    };
+    const FOOD = { pizza: '🍕', coffee: '☕', bakery: '🥐', deli: '🥪' };
+    for (const f of world.food?.stops ?? []) badge(f.sx, f.sz, FOOD[f.kind] ?? '🍴');
+    for (const d of world.transit?.docks ?? []) badge(d.x, d.z, '🚲', !((d.bikes ?? 0) + (d.ebikes ?? 0)));
+    for (const p of world.plaques?.items ?? []) badge(p.x, p.z, '📜', world.plaques.read?.has(p.title));
+    for (const g of world.graffiti?.spots ?? []) badge(g.x, g.z, '🎨', !!g.tag && !g.rival);
+    for (const e of world.city?.fairs ?? []) badge(e.x, e.z, '🎪');
+    for (const c of world.city?.crews ?? []) badge(c.x, c.z, '🎬');
     // you, pointing where the camera looks
     ctx.translate(player.pos.x, player.pos.z);
     ctx.rotate(-yaw);

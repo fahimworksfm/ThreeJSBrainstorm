@@ -15,7 +15,7 @@ const SNOW = new Set([71, 73, 75, 77, 85, 86]);
 const LABEL = {
   0: 'clear', 1: 'mostly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'fog', 48: 'fog',
   51: 'drizzle', 53: 'drizzle', 55: 'drizzle', 61: 'light rain', 63: 'rain', 65: 'heavy rain',
-  71: 'light snow', 73: 'snow', 75: 'heavy snow', 80: 'showers', 81: 'showers', 82: 'downpour', 95: 'thunderstorm',
+  71: 'light snow', 73: 'snow', 75: 'heavy snow', 80: 'showers', 81: 'showers', 82: 'downpour', 95: 'thunderstorm', 96: 'thunderstorm with hail', 99: 'thunderstorm with hail',
 };
 
 /** The weather right now at (lat, lon), or null if Open-Meteo can't be reached. */
@@ -30,6 +30,7 @@ export async function liveWeather(lat, lon) {
     return {
       rain: WET.has(code) || c.precipitation > 0.05,
       snow: SNOW.has(code),
+      storm: code >= 95, // thunderstorm (with or without hail)
       cloud: (c.cloud_cover ?? 30) / 100,
       // thick fog below ~1 km, a little haze below ~10 km
       haze: c.visibility ? Math.min(3, Math.max(1, 10000 / c.visibility)) : 1,

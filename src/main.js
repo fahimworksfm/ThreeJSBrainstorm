@@ -524,6 +524,14 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   } else {
     player.spawn(s.pos[0], s.pos[1], s.look);
   }
+  // a shared link (?at=x,z,facing) drops you where your friend was standing
+  const at = params.get('at')?.split(',').map(Number);
+  if (at?.length >= 2 && at.every(Number.isFinite) && def.id === params.get('district') && !sharedSpotUsed) {
+    sharedSpotUsed = true;
+    const yaw = Number.isFinite(at[2]) ? at[2] : 0;
+    player.spawn(at[0], at[1], [at[0] - Math.sin(yaw) * 5, 1.7, at[1] - Math.cos(yaw) * 5]);
+    setTimeout(() => hud.toast('📍 A friend sent you to this spot'), 2500);
+  }
   if (W.real) hud.toast(`Real streets of ${def.name} · © OpenStreetMap contributors`);
   challenges.setWorld(W);
   ghosts ??= new Ghosts(scene, hud);
@@ -605,6 +613,10 @@ let rainyNight = Math.random() < 0.5;
 let wasNight = false;
 const tmpColor = new THREE.Color();
 const snowRoad = new THREE.Color(0.42, 0.44, 0.48);
+// thunderstorms: lightning now and then, thunder a few seconds behind it
+let flash = 0;
+let boltIn = 6;
+const stormy = () => params.get('weather') === 'storm' || !!live?.storm;
 const skySun = new THREE.Vector3(0, 1, 0);
 const raysColor = new THREE.Color(1, 0.8, 0.5);
 let raysLevel = 0;
@@ -687,7 +699,7 @@ function applyTime(force = false) {
       snowCover(W.root);
     }
   }
-  const rain = !snow && (settings.rainOverride ?? (live ? live.rain : night && rainyNight));
+  const rain = !snow && (stormy() || (settings.rainOverride ?? (live ? live.rain : night && rainyNight)));
   if (rain !== settings.rain || force) {
     settings.rain = rain;
     W.weather.setEnabled(rain);
@@ -947,6 +959,21 @@ function takeCab() {
     fade.querySelector('span').textContent = '';
     hud.toast(`🚕 $${fare} with tip. Here's ${dest.label}.`);
   }, 900);
+}
+let sharedSpotUsed = false;
+/** A link that opens the game right where you're standing. */
+async function shareSpot() {
+  const u = new URL(location.href);
+  u.search = '';
+  u.searchParams.set('district', W.def.id);
+  u.searchParams.set('at', [player.pos.x.toFixed(1), player.pos.z.toFixed(1), player.yaw.toFixed(2)].join(','));
+  const link = u.toString();
+  try {
+    await navigator.clipboard.writeText(link);
+    hud.toast(`📍 Link copied: send it to a friend to meet here in ${W.def.name}`);
+  } catch {
+    hud.toast(`📍 ${link}`);
+  }
 }
 function rentBike() {
   const msg = W.transit.rent();
@@ -1410,6 +1437,10 @@ document.getElementById('deliverybtn').addEventListener('click', (e) => {
   e.stopPropagation();
   toggleDelivery();
 });
+document.getElementById('sharebtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  shareSpot();
+});
 const radioBtn = document.getElementById('radiobtn');
 radioBtn.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -1636,6 +1667,21 @@ function frame(now) {
     if (liveTimer <= 0) refreshLive();
   } else minute = (minute + dt * MINUTES_PER_SECOND) % 1440;
   applyTime();
+  if (stormy() && settings.rain) {
+    boltIn -= dt;
+    if (boltIn <= 0) {
+      boltIn = 7 + Math.random() * 18;
+      flash = 1;
+      const near = Math.random();
+      audio.thunder(0.6 + (1 - near) * 3.5, near);
+    }
+  }
+  if (flash > 0) {
+    // a double flicker, like a real strike
+    const f = flash > 0.7 || (flash > 0.35 && flash < 0.5) ? flash : flash * 0.3;
+    renderer.toneMappingExposure *= 1 + f * 2.2;
+    flash = Math.max(0, flash - dt * 3.5);
+  }
   // the ride wheel takes the mouse while it's open
   if (rideWheel.open) {
     const d = input.consumeLook();

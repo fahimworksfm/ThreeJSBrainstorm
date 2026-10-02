@@ -374,6 +374,29 @@ export class CityAudio {
     s.stop(t + 1.8);
   }
 
+  /** Thunder after a lightning flash: a crack if it's close, a long low roll either way. */
+  thunder(delay = 1, near = 0.5) {
+    const ctx = this.ctx;
+    if (!ctx || this.muted) return;
+    const t = ctx.currentTime + delay;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise(6, true);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(400 + near * 900, t);
+    lp.frequency.exponentialRampToValueAtTime(90, t + 5);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.6 + near * 0.8, t + 0.08 + (1 - near) * 0.5);
+    // the roll: rumbling swells as the echo comes back off the buildings
+    for (let k = 1; k < 5; k++) g.gain.exponentialRampToValueAtTime((0.5 + Math.random() * 0.4) * (1 - k * 0.15), t + k * 0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 5.8);
+    src.connect(lp).connect(g).connect(this.master);
+    g.connect(this.reverb);
+    src.start(t);
+    src.stop(t + 6);
+  }
+
   setRain(on) {
     this.rainOn = on;
     if (this.ctx) this.rainGain.gain.setTargetAtTime(on ? 0.16 : 0, this.ctx.currentTime, 0.8);
