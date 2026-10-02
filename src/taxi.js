@@ -56,6 +56,8 @@ export class Taxi {
     // park along the curb: the cab's length runs across the direction to the road
     const heading = best.a + Math.PI / 2;
     this.stop = { x: best.x, z: best.z, heading };
+    // close enough to get in: wherever you stood when you waved, or nearer
+    this.reach = Math.max(5, Math.hypot(best.x - player.pos.x, best.z - player.pos.z) + 2);
     this.from = { x: best.x - Math.sin(heading) * 40, z: best.z - Math.cos(heading) * 40 };
     this.t = 0;
     this.state = 'coming';

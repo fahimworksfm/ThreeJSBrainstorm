@@ -1756,7 +1756,7 @@ function frame(now) {
     input.setAction('Tag');
     if (!IS_TOUCH) hud.setPrompt(W.graffiti.near.rival ? `Press E to go over ${W.graffiti.near.rival}` : 'Press E to tag this wall');
   }
-  const atCab = W.taxi.waiting && Math.hypot(player.pos.x - W.taxi.stop.x, player.pos.z - W.taxi.stop.z) < 5;
+  const atCab = W.taxi.waiting && Math.hypot(player.pos.x - W.taxi.stop.x, player.pos.z - W.taxi.stop.z) < W.taxi.reach;
   W.atCab = atCab;
   if (atCab && input.active) {
     const dest = cabDestination();
