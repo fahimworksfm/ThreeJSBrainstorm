@@ -57,3 +57,95 @@ the first frame so it loops seamlessly.
 ## Optional extras
 - **Steam / smoke overlay** — `steam.mp4` (9:16): `White steam rising and curling from a street manhole, drawn in a comic-book style with ink outlines, on a solid flat bright green (#00FF00) background, nothing else in the frame, seamless loop.` (the green gets keyed out)
 - **Neighborhood loading cards** — `card-<neighborhood>.mp4` (16:9), e.g. `card-coney.mp4`: `Match the art style of the attached image. The Coney Island boardwalk at sunset, the Wonder Wheel slowly turning, gulls drifting, seamless loop.` One per neighborhood you like.
+
+---
+
+# More prompts (set 2)
+
+## Videos
+
+**Neon signs** — `neon-pizza.mp4`, `neon-open.mp4`, `neon-liquors.mp4`, `neon-hotel.mp4` (16:9, on black)
+```
+A glowing neon sign that says "[PIZZA / OPEN 24 HRS / LIQUORS / HOTEL]" in classic New York neon tube lettering,
+front-on, filling the frame, on a pure black background. The tubes hum and flicker now and then, one letter
+buzzing off and back on. Bright saturated pink, red and blue glow with soft bloom. No other objects, no text but
+the sign. The last frame matches the first frame so it loops seamlessly.
+```
+(Black background = it gets added as light, so it glows over any wall.)
+
+**Subway ride window** — `subway-window.mp4` (16:9)
+```
+Match the art style of the attached image. The view out of an elevated subway car window at golden hour: rooftops,
+water towers, brick walls and fire escapes sliding past from right to left, the sun flashing between buildings,
+the window frame and a grab pole in the foreground. Graphic novel illustration, ink linework, flat cel shading,
+halftone texture. The last frame matches the first frame so it loops seamlessly.
+```
+
+**Halal cart smoke** — `cart-smoke.mp4` (9:16, on green)
+```
+Grill smoke rising and curling from a street food cart, drawn in a comic-book style with ink outlines and soft
+gray tones, on a solid flat bright green (#00FF00) background, nothing else in the frame, seamless loop.
+```
+
+**Fireworks for the Fourth** — `fireworks.mp4` (16:9, on black)
+```
+Comic-book style fireworks bursting in red, white, gold and blue against a pure black sky, starbursts with ink
+outlines and halftone sparkles, several bursts at different heights, no ground, no buildings, seamless loop.
+```
+
+**Lightning** — `lightning.mp4` (9:16, on black)
+```
+A jagged comic-book lightning bolt striking down from the top of the frame, bright white-violet with a thick ink
+outline and a quick double flash, on a pure black background, nothing else, then dark again. Seamless loop.
+```
+
+## Neighborhood loading cards — `card-<id>.mp4` (16:9)
+One prompt, swap in the scene. Start with:
+`Match the art style of the attached image. [SCENE] at golden hour, gentle motion, graphic novel illustration, ink linework, flat cel shading, halftone texture, no text. The last frame matches the first frame so it loops seamlessly.`
+
+| file | SCENE |
+| --- | --- |
+| `card-astoria.mp4` | the elevated N train rumbling over 31st Street, Greek bakeries below |
+| `card-jackson-heights.mp4` | the 7 train on the el over Roosevelt Avenue, sari shops and food carts |
+| `card-sunnyside.mp4` | the big Sunnyside sign arching over Queens Boulevard, the 7 train passing |
+| `card-lic.mp4` | the old Pepsi-Cola sign on the waterfront with the Manhattan skyline across the river |
+| `card-flushing.mp4` | busy Main Street with red lanterns and the 7 train terminal |
+| `card-forest-hills.mp4` | Tudor houses and a quiet tree-lined street, leaves drifting |
+| `card-jamaica.mp4` | Jamaica Avenue shops and the AirTrain gliding overhead |
+| `card-rockaway.mp4` | surfers and the boardwalk at Rockaway Beach, waves rolling in |
+| `card-midtown.mp4` | Times Square billboards glowing, yellow cabs streaming past |
+| `card-harlem.mp4` | the Apollo marquee on 125th Street, people on the sidewalk |
+| `card-chinatown.mp4` | Mott Street with lanterns strung overhead, steam from a dumpling shop |
+| `card-les.mp4` | tenements with fire escapes and a pickle shop awning on Orchard Street |
+| `card-williamsburg.mp4` | the Williamsburg Bridge at sunset, bikes on the path |
+| `card-bed-stuy.mp4` | brownstone stoops with neighbors chatting, a kid on a bike |
+| `card-coney.mp4` | the Wonder Wheel turning on the Coney Island boardwalk, gulls drifting |
+| `card-mott-haven.mp4` | brick row houses and the elevated train crossing into the Bronx |
+| `card-fordham.mp4` | Fordham Road shops and the university's stone towers |
+| `card-city-island.mp4` | fishing boats bobbing at the dock by a seafood shack |
+| `card-st-george.mp4` | the orange Staten Island Ferry pulling into the terminal, Manhattan behind |
+
+## Images (Nano Banana)
+
+**Badge icons** — one sheet, 1:1, a 5 x 4 grid
+```
+Match the art style of the attached image. A sheet of 20 round comic-book badge icons in a 5 by 4 grid on a plain
+white background, evenly spaced, each a thick ink circle with one simple picture inside: a heart, a brain, the
+Statue of Liberty, a bridge, a scroll, a spray can, a subway car, a fire extinguisher, a camera, a scooter, a dollar
+bill, a bicycle, a pizza slice, a postcard, a flame, an owl, a sunset over a rooftop, a check mark, a stopwatch, a
+cat. Bold flat colors, halftone shading, no text.
+```
+
+**Game logo** — 21:9, on green
+```
+The words "NIGHT WALKER" as a bold comic-book title logo, chunky hand-inked letters with a yellow-to-orange
+gradient, a thick black outline, a slight 3D drop, small halftone dots, and a tiny New York skyline silhouette
+tucked under the letters, on a solid flat bright green (#00FF00) background.
+```
+
+**Postcard frame** — 3:2
+```
+A vintage New York City postcard frame: cream paper with a deckled edge, a thin red-and-blue airmail border, a
+little stamp in the top right corner with a pigeon on it, and a big empty blank area in the middle for a picture.
+Flat, front-on, drawn in a comic-book style with ink lines. No text.
+```
