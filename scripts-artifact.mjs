@@ -24,4 +24,5 @@ console.log('bytes', out.length, 'script-close occurrences', (js.match(/<\/scrip
 // the claude.ai page has a size cap: it ships only the half-size texture sheets
 const pack = JSON.parse(readFileSync('dist/textures/pack.json', 'utf8'));
 pack._forceHalf = true;
+delete pack._ktx2; // artifact hosting doesn't serve .ktx2 files: the half-size JPGs it has are used
 writeFileSync('dist/artifact-pack.json', JSON.stringify(pack));
