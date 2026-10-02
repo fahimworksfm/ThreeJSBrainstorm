@@ -56,11 +56,319 @@ export async function loadMichelle() {
  * over once the bone-name prefix is stripped.
  */
 export async function loadHero(urls = {}) {
-  const [avatar, motion] = await Promise.all([
+  const [avatar, motion, body] = await Promise.all([
     loadModel(urls.avatar ?? `${BASE}models/readyplayer.me.glb`, 'avatar'),
     loadMotion(urls.motion),
+    loadModel(urls.body ?? `${BASE}models/hero-body.glb`, 'body').catch(() => null),
   ]);
   const root = avatar.scene;
+  // the hero's own body (public/models/hero-body.glb, from the character sheet) on the avatar's skeleton; the
+  // avatar dressed to match when it isn't there
+  const fitted = body ? fitBody(root, body.scene) : null;
+  if (!fitted) dressAvatar(root);
+  const bones = {};
+  root.traverse((o) => {
+    if (o.isBone) bones[norm(o.name)] = o;
+  });
+
+  // backpack on the upper spine
+  const spine = bones.Spine2;
+  if (spine) {
+    const pack = new THREE.Group();
+    const canvas = new THREE.MeshStandardMaterial({ color: 0x6d6a3e, roughness: 1 });
+    const strap = new THREE.MeshStandardMaterial({ color: 0x4a3522, roughness: 1 });
+    const body = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.42, 0.17, 3, 0.06), canvas);
+    const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.16, 0.08, 2, 0.03), canvas);
+    pocket.position.set(0, -0.1, -0.1);
+    const flap = new THREE.Mesh(new RoundedBoxGeometry(0.32, 0.17, 0.19, 2, 0.05), canvas);
+    flap.position.set(0, 0.15, -0.005);
+    pack.add(body, pocket, flap);
+    // two leather buckle straps down the flap, and a pocket on each side
+    for (const s of [-1, 1]) {
+      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.2, 0.012), strap);
+      buckle.position.set(s * 0.07, 0.07, -0.1);
+      const side = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.16, 0.11, 2, 0.025), canvas);
+      side.position.set(s * 0.19, -0.08, 0);
+      pack.add(buckle, side);
+    }
+    for (const s of [-1, 1]) {
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.4, 0.02), strap);
+      st.position.set(s * 0.11, 0.02, 0.23);
+      pack.add(st);
+    }
+    pack.traverse((o) => {
+      if (o.isMesh) o.castShadow = true;
+    });
+    // bone space is in the avatar's units (meters here); place behind the back
+    pack.position.set(0, 0.05, -0.2);
+    if (fitted?.packZ != null) {
+      // against the back of the hero's own jacket
+      root.updateMatrixWorld(true);
+      const at = spine.getWorldPosition(new THREE.Vector3()).applyMatrix4(root.matrixWorld.clone().invert());
+      at.y += 0.05;
+      at.z = fitted.packZ - 0.075;
+      pack.position.copy(spine.worldToLocal(at.applyMatrix4(root.matrixWorld)));
+    }
+    pack.userData.rest = pack.position.clone();
+    spine.add(pack);
+  }
+
+  const clips = {};
+  for (const clip of motion.animations) {
+    if (['Idle', 'Walk', 'Run'].includes(clip.name)) clips[clip.name] = retarget(motion.scene, clip, root, bones);
+  }
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = {};
+  for (const name of ['Idle', 'Walk', 'Run']) {
+    if (!clips[name]) continue;
+    const a = mixer.clipAction(clips[name]);
+    a.play();
+    a.setEffectiveWeight(name === 'Idle' ? 1 : 0);
+    actions[name] = a;
+  }
+  return { root, mixer, actions, bones, clips, pack: bones.Spine2?.children.find((c) => c.userData.rest) ?? null, sec: { look: 0, pitch: 0, lean: 0, bob: 0 } };
+}
+
+/**
+ * Put the hero's own body (an unrigged mesh, standing in an A-pose, height 1, facing +z) on the avatar's
+ * skeleton: scale it to the skeleton, move the joints to where its shoulders, elbows, knees and ankles are,
+ * skin each vertex to the bones nearest it, and drop the avatar's own meshes. Returns { mesh, packZ } or null.
+ */
+function fitBody(root, bodyScene) {
+  let src = null;
+  bodyScene.traverse((o) => {
+    if (o.isMesh && !src) src = o;
+  });
+  if (!src?.geometry.attributes.position) return null;
+  const bones = {};
+  const all = [];
+  root.traverse((o) => {
+    if (o.isBone) {
+      bones[norm(o.name)] = o;
+      all.push(o);
+    }
+  });
+  if (!bones.Hips || !bones.Head || !bones.LeftArm || !bones.LeftUpLeg) return null;
+  root.traverse((o) => o.isSkinnedMesh && o.skeleton.pose());
+  root.updateMatrixWorld(true);
+  const toRoot = root.matrixWorld.clone().invert();
+  const J = {};
+  for (const [n, b] of Object.entries(bones)) J[n] = b.getWorldPosition(new THREE.Vector3()).applyMatrix4(toRoot);
+
+  // the body, scaled to the skeleton (its top is the top of the hair)
+  const geo = src.geometry.clone();
+  const top = (J.HeadTop_End?.y ?? J.Head.y + 0.18) * 1.04;
+  geo.scale(top, top, top);
+  const P = geo.attributes.position;
+  const N = P.count;
+  const px = new Float32Array(N);
+  const py = new Float32Array(N);
+  const pz = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    px[i] = P.getX(i);
+    py[i] = P.getY(i);
+    pz[i] = P.getZ(i);
+  }
+  /** Center of the vertices that pass test (and the z extent), or null. */
+  const centroid = (test) => {
+    let n = 0;
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (let i = 0; i < N; i++) {
+      if (!test(px[i], py[i], pz[i])) continue;
+      n++;
+      x += px[i];
+      y += py[i];
+      z += pz[i];
+      z0 = Math.min(z0, pz[i]);
+      z1 = Math.max(z1, pz[i]);
+    }
+    return n > 8 ? { x: x / n, y: y / n, z: z / n, z0, z1, n } : null;
+  };
+
+  // spine and head: centered in the body's slice at each height
+  for (const name of ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head']) {
+    const j = J[name];
+    const c = centroid((x, y) => Math.abs(y - j.y) < 0.03 && Math.abs(x) < 0.12);
+    if (c) j.set(0, j.y, (c.z0 + c.z1) / 2);
+  }
+  if (J.HeadTop_End) J.HeadTop_End.set(0, top * 0.985, J.Head.z);
+
+  // the arms: everything out past the shoulder joint and below it, as a line (shoulder to fingertip). The
+  // generated mesh is a little lopsided, so both are fitted and then averaged into a mirror-image pair.
+  const arms = {};
+  for (const side of ['Left', 'Right']) {
+    const sx = Math.sign(J[`${side}Arm`].x) || 1;
+    const sh = J[`${side}Arm`];
+    const arm = [];
+    // further out the lower it goes (the arms angle away from the body), so the jacket's sides don't count
+    for (let i = 0; i < N; i++) if (px[i] * sx > Math.abs(sh.x) + 0.04 + Math.max(0, sh.y - py[i]) * 0.3 && py[i] < sh.y + 0.06 && py[i] > J.Hips.y - 0.25) arm.push(i);
+    if (arm.length < 50) continue;
+    const c = new THREE.Vector3();
+    for (const i of arm) c.add(new THREE.Vector3(px[i], py[i], pz[i]));
+    c.divideScalar(arm.length);
+    // principal direction by power iteration on the covariance
+    let d = new THREE.Vector3(sx, -0.6, 0).normalize();
+    for (let it = 0; it < 12; it++) {
+      const nd = new THREE.Vector3();
+      for (const i of arm) {
+        const q = new THREE.Vector3(px[i] - c.x, py[i] - c.y, pz[i] - c.z);
+        nd.addScaledVector(q, q.dot(d));
+      }
+      d = nd.normalize();
+    }
+    if (d.x * sx < 0) d.negate();
+    let tmax = -Infinity;
+    for (const i of arm) tmax = Math.max(tmax, (px[i] - c.x) * d.x + (py[i] - c.y) * d.y + (pz[i] - c.z) * d.z);
+    const tip = c.clone().addScaledVector(d, tmax);
+    // where that line crosses the skeleton's shoulder width, kept near the skeleton's shoulder height
+    const s0 = c.clone().addScaledVector(d, (sh.x - c.x) / d.x);
+    s0.y = THREE.MathUtils.clamp(s0.y, sh.y - 0.08, sh.y + 0.02);
+    arms[side] = { sx, d, s0, tip, len: tip.distanceTo(s0) };
+  }
+  if (arms.Left && arms.Right) {
+    const L = arms.Left;
+    const R = arms.Right;
+    const d = new THREE.Vector3((L.d.x * L.sx + R.d.x * R.sx) / 2, (L.d.y + R.d.y) / 2, (L.d.z + R.d.z) / 2).normalize();
+    const y = (L.s0.y + R.s0.y) / 2;
+    const z = (L.s0.z + R.s0.z) / 2;
+    const len = (L.len + R.len) / 2;
+    for (const [side, A] of Object.entries(arms)) {
+      const dir = new THREE.Vector3(d.x * A.sx, d.y, d.z);
+      const s0 = new THREE.Vector3(A.s0.x, y, z);
+      J[`${side}Arm`].copy(s0);
+      J[`${side}ForeArm`].copy(s0).addScaledVector(dir, len * 0.43);
+      J[`${side}Hand`].copy(s0).addScaledVector(dir, len * 0.8);
+      J[`${side}HandMiddle1`]?.copy(s0).addScaledVector(dir, len * 0.9);
+      if (J[`${side}Shoulder`]) J[`${side}Shoulder`].set(J[`${side}Shoulder`].x, y - 0.01, z);
+    }
+  }
+
+  for (const side of ['Left', 'Right']) {
+    const sx = Math.sign(J[`${side}UpLeg`].x) || (side === 'Left' ? 1 : -1);
+    // the leg: centered in its own trouser leg at the hip, knee and ankle
+    const leg = (j, band) => centroid((x, y) => x * sx > 0.02 && Math.abs(y - j.y) < band);
+    for (const [name, band] of [[`${side}UpLeg`, 0.03], [`${side}Leg`, 0.03], [`${side}Foot`, 0.025]]) {
+      const c = leg(J[name], band);
+      if (c) J[name].set(c.x, J[name].y, (c.z0 + c.z1) / 2);
+    }
+    const foot = centroid((x, y) => x * sx > 0.02 && y < J[`${side}Foot`].y * 0.6);
+    if (foot && J[`${side}ToeBase`]) {
+      J[`${side}ToeBase`].set(J[`${side}Foot`].x, Math.min(J[`${side}ToeBase`].y, J[`${side}Foot`].y * 0.4), foot.z1 - (foot.z1 - foot.z0) * 0.3);
+      J[`${side}Toe_End`]?.set(J[`${side}ToeBase`].x, J[`${side}ToeBase`].y, foot.z1);
+    }
+  }
+
+  // move the joints (rotations stay as they were), parents first
+  const toWorld = root.matrixWorld;
+  for (const b of all) {
+    const j = J[norm(b.name)];
+    if (!j || !b.parent) continue;
+    b.parent.updateWorldMatrix(true, false);
+    b.position.copy(b.parent.worldToLocal(j.clone().applyMatrix4(toWorld)));
+    b.updateMatrixWorld(true);
+  }
+  root.updateMatrixWorld(true);
+  const W = {};
+  for (const [n, b] of Object.entries(bones)) W[n] = b.getWorldPosition(new THREE.Vector3()).applyMatrix4(toRoot);
+
+  // skin: each vertex to the bones whose segments are nearest it (never across to the other arm or leg)
+  const seg = [
+    ['Hips', 'Spine'], ['Spine', 'Spine1'], ['Spine1', 'Spine2'], ['Spine2', 'Neck'], ['Neck', 'Head'], ['Head', 'HeadTop_End'],
+  ];
+  for (const s of ['Left', 'Right']) {
+    seg.push([`${s}Shoulder`, `${s}Arm`], [`${s}Arm`, `${s}ForeArm`], [`${s}ForeArm`, `${s}Hand`], [`${s}Hand`, `${s}HandMiddle1`, 1.6]);
+    seg.push([`${s}UpLeg`, `${s}Leg`], [`${s}Leg`, `${s}Foot`], [`${s}Foot`, `${s}ToeBase`], [`${s}ToeBase`, `${s}Toe_End`]);
+  }
+  const segs = seg
+    .filter(([a, b]) => W[a] && W[b] && bones[a])
+    .map(([a, b, ext = 1]) => {
+      const A = W[a];
+      const B = W[b].clone().sub(A).multiplyScalar(ext).add(A);
+      const side = a.startsWith('Left') ? Math.sign(W.LeftArm.x) : a.startsWith('Right') ? Math.sign(W.RightArm.x) : 0;
+      return { bone: all.indexOf(bones[a]), A, AB: B.clone().sub(A), side, shin: /(?<!Up)Leg$|Foot|Toe/.test(a), arm: /Shoulder|Arm|Hand/.test(a) };
+    });
+  const crotch = Math.min(W.LeftUpLeg.y, W.RightUpLeg.y) - 0.04;
+  // the neck, collar and chest stay with the spine: arms only pull from partway out to the shoulder
+  const armIn = Math.abs(W.LeftArm.x) * 0.6;
+  const armTop = Math.max(W.LeftArm.y, W.RightArm.y) + 0.07;
+  const skinIndex = new Uint16Array(N * 4);
+  const skinWeight = new Float32Array(N * 4);
+  const p = new THREE.Vector3();
+  const q = new THREE.Vector3();
+  const w = new Float32Array(segs.length);
+  for (let i = 0; i < N; i++) {
+    p.set(px[i], py[i], pz[i]);
+    for (let k = 0; k < segs.length; k++) {
+      const sg = segs[k];
+      // the wrong side, or a leg reaching up into the hips: no pull at all
+      if ((sg.side && px[i] * sg.side < -0.015) || (sg.shin && py[i] > crotch + 0.12) || (sg.arm && (Math.abs(px[i]) < armIn || py[i] > armTop))) {
+        w[k] = 0;
+        continue;
+      }
+      const t = THREE.MathUtils.clamp(q.copy(p).sub(sg.A).dot(sg.AB) / sg.AB.lengthSq(), 0, 1);
+      const d = q.copy(sg.A).addScaledVector(sg.AB, t).distanceTo(p);
+      w[k] = 1 / (d ** 4 + 1e-7);
+    }
+    // the four strongest
+    const order = [...w.keys()].sort((a, b) => w[b] - w[a]).slice(0, 4);
+    let sum = 0;
+    for (const k of order) sum += w[k];
+    order.forEach((k, j) => {
+      skinIndex[i * 4 + j] = segs[k].bone;
+      skinWeight[i * 4 + j] = sum > 0 ? w[k] / sum : j === 0 ? 1 : 0;
+    });
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4));
+  // the colors were painted from the sheet in sRGB; glTF reads vertex colors as linear
+  const col = geo.attributes.color;
+  if (col) {
+    const c = new THREE.Color();
+    for (let i = 0; i < col.count; i++) {
+      c.setRGB(col.getX(i), col.getY(i), col.getZ(i)).convertSRGBToLinear();
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
+  }
+  // the hands sit right on the drawing's outlines, so the projection paints them gray: past the wrist on each
+  // arm's own line is skin
+  if (col) {
+    const skin = new THREE.Color(0xe0a68a).convertSRGBToLinear();
+    const q = new THREE.Vector3();
+    for (const A of Object.values(arms)) {
+      // the hand: the fingertip end of the arm, back to the cuff
+      const reach = A.len * 0.2;
+      for (let i = 0; i < N; i++) {
+        if (px[i] * A.sx < Math.abs(A.s0.x)) continue;
+        const k = 1 - THREE.MathUtils.smoothstep(q.set(px[i], py[i], pz[i]).distanceTo(A.tip), reach * 0.8, reach);
+        if (k > 0) col.setXYZ(i, col.getX(i) + (skin.r - col.getX(i)) * k, col.getY(i) + (skin.g - col.getY(i)) * k, col.getZ(i) + (skin.b - col.getZ(i)) * k);
+      }
+    }
+  }
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+
+  // the avatar's own meshes go; the bones stay
+  const old = [];
+  root.traverse((o) => o.isMesh && old.push(o));
+  for (const o of old) o.removeFromParent();
+  const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: !!col, roughness: 1, metalness: 0 }));
+  mesh.name = 'HeroBody';
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+  root.add(mesh);
+  root.updateMatrixWorld(true);
+  mesh.bind(new THREE.Skeleton(all), mesh.matrixWorld);
+  // where the backpack goes: against the back of the jacket at the shoulder blades
+  const back = centroid((x, y) => Math.abs(y - W.Spine2.y) < 0.04 && Math.abs(x) < 0.12);
+  return { mesh, packZ: back ? back.z0 : null };
+}
+
+/** Dress the stock avatar like the character sheet: the fallback when the hero's own body isn't there. */
+function dressAvatar(root) {
   // dressed after the character sheet (aiImages/character): a short brown leather jacket open over a dark
   // hoodie, blue jeans, rust-red canvas sneakers, an olive canvas backpack
   const outfit = {
@@ -155,55 +463,6 @@ export async function loadHero(urls = {}) {
       bones.Head.add(t);
     }
   }
-
-  // backpack on the upper spine
-  const spine = bones.Spine2;
-  if (spine) {
-    const pack = new THREE.Group();
-    const canvas = new THREE.MeshStandardMaterial({ color: 0x6d6a3e, roughness: 1 });
-    const strap = new THREE.MeshStandardMaterial({ color: 0x4a3522, roughness: 1 });
-    const body = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.42, 0.17, 3, 0.06), canvas);
-    const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.16, 0.08, 2, 0.03), canvas);
-    pocket.position.set(0, -0.1, -0.1);
-    const flap = new THREE.Mesh(new RoundedBoxGeometry(0.32, 0.17, 0.19, 2, 0.05), canvas);
-    flap.position.set(0, 0.15, -0.005);
-    pack.add(body, pocket, flap);
-    // two leather buckle straps down the flap, and a pocket on each side
-    for (const s of [-1, 1]) {
-      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.2, 0.012), strap);
-      buckle.position.set(s * 0.07, 0.07, -0.1);
-      const side = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.16, 0.11, 2, 0.025), canvas);
-      side.position.set(s * 0.19, -0.08, 0);
-      pack.add(buckle, side);
-    }
-    for (const s of [-1, 1]) {
-      const st = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.4, 0.02), strap);
-      st.position.set(s * 0.11, 0.02, 0.23);
-      pack.add(st);
-    }
-    pack.traverse((o) => {
-      if (o.isMesh) o.castShadow = true;
-    });
-    // bone space is in the avatar's units (meters here); place behind the back
-    pack.position.set(0, 0.05, -0.2);
-    pack.userData.rest = pack.position.clone();
-    spine.add(pack);
-  }
-
-  const clips = {};
-  for (const clip of motion.animations) {
-    if (['Idle', 'Walk', 'Run'].includes(clip.name)) clips[clip.name] = retarget(motion.scene, clip, root, bones);
-  }
-  const mixer = new THREE.AnimationMixer(root);
-  const actions = {};
-  for (const name of ['Idle', 'Walk', 'Run']) {
-    if (!clips[name]) continue;
-    const a = mixer.clipAction(clips[name]);
-    a.play();
-    a.setEffectiveWeight(name === 'Idle' ? 1 : 0);
-    actions[name] = a;
-  }
-  return { root, mixer, actions, bones, clips, pack: bones.Spine2?.children.find((c) => c.userData.rest) ?? null, sec: { look: 0, pitch: 0, lean: 0, bob: 0 } };
 }
 
 const _q = new THREE.Quaternion();
