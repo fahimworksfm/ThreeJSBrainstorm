@@ -146,3 +146,28 @@ for name, pattern, size in (('lightning-strike', 'Lightning_strike_graphic*', 10
     im.thumbnail((size, size))
     im.save(f'{OUT}/{name}.jpg', quality=82)
     print(f'media: {name}.jpg', im.size)
+
+# the hero's face for the HUD badge: the front view of the portrait sheet, the paper background cleared
+face = glob.glob(f'{SRC}/character/Character_portrait*.jpg')
+if face:
+    from PIL import ImageDraw
+    im = Image.open(face[0]).convert('RGB')
+    w, h = im.size
+    # the front view fills the left half: a square on the face
+    s = int(h * 0.64)
+    cx, cy = int(w * 0.265), int(h * 0.4)
+    im = im.crop((cx - s // 2, cy - s // 2, cx + s // 2, cy + s // 2))
+    # flood the light paper from the corners, through anything close to its color
+    mask = Image.new('L', im.size, 0)
+    work = im.copy()
+    edge = [(x, 0) for x in range(0, im.width, 6)] + [(0, y) for y in range(0, im.height, 6)] + [(im.width - 1, y) for y in range(0, im.height, 6)]
+    for pt in edge:
+        if min(work.getpixel(pt)) > 200:  # still paper (not hair, not already flooded)
+            ImageDraw.floodfill(work, pt, (255, 0, 255), thresh=28)
+    a = np.asarray(work)
+    keep = ~((a[..., 0] == 255) & (a[..., 1] == 0) & (a[..., 2] == 255))
+    out = im.convert('RGBA')
+    out.putalpha(Image.fromarray((keep * 255).astype(np.uint8)))
+    out = out.resize((256, 256), Image.LANCZOS)
+    out.save(f'{OUT}/portrait.png', optimize=True)
+    print('media: portrait.png', out.size)

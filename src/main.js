@@ -1486,6 +1486,15 @@ let frames = 0;
 let fpsTime = 0;
 let edgeCooldown = 0;
 let portraitDone = false;
+// the drawn face from the character sheet (public/media/portrait.png); the 3D snapshot below is the fallback
+{
+  const face = new Image();
+  face.onload = () => {
+    document.getElementById('portrait').src = face.src;
+    portraitDone = true;
+  };
+  face.src = 'media/portrait.png';
+}
 
 /** Snap the hero's face once for the HUD badge. */
 function renderPortrait() {

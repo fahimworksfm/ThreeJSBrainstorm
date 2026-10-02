@@ -61,14 +61,21 @@ export async function loadHero(urls = {}) {
     loadMotion(urls.motion),
   ]);
   const root = avatar.scene;
+  // dressed after the character sheet (aiImages/character): a short brown leather jacket open over a dark
+  // hoodie, blue jeans, rust-red canvas sneakers, an olive canvas backpack
   const outfit = {
-    Wolf3D_Outfit_Top: 0x5a3a24, // brown leather jacket
-    Wolf3D_Outfit_Bottom: 0x3b5578, // blue jeans
-    Wolf3D_Outfit_Footwear: 0x8a3a24, // red-brown sneakers
+    Wolf3D_Outfit_Top: 0x6a3f27, // brown leather jacket
+    Wolf3D_Outfit_Bottom: 0x4d6f94, // blue jeans
+    Wolf3D_Outfit_Footwear: 0xa8553c, // rust-red sneakers
   };
+  const HOOD = new THREE.Color(0x3c3f44).multiplyScalar(1.6);
   const bones = {};
   root.traverse((o) => {
     if (o.isBone) bones[norm(o.name)] = o;
+  });
+  root.updateMatrixWorld(true);
+  const hipsWorld = bones.Hips?.getWorldPosition(new THREE.Vector3());
+  root.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = true;
     o.receiveShadow = true;
@@ -82,49 +89,93 @@ export async function loadHero(urls = {}) {
       const map = m.map;
       if (map) {
         m.userData.outfit = true;
-        m.onBeforeCompile = (s) => {
-          s.fragmentShader = s.fragmentShader.replace(
-            '#include <map_fragment>',
-            `#include <map_fragment>
-             float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-             diffuseColor.rgb = diffuse * clamp(lum * 1.6, 0.35, 1.25);`,
-          );
+        const top = o.name === 'Wolf3D_Outfit_Top';
+        // the avatar's top is a long tail-coat over a vest, shirt and bow tie: cut it off at the hip like a jacket,
+        // and paint the vest, shirt and tie (the purple, lavender and dark parts of its texture) as the hoodie
+        const hem = top && hipsWorld ? o.worldToLocal(hipsWorld.clone()).y + 0.02 : -1e9;
+        m.onBeforeCompile = (sh) => {
+          sh.uniforms.uHood = { value: HOOD };
+          sh.uniforms.uHem = { value: hem };
+          sh.vertexShader = sh.vertexShader
+            .replace('void main() {', 'varying float vBindY;\nvoid main() {')
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBindY = position.y;');
+          sh.fragmentShader = sh.fragmentShader
+            .replace('void main() {', 'uniform vec3 uHood;\nuniform float uHem;\nvarying float vBindY;\nvoid main() {')
+            .replace(
+              '#include <map_fragment>',
+              `#include <map_fragment>
+               ${top ? 'if (vBindY < uHem) discard;' : ''}
+               vec3 tx = sampledDiffuseColor.rgb;
+               float lum = dot(tx, vec3(0.299, 0.587, 0.114));
+               bool inner = ${top ? '(tx.b > tx.g * 1.1 && tx.r < 0.45) || (tx.b > 0.25 && tx.b > tx.r * 0.8) || (tx.r < 0.13 && tx.b < tx.g)' : 'false'};
+               diffuseColor.rgb = inner ? uHood * clamp(0.42 + lum * 0.5, 0.42, 0.62) : diffuse * clamp(lum * 1.6, 0.35, 1.25);`,
+            );
         };
         m.customProgramCacheKey = () => `outfit${o.name}`;
+        // with the tails cut away you can see inside the jacket
+        if (top) m.side = THREE.DoubleSide;
       }
     }
     m.roughness = 1;
     m.metalness = 0;
   });
 
-  // short dark hair
+  // messy dark hair: a lumpy cap with tufts sticking up and forward
   if (bones.Head) {
-    const hairMat = new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 1 });
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.108, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMat);
-    cap.scale.set(1.0, 0.9, 1.12);
-    cap.position.set(0, 0.115, -0.005);
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x241e1b, roughness: 1 });
+    const capGeo = new THREE.SphereGeometry(0.108, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    const pos = capGeo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      // clumps: a few bumps that grow toward the crown
+      const n = Math.sin(v.x * 70) * Math.cos(v.z * 60) * 0.5 + Math.sin((v.x + v.z) * 45) * 0.5;
+      v.multiplyScalar(1 + Math.max(0, n) * 0.07 * (v.y / 0.108));
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+    capGeo.computeVertexNormals();
+    const cap = new THREE.Mesh(capGeo, hairMat);
+    cap.scale.set(1.04, 0.95, 1.14);
+    cap.position.set(0, 0.112, -0.004);
     cap.rotation.x = -0.18;
     cap.castShadow = true;
     bones.Head.add(cap);
-    const back = new THREE.Mesh(new THREE.SphereGeometry(0.098, 16, 10, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.35), hairMat);
-    back.scale.set(1.0, 1.0, 1.1);
+    const back = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 10, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.35), hairMat);
+    back.scale.set(1.02, 1.0, 1.1);
     back.position.set(0, 0.08, -0.02);
     back.rotation.x = -0.5;
     bones.Head.add(back);
+    // tufts: short cones, swept up and to one side like the sheet
+    const tuft = new THREE.ConeGeometry(0.018, 0.055, 6);
+    const spots = [[0.03, 0.21, 0.07, -0.9, 0.3], [-0.02, 0.215, 0.06, -1.0, -0.2], [0.06, 0.2, 0.02, -0.4, 0.8], [-0.06, 0.2, 0.01, -0.3, -0.8], [0.04, 0.17, 0.1, -1.4, 0.4], [-0.05, 0.17, 0.095, -1.3, -0.3]];
+    for (const [x, y, z, rx, rz] of spots) {
+      const t = new THREE.Mesh(tuft, hairMat);
+      t.position.set(x, y, z);
+      t.rotation.set(rx, 0, rz);
+      bones.Head.add(t);
+    }
   }
 
   // backpack on the upper spine
   const spine = bones.Spine2;
   if (spine) {
     const pack = new THREE.Group();
-    const canvas = new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 1 });
-    const strap = new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 1 });
+    const canvas = new THREE.MeshStandardMaterial({ color: 0x6d6a3e, roughness: 1 });
+    const strap = new THREE.MeshStandardMaterial({ color: 0x4a3522, roughness: 1 });
     const body = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.42, 0.17, 3, 0.06), canvas);
     const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.16, 0.08, 2, 0.03), canvas);
     pocket.position.set(0, -0.1, -0.1);
-    const flap = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.14, 0.19, 2, 0.05), strap);
-    flap.position.set(0, 0.16, 0);
+    const flap = new THREE.Mesh(new RoundedBoxGeometry(0.32, 0.17, 0.19, 2, 0.05), canvas);
+    flap.position.set(0, 0.15, -0.005);
     pack.add(body, pocket, flap);
+    // two leather buckle straps down the flap, and a pocket on each side
+    for (const s of [-1, 1]) {
+      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.2, 0.012), strap);
+      buckle.position.set(s * 0.07, 0.07, -0.1);
+      const side = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.16, 0.11, 2, 0.025), canvas);
+      side.position.set(s * 0.19, -0.08, 0);
+      pack.add(buckle, side);
+    }
     for (const s of [-1, 1]) {
       const st = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.4, 0.02), strap);
       st.position.set(s * 0.11, 0.02, 0.23);
