@@ -605,7 +605,40 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   // the el's street, found by name
   const elName = def.el ? normName(def.el.axis === 'ns' ? def.nsRoads[def.el.index] : def.ewRoads[def.el.index]) : '';
   const chainsNamed = (norm) => chains.filter((c) => c.norm === norm);
-  const elChain = elName ? chainsNamed(elName).sort((p, q) => new Path(q.pts).len - new Path(p.pts).len)[0] : null;
+  // the el's street: the stretch of it with the most length inside this map (a borough can have several
+  // streets of the same name, and the longest one overall may be miles away)
+  const lenInBox = (c) => clipToBox(c.pts, box).reduce((a, pts) => a + (pts.length > 1 ? new Path(pts).len : 0), 0);
+  const elChain = (() => {
+    if (!elName) return null;
+    const cands = chainsNamed(elName).map((c) => [lenInBox(c), c]).sort((a, b) => b[0] - a[0]);
+    const best = cands[0]?.[1];
+    if (!best) return null;
+    // the map data splits a long avenue into pieces: join the ones that carry on from either end
+    let pts = [...best.pts];
+    const nodes = [...(best.nodes ?? [])];
+    const rest = cands.slice(1).map(([, c]) => c);
+    const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 30;
+    for (let grew = true; grew;) {
+      grew = false;
+      for (let i = 0; i < rest.length; i++) {
+        const q = rest[i].pts;
+        const [h, t] = [pts[0], pts[pts.length - 1]];
+        let add = null;
+        if (near(t, q[0])) add = () => (pts = pts.concat(q.slice(1)));
+        else if (near(t, q[q.length - 1])) add = () => (pts = pts.concat([...q].reverse().slice(1)));
+        else if (near(h, q[q.length - 1])) add = () => (pts = q.slice(0, -1).concat(pts));
+        else if (near(h, q[0])) add = () => (pts = [...q].reverse().slice(0, -1).concat(pts));
+        if (add) {
+          add();
+          nodes.push(...(rest[i].nodes ?? []));
+          rest.splice(i, 1);
+          grew = true;
+          break;
+        }
+      }
+    }
+    return { ...best, pts, nodes };
+  })();
 
   const lanes = [];
   const parked = [];
