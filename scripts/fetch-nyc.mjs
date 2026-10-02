@@ -12,7 +12,7 @@ const out = process.argv[2] ?? 'public/nyc';
 const only = process.argv.slice(3);
 mkdirSync(out, { recursive: true });
 const HOST = 'https://data.cityofnewyork.us/resource';
-const DATASETS = { buildings: '5zhs-2jue', trees: 'uvpi-gqnh', restaurants: '43nn-pn8j', bikes: 'mzxg-pwib', films: 'tg4x-b46p', events: 'tvpp-9vvx' };
+const DATASETS = { buildings: '5zhs-2jue', trees: 'uvpi-gqnh', restaurants: '43nn-pn8j', bikes: 'mzxg-pwib', films: 'tg4x-b46p', events: 'tvpp-9vvx', noise: 'erm2-nwe9' };
 // the MTA publishes on the state portal
 const NY_HOST = 'https://data.ny.gov/resource';
 const ENTRANCES = 'i9wp-a4ja';
@@ -265,6 +265,34 @@ async function events(boro) {
     .map((r) => [r[start], r[end] ?? '', r[type] ?? '', r[loc], r[name] ?? '']) ?? null;
 }
 
+/**
+ * What the neighborhood sounds like: the last 30 days of 311 noise complaints, sorted into a few sounds and
+ * pooled into ~50 m cells (so no single address stands out): [sound, lon, lat, count].
+ */
+const SOUNDS = [['party', /music|party/i], ['construction', /construction|jack ?hammer|banging|pounding|drilling/i], ['horn', /horn/i], ['dog', /dog|bark/i], ['icecream', /ice cream/i], ['talk', /talking|people|crowd/i], ['engine', /engine|idling|alarm/i]];
+async function noise(box) {
+  const [s, w, n, e] = box;
+  const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 19);
+  const rows = await all(DATASETS.noise, {
+    $select: 'descriptor,complaint_type,latitude,longitude',
+    $where: `created_date > '${since}' and complaint_type like 'Noise%' and latitude between ${s} and ${n} and longitude between ${w} and ${e}`,
+  });
+  if (!rows) return null;
+  const cells = new Map();
+  for (const r of rows) {
+    const lat = Number(r.latitude);
+    const lon = Number(r.longitude);
+    const kind = SOUNDS.find(([, re]) => re.test(`${r.descriptor ?? ''} ${r.complaint_type ?? ''}`))?.[0];
+    if (!kind || !lat || !lon) continue;
+    const key = `${kind}|${Math.round(lon / 0.0005)}|${Math.round(lat / 0.0005)}`;
+    cells.set(key, (cells.get(key) ?? 0) + 1);
+  }
+  return [...cells].map(([k, count]) => {
+    const [kind, i, j] = k.split('|');
+    return [kind, r5(Number(i) * 0.0005), r5(Number(j) * 0.0005), count];
+  });
+}
+
 /** Minimal PNG reader for 8-bit RGB/RGBA, non-interlaced (what the terrain tiles are). */
 function readPNG(buf) {
   let p = 8;
@@ -370,6 +398,7 @@ for (const d of districts) {
     entrances: await entrances(box), bikes: await bikes(box),
     films: d.boro ? keepLocal(await films(d.boro.replace(/^The /, '')), d.id) : null,
     events: d.boro ? keepLocal(await events(d.boro.replace(/^The /, '')), d.id) : null,
+    noise: await noise(box),
     elevation: await elevation(box), far: await far(d),
   };
   const got = Object.entries(data).filter(([, v]) => v?.length || v?.m?.length || v?.c?.length);
