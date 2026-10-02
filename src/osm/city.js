@@ -617,7 +617,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     let pts = [...best.pts];
     const nodes = [...(best.nodes ?? [])];
     const rest = cands.slice(1).map(([, c]) => c);
-    const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 30;
+    const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 70; // pieces can leave a gap at a big crossing
     for (let grew = true; grew;) {
       grew = false;
       for (let i = 0; i < rest.length; i++) {
@@ -887,8 +887,10 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   };
   const crossing = (nameA, nameB) => {
     let best = null;
-    for (const a2 of named(normName(nameA))) {
-      for (const b2 of named(normName(nameB))) {
+    // "Astoria Blvd" is mapped as "Astoria Boulevard North" and "South" where the el crosses: allow those too
+    const like = (n) => [...named(normName(n)), ...chains.filter((c) => c.norm.startsWith(`${normName(n)} `) && c.pts.length > 1)];
+    for (const a2 of like(nameA)) {
+      for (const b2 of like(nameB)) {
         const r = closestApproach(a2.pts, b2.pts);
         if (r.p && (!best || r.d < best.d)) best = r;
       }
@@ -936,13 +938,19 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     if (line) {
       const tmpPath = new Path(resample(line, 2));
       const stations = [];
+      const skipped = [];
       for (const st of def.el.stations) {
         const cross = def.el.axis === 'ns' ? def.ewRoads[st.at] : def.nsRoads[st.at];
         const p = cross ? crossing(def.el.axis === 'ns' ? def.nsRoads[def.el.index] : def.ewRoads[def.el.index], cross) : null;
-        if (!p) continue;
+        if (!p) {
+          skipped.push(`${st.name}: no crossing`);
+          continue;
+        }
         const pr = project(tmpPath, p[0], p[1]);
         if (pr.d < 25) stations.push({ s: pr.s, name: st.name });
+        else skipped.push(`${st.name}: ${pr.d.toFixed(0)} m off the line`);
       }
+      if (skipped.length) console.info(`el: stations left out (${skipped.join('; ')})`);
       const crossings = [];
       for (const id of elChain.nodes) {
         const set = degree.get(id);
