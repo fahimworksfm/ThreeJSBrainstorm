@@ -1763,11 +1763,14 @@ function frame(now) {
   }
   player.update(dt);
   player.tricks.update(dt);
-  if (terrainOn() && !params.has('fly')) { // fly mode places the camera itself
+  if (terrainOn()) {
     // the world is drawn on the hills; the camera rides up with the hero, and never under the ground
-    camera.position.y += heightAt(player.pos.x, player.pos.z);
-    const under = heightAt(camera.position.x, camera.position.z) + 0.5;
-    if (camera.position.y < under) camera.position.y = under;
+    // (in fly mode the camera is placed by hand, so leave it be)
+    if (!params.has('fly')) {
+      camera.position.y += heightAt(player.pos.x, player.pos.z);
+      const under = heightAt(camera.position.x, camera.position.z) + 0.5;
+      if (camera.position.y < under) camera.position.y = under;
+    }
     liftTimer -= dt;
     if (liftTimer <= 0) {
       liftTimer = 1;
