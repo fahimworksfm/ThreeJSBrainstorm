@@ -30,6 +30,7 @@ export default {
   shops: ['SOUL FOOD', 'JAZZ CLUB', 'BARBER', 'CHURCH', 'RECORDS', 'FISH FRY', 'HAT SHOP', 'BAKERY', 'AFRICAN BRAIDS', 'SNEAKERS', 'PHARMACY', 'BBQ', 'BOOKS', 'DELI', 'WINGS', 'COFFEE'],
   neon: [['APOLLO', '#ff2f5f', true], ['JAZZ', '#39d0ff', true], ['SOUL FOOD', '#ffb03b', false], ['BAR', '#ff2f5f', true], ['OPEN', '#ff2f5f', true], ['LOUNGE', '#c86bff', false], ['WINGS', '#ffd23b', false], ['24 HR', '#39d0ff', false]],
   bigSigns: { ll: [40.8100, -73.9500], radius: 60, chance: 0.4 },
+  screens: ['billboard-musical'], // showtime on 125th Street
 
   el: {
     axis: 'ns',

@@ -69,6 +69,7 @@ export class FoodStops {
     for (const c of this.cats) {
       if (c.met || Math.hypot(player.pos.x - c.x, player.pos.z - c.z) > 1.8) continue;
       c.met = true;
+      this.store.set('cats', this.store.get('cats', 0) + 1);
       COMIC.pop('MRRP', c.x, CURB + 0.8, c.z, { size: 0.6, cooldown: 2 });
     }
     if (player.fed > 0) player.fed = Math.max(0, player.fed - dt);

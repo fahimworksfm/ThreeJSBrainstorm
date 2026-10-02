@@ -763,7 +763,8 @@ body.touch #photobar .k { display: none; }
 #badges .badge-sum { grid-column: 1 / -1; color: var(--dim); margin: 0 0 4px; }
 #badges .badge { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; opacity: 0.45; filter: grayscale(1); }
 #badges .badge.got { opacity: 1; filter: none; border-color: rgba(245, 197, 24, 0.6); background: rgba(245, 197, 24, 0.08); }
-#badges .icon { font-size: 26px; }
+#badges .icon { font-size: 26px; flex: none; }
+#badges .icon.art { width: 52px; height: 52px; color: transparent; background: 0 0 / 400% 500% no-repeat; }
 #badges b { display: block; }
 #badges small { color: var(--dim); }
 
@@ -774,3 +775,28 @@ body.touch #photobar .k { display: none; }
 h3 small { font-weight: 400; color: var(--dim); letter-spacing: 0.05em; }
 
 .set-text { font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; padding: 5px 9px; width: 9em; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ---------- the hand-made animated clips (public/media) ---------- */
+#titlevid {
+  position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2;
+  opacity: 0; transition: opacity 1.2s; pointer-events: none; filter: saturate(1.1) contrast(1.05);
+}
+#overlay { isolation: isolate; }
+/* a dark band behind the menu so the text reads over the video */
+#overlay.intro .card { background: linear-gradient(90deg, rgba(6, 6, 10, 0.88) 0%, rgba(6, 6, 10, 0.78) 70%, rgba(6, 6, 10, 0) 100%); }
+#overlay.intro.ready #titlevid { opacity: 1; }
+#overlay h1.logo { font-size: 0; -webkit-text-stroke: 0; text-shadow: none; line-height: 0; transform: rotate(-2deg); }
+#overlay h1.logo img { width: min(440px, 80vw); height: auto; filter: drop-shadow(6px 6px 0 #111); animation: logo-in 0.6s cubic-bezier(0.2, 1.5, 0.4, 1); }
+@keyframes logo-in { from { scale: 0.7; opacity: 0; } to { scale: 1; opacity: 1; } }
+#load-vid {
+  display: block; width: calc(100% + 52px); margin: -22px -26px 14px; aspect-ratio: 16 / 9; object-fit: cover;
+  border-bottom: 4px solid #111; background: #111;
+}
+#load-vid[hidden] { display: none; }
+#memory-vid {
+  display: block; width: 220px; aspect-ratio: 16 / 9; object-fit: cover; margin: 0 0 10px 18px;
+  border: 3px solid #111; box-shadow: 6px 6px 0 #111; background: #111; transform: rotate(-1.5deg);
+}
+#memory-vid[hidden] { display: none; }
+#subtitle.show #memory-vid { animation: caption-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1); }
+body.touch #memory-vid { width: 150px; }

@@ -1,4 +1,5 @@
 import { D } from './config.js';
+import { show as showClip, hide as hideClip } from './media.js';
 
 const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -134,12 +135,18 @@ export class HUD {
     }
   }
 
-  showMemory(title, text, ms = 10000) {
+  showMemory(title, text, ms = 10000, clipName = null) {
+    const vid = document.getElementById('memory-vid');
+    if (clipName) showClip(vid, clipName);
+    else hideClip(vid);
     this.el.subtitleTitle.textContent = title;
     this.el.subtitleText.textContent = text;
     this.el.subtitle.classList.add('show');
     clearTimeout(this.subTimer);
-    this.subTimer = setTimeout(() => this.el.subtitle.classList.remove('show'), ms);
+    this.subTimer = setTimeout(() => {
+      this.el.subtitle.classList.remove('show');
+      setTimeout(() => !this.el.subtitle.classList.contains('show') && hideClip(vid), 1300);
+    }, ms);
   }
 
   /** Big comic splash in the middle of the screen: MEMORY FOUND, 3 / 8. */

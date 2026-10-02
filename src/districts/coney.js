@@ -29,6 +29,7 @@ export default {
   shops: ['HOT DOGS', 'CLAMS', 'FUNNEL CAKE', 'ARCADE', 'SIDESHOW', 'BEER', 'CANDY', 'SOUVENIRS', 'CORN DOGS', 'BUMPER CARS', 'SEAFOOD', 'ICE CREAM', 'PIZZA', 'SWIMWEAR', 'T-SHIRTS', 'TACOS'],
   neon: [['HOT DOGS', '#ffd23b', true], ['ARCADE', '#c86bff', true], ['CLAMS', '#39d0ff', false], ['BEER', '#ffb03b', true], ['OPEN', '#ff2f5f', true], ['FREAKS', '#ff2f5f', true], ['RIDES', '#57ff8a', false], ['CANDY', '#ff9ad8', false]],
   bigSigns: { ll: [40.5752, -73.9810], radius: 80, chance: 0.3 },
+  screens: ['fireworks', 'billboard-zap'], // the summer Friday fireworks off the boardwalk
 
   el: {
     axis: 'ns',

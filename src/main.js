@@ -67,6 +67,7 @@ import { Input, IS_TOUCH } from './input.js';
 import { ColliderGrid } from './collide.js';
 import { makeCityEnvironment } from './env.js';
 import { Minimap, Compass } from './minimap.js';
+import { show as showClip, hide as hideClip, clipTexture, pauseAll as pauseClips } from './media.js';
 import './style.css';
 
 const params = new URLSearchParams(location.search);
@@ -254,7 +255,12 @@ const TIPS = [
   'Tip: press C to switch between first and third person.',
   'Tip: Settings has graphics presets if things feel slow.',
 ];
-function showCard(def) {
+function showCard(def, arrive = false) {
+  // a moving picture up top: the view from the train when riding there, the Wonder Wheel for Coney Island
+  const vid = document.getElementById('load-vid');
+  if (arrive) showClip(vid, 'subway-window');
+  else if (def.id === 'coney') showClip(vid, 'card-coney');
+  else hideClip(vid);
   document.getElementById('load-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
   document.getElementById('load-boro').textContent = def.borough;
   document.getElementById('load-name').textContent = def.name;
@@ -426,6 +432,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     scene.remove(W.root);
     W.road.reflector.dispose();
     disposeTree(W.root);
+    pauseClips(['title', 'subway-window', 'card-coney']); // the city's screens start again as they're rebuilt
   }
   activateDistrict(def);
   reseed(def.seed);
@@ -911,7 +918,7 @@ function goTo(id, arrive) {
     input.start();
   }
   fade.querySelector('span').textContent = arrive ? `Taking ${W.def.el.ride} to ${def.name}…` : '';
-  showCard(def);
+  showCard(def, arrive);
   fade.classList.add('show');
   // give the fade a frame to paint before the heavy rebuild
   setTimeout(async () => {
@@ -1115,6 +1122,11 @@ document.getElementById('reset').addEventListener('click', (e) => {
 input.addEventListener('start', () => {
   audio.start();
   overlay.classList.add('gone');
+  // the title loop is for the first screen only; the pause menu shows the city itself
+  if (overlay.classList.contains('intro')) {
+    overlay.classList.remove('intro');
+    setTimeout(() => hideClip(document.getElementById('titlevid')), 600);
+  }
 });
 input.addEventListener('pause', () => {
   if (!travelOpen) overlay.classList.remove('gone');
@@ -1349,6 +1361,22 @@ for (const tab of document.querySelectorAll('.tabs button')) {
 }
 
 // ---------- start ----------
+// the title screen: the hand-drawn logo and a looping street scene behind the menu
+{
+  const h1 = overlay.querySelector('h1');
+  const logo = new Image();
+  logo.alt = 'Night Walker';
+  logo.onload = () => {
+    h1.classList.add('logo');
+    h1.replaceChildren(logo);
+  };
+  logo.src = 'media/logo.png';
+  const tv = document.getElementById('titlevid');
+  if (!params.has('shot')) {
+    tv.addEventListener('playing', () => overlay.classList.add('ready'), { once: true });
+    showClip(tv, 'title');
+  }
+}
 applyInk();
 applyGfx();
 const firstDistrict = params.get('district') || store.get('district', 'astoria');

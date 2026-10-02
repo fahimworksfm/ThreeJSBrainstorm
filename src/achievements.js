@@ -38,29 +38,31 @@ export function stats(store, districts) {
   s.cabs = store.get('cabs', 0);
   s.errandDays = store.get('errandDays', 0);
   s.combos3 = store.get('combos3', 0);
+  s.cats = store.get('cats', 0);
   return s;
 }
 
 export const BADGES = [
-  { id: 'memory', icon: '💙', name: 'First memory', desc: 'Find a memory', test: (s) => s.memories >= 1 },
-  { id: 'memory25', icon: '🧠', name: 'Total recall', desc: 'Find 25 memories', test: (s) => s.memories >= 25 },
-  { id: 'hoods5', icon: '🗽', name: 'Out and about', desc: 'Walk in 5 neighborhoods', test: (s) => s.visited.size >= 5 },
-  { id: 'boroughs', icon: '🌉', name: 'Five boroughs', desc: 'Visit every borough', test: (s) => s.boroughs >= 5 },
-  { id: 'plaques', icon: '📜', name: 'Block historian', desc: 'Read 5 landmark plaques', test: (s) => s.plaques >= 5 },
-  { id: 'tag', icon: '🎨', name: 'Writer', desc: 'Tag a wall', test: (s) => s.tags >= 1 },
-  { id: 'allcity', icon: '🚇', name: 'All-city', desc: 'Get up in 5 neighborhoods', test: (s) => s.tagHoods >= 5 },
-  { id: 'crews', icon: '🧯', name: 'King of the block', desc: 'Cover 5 rival crew tags', test: (s) => s.crews >= 5 },
-  { id: 'photos', icon: '📸', name: 'Shutterbug', desc: 'Take 10 challenge photos', test: (s) => s.photos >= 10 },
-  { id: 'courier', icon: '🛵', name: 'Courier', desc: 'Make 10 deliveries', test: (s) => s.runs >= 10 },
-  { id: 'tips', icon: '💵', name: 'Big tipper', desc: 'Earn $100 in tips', test: (s) => s.tips >= 100 },
-  { id: 'errands', icon: '✅', name: 'Busy day', desc: "Finish all three of a day's errands", test: (s) => s.errandDays >= 1 },
-  { id: 'meals', icon: '🍕', name: 'Regular customer', desc: 'Eat at 5 real spots', test: (s) => s.meals >= 5 },
-  { id: 'citibike', icon: '🚲', name: 'Citi Biker', desc: 'Unlock a real Citi Bike', test: (s) => s.citibike >= 1 },
-  { id: 'combo', icon: '🤸', name: 'Trick line', desc: 'Land a x5 bike combo', test: (s) => s.combo >= 5 },
-  { id: 'daily', icon: '📮', name: 'Where am I?', desc: 'Solve a daily postcard', test: (s) => s.dailies >= 1 },
-  { id: 'streak', icon: '🔥', name: 'Regular', desc: 'Solve the postcard 3 days running', test: (s) => s.streak >= 3 },
-  { id: 'owl', icon: '🦉', name: 'Night owl', desc: 'Be out walking at 3 a.m.', test: (s, live) => live.minute >= 180 && live.minute < 240 },
-  { id: 'golden', icon: '🌇', name: 'Golden hour', desc: 'Catch the sunset on a rooftop', test: (s, live) => live.roof && live.golden },
+  { id: 'memory', sprite: 0, icon: '💙', name: 'First memory', desc: 'Find a memory', test: (s) => s.memories >= 1 },
+  { id: 'memory25', sprite: 1, icon: '🧠', name: 'Total recall', desc: 'Find 25 memories', test: (s) => s.memories >= 25 },
+  { id: 'hoods5', sprite: 2, icon: '🗽', name: 'Out and about', desc: 'Walk in 5 neighborhoods', test: (s) => s.visited.size >= 5 },
+  { id: 'boroughs', sprite: 3, icon: '🌉', name: 'Five boroughs', desc: 'Visit every borough', test: (s) => s.boroughs >= 5 },
+  { id: 'plaques', sprite: 4, icon: '📜', name: 'Block historian', desc: 'Read 5 landmark plaques', test: (s) => s.plaques >= 5 },
+  { id: 'tag', sprite: 5, icon: '🎨', name: 'Writer', desc: 'Tag a wall', test: (s) => s.tags >= 1 },
+  { id: 'allcity', sprite: 6, icon: '🚇', name: 'All-city', desc: 'Get up in 5 neighborhoods', test: (s) => s.tagHoods >= 5 },
+  { id: 'crews', sprite: 7, icon: '🧯', name: 'King of the block', desc: 'Cover 5 rival crew tags', test: (s) => s.crews >= 5 },
+  { id: 'photos', sprite: 8, icon: '📸', name: 'Shutterbug', desc: 'Take 10 challenge photos', test: (s) => s.photos >= 10 },
+  { id: 'courier', sprite: 9, icon: '🛵', name: 'Courier', desc: 'Make 10 deliveries', test: (s) => s.runs >= 10 },
+  { id: 'tips', sprite: 10, icon: '💵', name: 'Big tipper', desc: 'Earn $100 in tips', test: (s) => s.tips >= 100 },
+  { id: 'errands', sprite: 17, icon: '✅', name: 'Busy day', desc: "Finish all three of a day's errands", test: (s) => s.errandDays >= 1 },
+  { id: 'meals', sprite: 12, icon: '🍕', name: 'Regular customer', desc: 'Eat at 5 real spots', test: (s) => s.meals >= 5 },
+  { id: 'citibike', sprite: 11, icon: '🚲', name: 'Citi Biker', desc: 'Unlock a real Citi Bike', test: (s) => s.citibike >= 1 },
+  { id: 'combo', sprite: 18, icon: '🤸', name: 'Trick line', desc: 'Land a x5 bike combo', test: (s) => s.combo >= 5 },
+  { id: 'daily', sprite: 13, icon: '📮', name: 'Where am I?', desc: 'Solve a daily postcard', test: (s) => s.dailies >= 1 },
+  { id: 'streak', sprite: 14, icon: '🔥', name: 'Regular', desc: 'Solve the postcard 3 days running', test: (s) => s.streak >= 3 },
+  { id: 'owl', sprite: 15, icon: '🦉', name: 'Night owl', desc: 'Be out walking at 3 a.m.', test: (s, live) => live.minute >= 180 && live.minute < 240 },
+  { id: 'cats', sprite: 19, icon: '🐈‍⬛', name: 'Bodega regular', desc: 'Say hi to 5 bodega cats', test: (s) => s.cats >= 5 },
+  { id: 'golden', sprite: 16, icon: '🌇', name: 'Golden hour', desc: 'Catch the sunset on a rooftop', test: (s, live) => live.roof && live.golden },
 ];
 
 /** Today's date in New York, like "2026-10-02". */
@@ -110,7 +112,14 @@ export class Achievements {
       const row = document.createElement('div');
       row.className = `badge${this.got.has(b.id) ? ' got' : ''}`;
       row.innerHTML = '<span class="icon"></span><span><b></b><small></small></span>';
-      row.querySelector('.icon').textContent = b.icon;
+      const icon = row.querySelector('.icon');
+      icon.textContent = b.icon;
+      // the hand-drawn badge art, when it loads (the emoji stays underneath as the fallback)
+      if (b.sprite != null) {
+        icon.classList.add('art');
+        icon.style.backgroundImage = 'url(media/badges.png)';
+        icon.style.backgroundPosition = `${(b.sprite % 4) * 33.333}% ${Math.floor(b.sprite / 4) * 25}%`;
+      }
       row.querySelector('b').textContent = b.name;
       row.querySelector('small').textContent = b.desc;
       el.append(row);

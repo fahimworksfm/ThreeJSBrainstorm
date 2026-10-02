@@ -4,6 +4,16 @@ import { DISTRICTS } from './districts/index.js';
 import { makePostcard } from './textures.js';
 import { JUICE } from './comicfx.js';
 
+/** The little animated panel shown with a memory: the one that fits its story best. */
+function memoryClip(mem) {
+  const t = `${mem.title} ${mem.text}`.toLowerCase();
+  if (/hydrant|sprinkler|spray|heat wave|summer/.test(t)) return 'memory-hydrant';
+  if (/stoop|steps|porch|front door|neighbor/.test(t)) return 'memory-stoop';
+  if (/train|subway|platform|\bel\b|tracks|\bcats?\b/.test(t)) return 'memory-train';
+  const h = [...String(mem.id ?? t)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return ['memory-hydrant', 'memory-stoop', 'memory-train'][h % 3];
+}
+
 const storageKey = (id) => `nightwalker.${id}.collected`;
 
 /** A MetroCard: earned with your first memory anywhere; it opens the trains between neighborhoods. */
@@ -144,7 +154,7 @@ export class Memories {
     const n = this.collected.size;
     this.hud.setCount(n, this.list.length);
     this.hud.setJournal(journalAll());
-    this.hud.showMemory(it.mem.title, it.mem.text);
+    this.hud.showMemory(it.mem.title, it.mem.text, undefined, memoryClip(it.mem));
     this.hud.banner(n === this.list.length ? 'NEIGHBORHOOD COMPLETE!' : 'MEMORY FOUND!', `${n} / ${this.list.length}`);
     if (n === this.list.length) {
       const title = `${D.name}, ${D.borough}`;

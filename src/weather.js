@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { range } from './random.js';
+import { clipTexture } from './media.js';
 
 const RAIN_W = 70;
 const RAIN_H = 34;
@@ -145,6 +146,57 @@ export class Weather {
     this.steam = new THREE.Points(stg, this.steamMat);
     this.steam.frustumCulled = false;
     this.group.add(this.steam);
+
+    // over the strongest few, a hand-drawn comic plume (public/media/steam.mp4, keyed off its green screen)
+    this.plumes = [];
+    const strong = [...steamSources].sort((a, b) => b.strength - a.strength).slice(0, 10);
+    if (strong.length) {
+      const plumeMat = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, uFade: { value: 1 } }]),
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          #include <fog_pars_vertex>
+          void main() {
+            vUv = uv;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            #include <fog_vertex>
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform sampler2D map;
+          uniform float uFade;
+          varying vec2 vUv;
+          #include <fog_pars_fragment>
+          void main() {
+            vec3 c = texture2D(map, vUv).rgb;
+            float green = c.g - max(c.r, c.b);
+            float a = 1.0 - smoothstep(0.12, 0.3, green);
+            c.g = min(c.g, max(c.r, c.b) + 0.03); // no green fringe
+            // tone the white down to the night
+            gl_FragColor = vec4(c * vec3(0.62, 0.64, 0.7), a * 0.85 * uFade);
+            #include <fog_fragment>
+          }`,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        fog: true,
+      });
+      plumeMat.uniforms.map.value = clipTexture('steam');
+      for (const [i, em] of strong.entries()) {
+        const h = 2.6 * (0.8 + em.strength * 0.4);
+        const g = new THREE.PlaneGeometry(h * 0.72, h).translate(0, h / 2, 0);
+        // the plume is the middle of the frame; every other one mirrored so they don't all match
+        const uv = g.attributes.uv;
+        for (let k = 0; k < uv.count; k++) uv.setX(k, i % 2 ? 0.7 - uv.getX(k) * 0.4 : 0.3 + uv.getX(k) * 0.4);
+        const m = new THREE.Mesh(g, plumeMat);
+        m.userData.noTerrain = true;
+        m.userData.noShadow = true;
+        m.renderOrder = 2;
+        m.position.set(em.x, (groundAt(em.x, em.z) ?? 0) + em.y - 0.1, em.z);
+        this.group.add(m);
+        this.plumes.push(m);
+      }
+    }
   }
 
   respawnSteam(k) {
@@ -307,5 +359,13 @@ export class Weather {
     }
     const a = this.steam.geometry.attributes;
     a.position.needsUpdate = a.aSize.needsUpdate = a.aAlpha.needsUpdate = true;
+    // the plumes turn to face you and lean with the breeze
+    for (const m of this.plumes) {
+      const d = Math.hypot(m.position.x - cx, m.position.z - cz);
+      m.visible = d < 120;
+      if (!m.visible) continue;
+      m.rotation.set(0, Math.atan2(cx - m.position.x, cz - m.position.z), 0);
+      m.rotation.z = -wx * 0.04;
+    }
   }
 }

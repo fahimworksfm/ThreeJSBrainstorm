@@ -8,9 +8,29 @@ import {
 import { rand, range, pick, chance } from './random.js';
 import { FLOOR_H } from './textures.js';
 import { fruitStand, crateStack, litter } from './streetprops.js';
+import { clipTexture } from './media.js';
 
 
 /** Box with facade UVs in world units so window grids line up across buildings. */
+
+/** The four lines of the neon clip (public/media/neon.mp4) as UV boxes [u0, v0, u1, v1]. */
+const NEON_CROP = {
+  pizza: [150 / 640, 1 - 104 / 360, 490 / 640, 1 - 8 / 360],
+  open: [125 / 640, 1 - 182 / 360, 515 / 640, 1 - 115 / 360],
+  liquors: [145 / 640, 1 - 266 / 360, 495 / 640, 1 - 186 / 360],
+  hotel: [180 / 640, 1 - 348 / 360, 462 / 640, 1 - 274 / 360],
+};
+
+/** Which neon a real (mapped) shop would hang: the pizzeria, the liquor store, the deli that never closes. */
+function neonWord(poi) {
+  if (!poi) return null;
+  if (/pizza/i.test(poi.cuisine ?? '') || /pizza/i.test(poi.name ?? '')) return 'pizza';
+  if (/^(alcohol|wine)$/.test(poi.trade ?? '')) return 'liquors';
+  if (/^(hotel|motel)$/.test(poi.trade ?? '')) return 'hotel';
+  if (poi.allNight || /deli|convenience/.test(poi.trade ?? '')) return 'open';
+  return null;
+}
+
 export function facadeBox(w, h, d, x, y, z, uOff, vOff, tint) {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.attributes.uv;
@@ -863,6 +883,10 @@ export function buildBuildings(layout, shared) {
   // Times Square style: facades wrapped in giant lit ads
   const bigGeos = [];
   const frameGeos = [];
+  // some of the big screens play the animated ads (public/media): the energy soda, the sneakers, the musical
+  const clips = D.bigSigns ? (D.screens ?? ['billboard-zap', 'billboard-kickstand', 'billboard-musical']) : [];
+  const clipGeos = new Map(clips.map((c) => [c, []]));
+  let clipCount = 0;
   for (const f of layout.faces) {
     const lot = f.lot;
     const big = f.bigSign ?? (D.bigSigns && !lot.poly && (f.shop || lot.kind === 'condo') && lot.h > 14 && chance(D.bigSigns.chance ?? 0.5));
@@ -874,10 +898,20 @@ export function buildBuildings(layout, shared) {
       const bw = f.w - 1.2;
       const bh = Math.min(8, bw * 0.45);
       const g = new THREE.PlaneGeometry(bw, bh);
-      const slot = Math.floor(rand() * AD_COUNT);
       const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / AD_COUNT);
-      bigGeos.push(place(g.translate(0, y0 + k * (bh + 1) + bh / 2, 0.35), f.x, 0, f.z, ang));
+      if (clips.length && clipCount < 14 && bw > 8 && rand() < 0.4) {
+        // a video screen: crop the 16:9 clip to the screen's shape so nothing stretches
+        const a = bw / bh / (16 / 9);
+        for (let i = 0; i < uv.count; i++) {
+          if (a > 1) uv.setY(i, 0.5 + (uv.getY(i) - 0.5) / a);
+          else uv.setX(i, 0.5 + (uv.getX(i) - 0.5) * a);
+        }
+        clipGeos.get(clips[clipCount++ % clips.length]).push(place(g.translate(0, y0 + k * (bh + 1) + bh / 2, 0.35), f.x, 0, f.z, ang));
+      } else {
+        const slot = Math.floor(rand() * AD_COUNT);
+        for (let i = 0; i < uv.count; i++) uv.setY(i, (slot + uv.getY(i)) / AD_COUNT);
+        bigGeos.push(place(g.translate(0, y0 + k * (bh + 1) + bh / 2, 0.35), f.x, 0, f.z, ang));
+      }
       // a steel frame behind each screen
       frameGeos.push(place(new THREE.BoxGeometry(bw + 0.3, bh + 0.3, 0.25).translate(0, y0 + k * (bh + 1) + bh / 2, 0.15), f.x, 0, f.z, ang));
     }
@@ -887,6 +921,14 @@ export function buildBuildings(layout, shared) {
   bigMat.userData.billboard = true;
   bigMat.userData.bright = true;
   addMerged(bigGeos, bigMat);
+  for (const [name, geos] of clipGeos) {
+    if (!geos.length) continue;
+    const tex = clipTexture(name);
+    const m = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1, roughness: 0.6, side: THREE.DoubleSide });
+    m.userData.bright = true;
+    m.userData.video = name;
+    addMerged(geos, m);
+  }
   addMerged(frameGeos, new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6 }));
   addMerged(billboardGeos, adMat);
   addMerged(
@@ -900,6 +942,8 @@ export function buildBuildings(layout, shared) {
   const shop = shared.storefront ?? makeStorefront();
   const shopGeos = [];
   const neonGroups = new Map();
+  const neonVidGeos = [];
+  const tvGeos = [];
   const boardGeos = [];
   const awningGeos = [];
   const fruitGeos = [];
@@ -995,6 +1039,25 @@ export function buildBuildings(layout, shared) {
         for (let i = 0; i < uv.count; i++) uv.setXY(i, ...boards.uv(slot, uv.getX(i), uv.getY(i)));
         boardGeos.push(place(board, tx, CURB + 5.05, tz, faceAng));
         subjects.sign.push([tx, CURB + 5.05, tz]);
+        // a real pizzeria, liquor store or all-night deli gets the animated neon (public/media/neon.mp4)
+        const poiHere = info.get(boardNames[slot]);
+        // the TV on the shelf behind the counter, always on the weather (public/media/tv.mp4)
+        if (/^(deli|convenience|laundry|dry_cleaning|hairdresser|barber|cafe|fast_food)$/.test(poiHere?.trade ?? '') && chance(0.5)) {
+          const along = bwid / 4;
+          tvGeos.push(place(new THREE.PlaneGeometry(0.96, 0.54), tx - f.nz * along + f.nx * 0.09, CURB + 2.25, tz + f.nx * along + f.nz * 0.09, faceAng));
+        }
+        const word = neonWord(poiHere);
+        if (word) {
+          const [u0, v0, u1, v1] = NEON_CROP[word];
+          const inWindow = word === 'open';
+          const w = Math.min(inWindow ? 1.8 : 3.6, bwid);
+          const h = (w * (v1 - v0) * 360) / ((u1 - u0) * 640);
+          const sign = new THREE.PlaneGeometry(w, h);
+          const nuv = sign.attributes.uv;
+          for (let i = 0; i < nuv.count; i++) nuv.setXY(i, u0 + nuv.getX(i) * (u1 - u0), v0 + nuv.getY(i) * (v1 - v0));
+          const along = inWindow ? -bwid / 4 : 0;
+          neonVidGeos.push(place(sign, tx - f.nz * along + f.nx * (inWindow ? 0.02 : 0.1), CURB + (inWindow ? 2.7 : 5.6 + h / 2), tz + f.nx * along + f.nz * (inWindow ? 0.02 : 0.1), faceAng));
+        }
       }
       if (chance(0.65)) {
         const aw = new THREE.PlaneGeometry(bw - 0.5, 1.7, Math.max(1, Math.round(bw / 2)), 2);
@@ -1087,6 +1150,22 @@ export function buildBuildings(layout, shared) {
     addMerged(gradeGeos, new THREE.MeshStandardMaterial({ map: gradeTex, roughness: 0.7, emissive: 0xffffff, emissiveMap: gradeTex, emissiveIntensity: 0.15 }));
   }
   addMerged(litterGeos, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
+
+  if (neonVidGeos.length) {
+    // the clip is lit tubes on black: added on top, the black drops out
+    const m = new THREE.MeshBasicMaterial({ map: clipTexture('neon'), color: 0xffffff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: true });
+    m.color.multiplyScalar(1.4);
+    const mesh = new THREE.Mesh(mergeAll(neonVidGeos), m);
+    mesh.userData.noShadow = true;
+    mesh.castShadow = false;
+    group.add(mesh);
+  }
+
+  if (tvGeos.length) {
+    const m = new THREE.MeshBasicMaterial({ map: clipTexture('tv') });
+    m.color.multiplyScalar(1.2);
+    group.add(new THREE.Mesh(mergeAll(tvGeos), m));
+  }
 
   const neonMats = [];
   for (const entry of neonGroups.values()) {
