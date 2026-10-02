@@ -223,5 +223,84 @@ export function buildNycExtras({ nyc, proj, chains, isRoad, inBox, curb }) {
     group.add(new THREE.Mesh(mergeGeometries(lights.map((g) => g.toNonIndexed())), balloon));
     group.add(new THREE.Mesh(mergeGeometries(signs), new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.7, side: THREE.DoubleSide })));
   }
-  return { group, colliders, crews };
+
+  // ---------- today's permitted street events: block parties, street fairs, greenmarkets, Open Streets
+  const fairs = [];
+  const closures = [];
+  const today = nyDay(new Date());
+  // permit times are New York local times: the date part is the day
+  const evs = (nyc.events ?? []).map(([start, end, type, loc, name]) => ({ start: String(start).slice(0, 10), end: String(end || start).slice(0, 10), type, loc, name, when: Date.parse(start) || 0 }));
+  const upcoming = evs.filter((e) => e.start > today).sort((a, b) => a.when - b.when)[0] ?? null;
+  const tents = [];
+  const canopies = [];
+  const tables = [];
+  const barricades = [];
+  for (const e of evs.filter((v) => v.start <= today && v.end >= today)) {
+    if (fairs.length >= 3) break;
+    for (const seg of String(e.loc).split(',')) {
+      const m = seg.match(/^\s*(.+?)\s+between\s+(.+?)\s+and\s+(.+?)\s*$/i);
+      if (!m) continue;
+      const street = byKey.get(streetKey(m[1]));
+      if (!street) continue;
+      const a = crossing(street, byKey.get(streetKey(m[2])) ?? []);
+      const b = crossing(street, byKey.get(streetKey(m[3])) ?? []);
+      if (!a || !b) continue;
+      const cx = (a[0] + b[0]) / 2;
+      const cz = (a[1] + b[1]) / 2;
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (!inBox(cx, cz, 20) || L < 30 || L > 400) continue;
+      const tx = (b[0] - a[0]) / L;
+      const tz = (b[1] - a[1]) / L;
+      const ang = Math.atan2(tx, tz);
+      const party = /block party|open street/i.test(e.type);
+      // the block is closed: blue police sawhorses across both ends
+      for (const [px, pz] of [a, b]) {
+        const ex = px + (cx - px) * (14 / L) * 2;
+        const ez = pz + (cz - pz) * (14 / L) * 2;
+        for (const off of [-3, 0, 3]) barricades.push(new THREE.BoxGeometry(2.2, 0.22, 0.12).translate(0, 0.95, 0).rotateY(ang + Math.PI / 2).translate(ex - tz * off, curb, ez + tx * off));
+      }
+      // stalls down both sides of the roadway (a fair), or tables and chairs (a block party)
+      for (let s = -L / 2 + 16; s < L / 2 - 16; s += party ? 7 : 4.2) {
+        for (const side of [-1, 1]) {
+          const off = side * (party ? 1.6 : 2.6);
+          const x = cx + tx * s - tz * off;
+          const z = cz + tz * s + tx * off;
+          if (party) {
+            tables.push(new THREE.BoxGeometry(0.8, 0.05, 1.8).translate(0, 0.74, 0).rotateY(ang).translate(x, curb, z));
+            for (const k of [-0.6, 0, 0.6]) tables.push(new THREE.BoxGeometry(0.42, 0.45, 0.42).translate(side * -0.75, 0.22, k).rotateY(ang).translate(x, curb, z));
+          } else {
+            // a pop-up tent: canopy, four legs, a table under it
+            canopies.push({ x, z, ang, hue: (Math.abs(Math.sin(s * 3.1 + side)) * 7) | 0 });
+            for (const [u, v] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) tents.push(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 4).translate(u, 1.15, v).rotateY(ang).translate(x, curb, z));
+            tables.push(new THREE.BoxGeometry(2.4, 0.75, 0.75).translate(0, 0.38, side * 0.9).rotateY(ang).translate(x, curb, z));
+          }
+        }
+      }
+      closures.push({ a, b, cx, cz, tx, tz, L });
+      fairs.push({ x: cx, z: cz, type: e.type, name: e.name, street: m[1] });
+      break;
+    }
+  }
+  if (canopies.length) {
+    const COLORS = [0xd8261e, 0xf2efe4, 0x2a5fb0, 0x2f8a3a, 0xf5c518, 0xe8741c, 0x7a3fb0];
+    const geo = new THREE.ConeGeometry(2.1, 0.9, 4, 1, true).rotateY(Math.PI / 4).translate(0, 2.75, 0);
+    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide }), canopies.length);
+    const mm = new THREE.Matrix4();
+    const c = new THREE.Color();
+    canopies.forEach((t, i) => {
+      mm.makeRotationY(t.ang).setPosition(t.x, curb, t.z);
+      mesh.setMatrixAt(i, mm);
+      mesh.setColorAt(i, c.setHex(COLORS[t.hue % COLORS.length]));
+    });
+    group.add(mesh);
+  }
+  if (tents.length) group.add(new THREE.Mesh(mergeGeometries(tents.map((g) => g.toNonIndexed())), new THREE.MeshStandardMaterial({ color: 0xb8bcc4, metalness: 0.6, roughness: 0.4 })));
+  if (tables.length) group.add(new THREE.Mesh(mergeGeometries(tables.map((g) => g.toNonIndexed())), new THREE.MeshStandardMaterial({ color: 0xece8de, roughness: 0.7 })));
+  if (barricades.length) group.add(new THREE.Mesh(mergeGeometries(barricades.map((g) => g.toNonIndexed())), new THREE.MeshStandardMaterial({ color: 0x2a4fb0, roughness: 0.6 })));
+  return { group, colliders, crews, fairs, closures, upcoming };
+}
+
+/** A date as YYYY-MM-DD in New York (permits are in local time). */
+function nyDay(d) {
+  return Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(d);
 }

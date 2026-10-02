@@ -1010,11 +1010,25 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
 
   // ---------- NYC Open Data on the street: bike lanes, and film crews on permitted blocks
   let crews = [];
+  let fairs = [];
+  let upcoming = null;
   if (nyc) {
     const extras = buildNycExtras({ nyc, proj: M.proj, chains, isRoad, inBox, curb: CURB });
     group.add(extras.group);
     colliders.push(...extras.colliders);
     crews = extras.crews;
+    fairs = extras.fairs;
+    upcoming = extras.upcoming;
+    // a closed block: no traffic through it, and nobody parked on it
+    const shut = (x, z) => extras.closures.some((c) => {
+      const u = (x - c.cx) * c.tx + (z - c.cz) * c.tz;
+      const v = -(x - c.cx) * c.tz + (z - c.cz) * c.tx;
+      return Math.abs(u) < c.L / 2 - 6 && Math.abs(v) < 9;
+    });
+    if (extras.closures.length) {
+      for (let i = lanes.length - 1; i >= 0; i--) if (lanes[i].pts.some(([x, z]) => shut(x, z))) lanes.splice(i, 1);
+      for (let i = parked.length - 1; i >= 0; i--) if (shut(parked[i].x, parked[i].z)) parked.splice(i, 1);
+    }
   }
 
   // ---------- Manhattan on the horizon, in its real direction
@@ -1023,7 +1037,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
 
   return {
     M, box, group, mask, groundAt, isRoad, isWater, walkable, spot, inBuilding,
-    crews, lots, faces, signNames, colliders: [...colliders, ...corners.colliders], roofs, corners, lanes, parked, routes, trees, kitLamps,
+    crews, fairs, upcoming, lots, faces, signNames, colliders: [...colliders, ...corners.colliders], roofs, corners, lanes, parked, routes, trees, kitLamps,
     elevated, looseEntrances, mapImage, describe, place, start, midtown: toMid > 1200 ? midtown : null,
     counts: { buildings: lots.length, streets: chains.length, trees: trees.length, lanes: lanes.length, blocks: groundPolys.length },
   };

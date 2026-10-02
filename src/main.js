@@ -35,6 +35,7 @@ import { Tricks } from './tricks.js';
 import { buildFarCity } from './farcity.js';
 import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { season, holiday, buildDecor } from './holidays.js';
+import { Soundscape } from './soundscape.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -485,6 +486,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
   W.season = params.get('season') ?? season();
+  // what the blocks really sound like (311 noise complaints)
+  W.soundscape = new Soundscape(data?.nyc?.noise, P.city?.M.proj, audio);
   // the daily postcard: a real storefront somewhere in this neighborhood
   const faces = P.layout?.faces ?? P.city?.faces ?? [];
   const boards = P.buildings.realBoards?.length ? P.buildings.realBoards : faces.filter((f) => f.shop && !f.lot?.outer && f.w > 5).map((f) => ({ x: f.x, z: f.z, nx: f.nx, nz: f.nz, name: f.names?.[0] ?? null }));
@@ -522,7 +525,13 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   if (gfx.ghosts) ghosts.join(def.id);
   else ghosts.leave();
   const crew = W.city?.crews?.[0];
-  if (crew) setTimeout(() => hud.toast(`🎬 A film crew is shooting on ${crew.street.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} (real NYC film permit)`), 6000);
+  const titled = (t) => t.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  if (crew) setTimeout(() => hud.toast(`🎬 A film crew is shooting on ${titled(crew.street)} (real NYC film permit)`), 6000);
+  // today's real street events, or the next one coming up
+  const fair = W.city?.fairs?.[0];
+  const soon = W.city?.upcoming;
+  if (fair) setTimeout(() => hud.toast(`🎪 ${titled(fair.type)} on ${titled(fair.street)} today${fair.name ? `: ${fair.name}` : ''} (real NYC permit)`), 11000);
+  else if (soon) setTimeout(() => hud.toast(`🎪 Coming up ${new Date(`${soon.start}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${titled(soon.type)}${soon.name ? `, ${soon.name}` : ''}`), 11000);
   refreshLive(isLive());
   document.body.classList.toggle('realmap', !!W.real); // keeps the OpenStreetMap credit under the map
   hud.setRide(MODES.walk.name, 'walk');
@@ -1404,6 +1413,8 @@ function photoFrame(dt) {
   camera.lookAt(photo.target.x, photo.target.y + ht, photo.target.z);
 }
 /** Save the frame that was just drawn as a comic panel: a white border, an ink frame, a caption box. */
+// the claude.ai viewer's save prompt, when the page runs there (null everywhere else)
+const downloadsReady = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 function savePhoto() {
   // the challenges look at exactly what this frame shows
   const got = challenges.shoot(camera);
@@ -1434,11 +1445,22 @@ function savePhoto() {
   ctx.fillStyle = '#111';
   ctx.textBaseline = 'middle';
   ctx.fillText(caption, pad * 1.6 + fs / 2, pad * 1.6 + fs * 0.82);
-  panel.toBlob((blob) => {
+  panel.toBlob(async (blob) => {
     if (!blob) return;
+    const name = `night-walker-${W.def.id}-${Date.now()}.png`;
+    // inside the claude.ai viewer a page can't download by itself: it asks the viewer to save the file
+    const saver = await downloadsReady;
+    if (saver) {
+      try {
+        await saver.save({ filename: name, data: blob });
+      } catch (e) {
+        if (e?.code !== 'declined') hud.toast('📷 Saving photos isn\'t available here');
+      }
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `night-walker-${W.def.id}-${Date.now()}.png`;
+    a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }, 'image/png');
@@ -1583,6 +1605,7 @@ function frame(now) {
   W.graffiti.update(dt, t, player);
   W.plaques.update(player, !audio.muted);
   W.regulars.update(dt, t, player);
+  W.soundscape.update(dt, camera, minute);
   ghosts?.update(dt, player);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);
@@ -1706,4 +1729,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, heightAt, get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };

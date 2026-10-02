@@ -37,6 +37,11 @@ down the cross streets. Always, the trees follow the real season (bare in winter
 in the fall), and the holidays put decorations out: jack-o'-lanterns all October, lights from
 December into the new year, flags around the Fourth. `?season=` and `?holiday=` override them for testing.
 
+**Real street life (NYC Open Data, refreshed weekly):** today's permitted block parties, street fairs and
+greenmarkets go up on their real blocks (stalls, barricades, no traffic), with a heads-up for the next one;
+film crews park on the blocks named in real film permits; and the soundscape comes from the last month of 311
+noise complaints (parties at night, construction by day, horns, dogs, ice cream trucks), pooled to ~50 m.
+
 **Live transit (Vercel):** `api/transit.js` is a free serverless function that reads the MTA's GTFS-realtime
 subway feeds and Citi Bike's GBFS feed (both free, no keys) and caches them for 20-30 seconds. In game, the
 subway stairs show a countdown board with the real next trains, and the real Citi Bike docks stand on the
