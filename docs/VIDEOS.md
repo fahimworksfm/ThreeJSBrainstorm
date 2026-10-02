@@ -108,7 +108,7 @@ One prompt, swap in the scene. Start with:
 | `card-astoria.mp4` | the elevated N train rumbling over 31st Street, Greek bakeries below |
 | `card-jackson-heights.mp4` | the 7 train on the el over Roosevelt Avenue, sari shops and food carts |
 | `card-sunnyside.mp4` | the big Sunnyside sign arching over Queens Boulevard, the 7 train passing |
-| `card-lic.mp4` | the old Pepsi-Cola sign on the waterfront with the Manhattan skyline across the river |
+| `card-lic.mp4` | the old gantry cranes at Gantry Plaza on the waterfront, the Manhattan skyline across the river |
 | `card-flushing.mp4` | busy Main Street with red lanterns and the 7 train terminal |
 | `card-forest-hills.mp4` | Tudor houses and a quiet tree-lined street, leaves drifting |
 | `card-jamaica.mp4` | Jamaica Avenue shops and the AirTrain gliding overhead |
