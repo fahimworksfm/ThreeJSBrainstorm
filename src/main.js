@@ -36,6 +36,7 @@ import { buildFarCity } from './farcity.js';
 import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
+import { FoodStops } from './food.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -488,6 +489,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   W.season = params.get('season') ?? season();
   // what the blocks really sound like (311 noise complaints)
   W.soundscape = new Soundscape(data?.nyc?.noise, P.city?.M.proj, audio);
+  W.food = new FoodStops(P.buildings.realBoards, store, hud);
   // the daily postcard: a real storefront somewhere in this neighborhood
   const faces = P.layout?.faces ?? P.city?.faces ?? [];
   const boards = P.buildings.realBoards?.length ? P.buildings.realBoards : faces.filter((f) => f.shop && !f.lot?.outer && f.w > 5).map((f) => ({ x: f.x, z: f.z, nx: f.nx, nz: f.nz, name: f.names?.[0] ?? null }));
@@ -1016,6 +1018,7 @@ input.addEventListener('button', (e) => {
       if (W.nearEntrance) openTravel();
       else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
+      else if (W.food.near) hud.toast(W.food.buy(player));
       else if (W.transit.near) rentBike();
       break;
   }
@@ -1072,6 +1075,7 @@ addEventListener('keydown', (e) => {
       if (W.nearEntrance) openTravel();
       else if (W.graffiti.near) tagWall();
       else if (W.nearEscape) climbEscape();
+      else if (W.food.near) hud.toast(W.food.buy(player));
       else if (W.transit.near) rentBike();
       break;
     case 'Digit1':
@@ -1196,7 +1200,7 @@ const firstDistrict = params.get('district') || store.get('district', 'astoria')
 fade.querySelector('span').textContent = settings.realMap ? 'Loading real streets…' : '';
 showCard(DISTRICTS[firstDistrict] ?? DISTRICTS.astoria);
 fade.classList.add('show');
-loadTexturePack(shared, './textures/', { small: LOW })
+loadTexturePack(shared, './textures/', { small: LOW, renderer })
   .then((n) => {
     if (!n) return;
     console.info(`texture pack: ${n} hand-drawn sheets`);
@@ -1606,6 +1610,7 @@ function frame(now) {
   W.plaques.update(player, !audio.muted);
   W.regulars.update(dt, t, player);
   W.soundscape.update(dt, camera, minute);
+  W.food.update(dt, player);
   ghosts?.update(dt, player);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);
@@ -1680,6 +1685,10 @@ function frame(now) {
   if (!near && W.graffiti.near && input.active) {
     input.setAction('Tag');
     if (!IS_TOUCH) hud.setPrompt(W.graffiti.near.rival ? `Press E to go over ${W.graffiti.near.rival}` : 'Press E to tag this wall');
+  }
+  if (!near && !fe && !W.graffiti.near && W.food.near && input.active) {
+    input.setAction('Eat');
+    if (!IS_TOUCH) hud.setPrompt(W.food.prompt);
   }
   if (!near && !fe && W.transit.near && input.active) {
     input.setAction('Citi Bike');

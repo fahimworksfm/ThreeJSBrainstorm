@@ -34,6 +34,7 @@ function stats(store, districts) {
   s.dailies = store.get('daily.count', 0);
   s.streak = store.get('daily.streak', 0);
   s.crews = store.get('crews.covered', 0);
+  s.meals = store.get('meals', 0);
   return s;
 }
 
@@ -49,6 +50,7 @@ export const BADGES = [
   { id: 'photos', icon: '📸', name: 'Shutterbug', desc: 'Take 10 challenge photos', test: (s) => s.photos >= 10 },
   { id: 'courier', icon: '🛵', name: 'Courier', desc: 'Make 10 deliveries', test: (s) => s.runs >= 10 },
   { id: 'tips', icon: '💵', name: 'Big tipper', desc: 'Earn $100 in tips', test: (s) => s.tips >= 100 },
+  { id: 'meals', icon: '🍕', name: 'Regular customer', desc: 'Eat at 5 real spots', test: (s) => s.meals >= 5 },
   { id: 'citibike', icon: '🚲', name: 'Citi Biker', desc: 'Unlock a real Citi Bike', test: (s) => s.citibike >= 1 },
   { id: 'combo', icon: '🤸', name: 'Trick line', desc: 'Land a x5 bike combo', test: (s) => s.combo >= 5 },
   { id: 'daily', icon: '📮', name: 'Where am I?', desc: 'Solve a daily postcard', test: (s) => s.dailies >= 1 },

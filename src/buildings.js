@@ -937,7 +937,7 @@ export function buildBuildings(layout, shared) {
     }
     if (best) {
       usedPois.add(best.poi);
-      realBoards.push({ name: best.name, x: f.x - f.nz * center, z: f.z + f.nx * center, nx: f.nx, nz: f.nz, grade: best.poi.grade });
+      realBoards.push({ name: best.name, x: f.x - f.nz * center, z: f.z + f.nx * center, nx: f.nx, nz: f.nz, grade: best.poi.grade, trade: best.poi.trade, cuisine: best.poi.cuisine });
       // the health department's letter grade, taped inside the window by the door
       const slotG = 'ABC'.indexOf(best.poi.grade ?? '');
       if (slotG >= 0) {

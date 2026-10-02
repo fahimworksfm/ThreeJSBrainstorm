@@ -42,6 +42,13 @@ greenmarkets go up on their real blocks (stalls, barricades, no traffic), with a
 film crews park on the blocks named in real film permits; and the soundscape comes from the last month of 311
 noise complaints (parties at night, construction by day, horns, dogs, ice cream trucks), pooled to ~50 m.
 
+**Food stops:** the real pizzerias, delis, cafés and bakeries on the map sell a slice, a chopped cheese or a
+coffee (E) for what deliveries have earned; for a minute after, running doesn't tire you.
+
+**Compressed textures:** `scripts/ktx2-pack.mjs` writes GPU-compressed KTX2 copies of the texture pack (a
+2048 px facade drops from ~17 MB of video memory to 2-4 MB, and the files are smaller than the JPGs). The game
+uses them where the device supports them and falls back to the JPG/PNG; `?ktx2=0` turns them off.
+
 **Live transit (Vercel):** `api/transit.js` is a free serverless function that reads the MTA's GTFS-realtime
 subway feeds and Citi Bike's GBFS feed (both free, no keys) and caches them for 20-30 seconds. In game, the
 subway stairs show a countdown board with the real next trains, and the real Citi Bike docks stand on the

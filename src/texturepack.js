@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { TILE_COLS, TILE_ROWS } from './textures.js';
 import { LUTImageLoader } from 'three/addons/loaders/LUTImageLoader.js';
 import { LUTCubeLoader } from 'three/addons/loaders/LUTCubeLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
 const black = (() => {
   const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
@@ -12,8 +13,11 @@ const black = (() => {
   return t;
 })();
 
-/** small: load the half-size copies (phones), when the pack has them. */
-export async function loadTexturePack(shared, base = './textures/', { small = false } = {}) {
+/**
+ * small: load the half-size copies (phones), when the pack has them. renderer: lets the pack's KTX2 copies
+ * (GPU-compressed, a fraction of the memory) be used where the device supports them.
+ */
+export async function loadTexturePack(shared, base = './textures/', { small = false, renderer = null } = {}) {
   let manifest;
   try {
     const r = await fetch(`${base}pack.json`);
@@ -24,8 +28,26 @@ export async function loadTexturePack(shared, base = './textures/', { small = fa
   }
   const loader = new THREE.TextureLoader();
   const half = manifest._forceHalf || (small && manifest._half);
-  const load = async (file, srgb = true) => {
-    const t = await loader.loadAsync(base + (half ? file.replace(/(\.\w+)$/, '@half$1') : file));
+  let ktx2 = null;
+  if (manifest._ktx2 && renderer && new URLSearchParams(location.search).get('ktx2') !== '0') {
+    try {
+      ktx2 = new KTX2Loader().setTranscoderPath(base.replace(/textures\/?$/, 'basis/')).detectSupport(renderer);
+    } catch {
+      ktx2 = null;
+    }
+  }
+  const fetchTex = async (name, compress) => {
+    if (compress && ktx2) {
+      try {
+        return await ktx2.loadAsync(base + name.replace(/\.\w+$/, '.ktx2'));
+      } catch (err) {
+        console.warn('texture pack: KTX2 failed, using', name, err);
+      }
+    }
+    return loader.loadAsync(base + name);
+  };
+  const load = async (file, srgb = true, compress = true) => {
+    const t = await fetchTex(half ? file.replace(/(\.\w+)$/, '@half$1') : file, compress);
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
@@ -61,7 +83,7 @@ export async function loadTexturePack(shared, base = './textures/', { small = fa
         n++;
       } else if (key.startsWith('sign-')) {
         // a painted shop sign; boards with this name show the painting instead of lettering
-        const map = await load(e.file);
+        const map = await load(e.file, true, false); // drawn onto canvases: needs the image itself
         (shared.signs ??= []).push({ name: e.name, image: map.image, aspect: map.image.width / map.image.height });
         map.dispose();
         n++;
