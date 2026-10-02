@@ -800,3 +800,11 @@ h3 small { font-weight: 400; color: var(--dim); letter-spacing: 0.05em; }
 #memory-vid[hidden] { display: none; }
 #subtitle.show #memory-vid { animation: caption-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1); }
 body.touch #memory-vid { width: 150px; }
+
+/* a close lightning strike: the comic bolt slams in at the top of the screen */
+#boltpop {
+  position: fixed; top: 4vh; right: 12vw; width: min(240px, 34vw); z-index: 11; pointer-events: none;
+  mix-blend-mode: screen; opacity: 0;
+}
+#boltpop.go { animation: boltpop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) forwards; }
+@keyframes boltpop { 0% { opacity: 0; scale: 0.3; rotate: -12deg; } 12% { opacity: 1; scale: 1.15; rotate: 4deg; } 25% { scale: 1; } 70% { opacity: 1; } 100% { opacity: 0; scale: 1.05; } }

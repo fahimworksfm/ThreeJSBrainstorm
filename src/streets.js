@@ -293,7 +293,7 @@ export function buildStreets(layout, shared) {
       umb.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       umb.deleteAttribute('uv');
       umbrellas.push(umb.translate(x, CURB + 2.85, z + 0.3));
-      steam.push({ x, y: CURB + 1.8, z: z - 0.3, strength: 0.45 });
+      steam.push({ x, y: CURB + 1.8, z: z - 0.3, strength: 0.45, kind: 'grill' });
       colliders.push({ x0: x - 0.6, x1: x + 0.6, z0: z - 1, z1: z + 1 });
     }
   }

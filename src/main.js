@@ -462,7 +462,12 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const road = buildRoad(shared.noise, D.roadRect, reflectSize(), shared.asphalt ?? null);
   road.setReflections(settings.reflections);
   root.add(road.reflector, road.plain);
-  const weather = new Weather(shared, P.groundAt, P.steam, quality.rain);
+  // smoke off the grill at the real kebab, barbecue and halal spots, rising past the sign from the kitchen
+  const grills = (P.buildings.realBoards ?? [])
+    .filter((b) => /bbq|barbecue|kebab|grill|burger|steak|chicken|korean|halal|souvlaki|yakitori|shawarma|gyro|jerk/i.test(`${b.cuisine ?? ''} ${b.name ?? ''}`))
+    .slice(0, 8)
+    .map((b) => ({ x: b.x + b.nx * 0.5, y: CURB + 5.6, z: b.z + b.nz * 0.5, strength: 0.3, kind: 'grill' }));
+  const weather = new Weather(shared, P.groundAt, [...P.steam, ...grills], quality.rain);
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
   const memories = new Memories(shared, audio, hud, P.place ?? null);
   const peds = P.peds;
@@ -635,6 +640,38 @@ const snowRoad = new THREE.Color(0.42, 0.44, 0.48);
 // thunderstorms: lightning now and then, thunder a few seconds behind it
 let flash = 0;
 let boltIn = 6;
+// the drawn bolt itself (public/media/lightning-strike.jpg, on black: added onto the sky), out past the rooftops
+const bolt = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 872 / 1024).translate(0, 0.42, 0),
+  new THREE.MeshBasicMaterial({ blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, toneMapped: false }),
+);
+bolt.visible = false;
+bolt.frustumCulled = false;
+bolt.userData.noTerrain = true;
+new THREE.TextureLoader().load('media/lightning-strike.jpg', (t) => {
+  t.colorSpace = THREE.SRGBColorSpace;
+  bolt.material.map = t;
+  bolt.material.needsUpdate = true;
+});
+scene.add(bolt);
+/** A strike somewhere around you: farther ones lower on the horizon and smaller. */
+function strike(near) {
+  if (!bolt.material.map) return;
+  const a = Math.random() * Math.PI * 2;
+  const d = 260 + (1 - near) * 340;
+  bolt.position.set(camera.position.x + Math.sin(a) * d, -20, camera.position.z + Math.cos(a) * d);
+  bolt.scale.setScalar(d * 1.1);
+  bolt.scale.x *= Math.random() < 0.5 ? -1 : 1; // forks lean either way
+  bolt.lookAt(camera.position.x, -20, camera.position.z);
+  bolt.visible = true;
+  // a close one gets the comic treatment too
+  if (near > 0.75 && !gfx.calm) {
+    const el = document.getElementById('boltpop');
+    el.classList.remove('go');
+    void el.offsetWidth;
+    el.classList.add('go');
+  }
+}
 const stormy = () => params.get('weather') === 'storm' || !!live?.storm;
 const skySun = new THREE.Vector3(0, 1, 0);
 const raysColor = new THREE.Color(1, 0.8, 0.5);
@@ -1768,6 +1805,7 @@ function frame(now) {
       flash = 1;
       const near = Math.random();
       audio.thunder(0.6 + (1 - near) * 3.5, near);
+      strike(near);
     }
   }
   if (flash > 0) {
@@ -1775,6 +1813,8 @@ function frame(now) {
     const f = flash > 0.7 || (flash > 0.35 && flash < 0.5) ? flash : flash * 0.3;
     renderer.toneMappingExposure *= 1 + f * (gfx.calm ? 0.5 : 2.2); // gentler flashes with Reduce motion
     flash = Math.max(0, flash - dt * 3.5);
+    bolt.material.opacity = f > 0.3 ? 1 : f * 2;
+    bolt.visible = flash > 0;
   }
   // the ride wheel takes the mouse while it's open
   if (rideWheel.open) {

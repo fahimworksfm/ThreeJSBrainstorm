@@ -2,7 +2,7 @@
 """Turns the AI-generated clips and images in aiImages/ into game media in public/media/.
 
 Videos (MP4 and WebM): trimmed to 8 s and made to loop seamlessly (the last second is cross-faded into the start), scaled
-down, muted, H.264 with fast start. Images: the logo keyed off its green background, the badge sheet cut into
+down, muted, H.264 with fast start. Images: the lightning trimmed to the bolt, the logo keyed off its green background, the badge sheet cut into
 a 5 x 4 sprite of round icons.
 
     pip install imageio-ffmpeg pillow numpy && python3 scripts/process-media.py
@@ -39,6 +39,8 @@ VIDEOS = {
     'memory-train': ('Cat_watching_passing_subway_train', 640, 30),
     'subway-window': ('Train_passing_city_buildings', 960, 30),
     'card-coney': ('Wonder_Wheel_turning_at_Coney', 960, 30),
+    # the clip is a green square inside a gray frame: cut the square out
+    'smoke': ('Gray_grill_smoke_rising', 384, 31, 'crop=568:568:356:76,'),
 }
 
 
@@ -47,11 +49,11 @@ def source(prefix):
     return hits[0] if hits else None
 
 
-def loop_video(src, dst, width, crf):
+def loop_video(src, dst, width, crf, pre=''):
     # 8 s of the clip (1 s to 9 s), with the clip's first second cross-faded over its last second, so the
     # final frame flows straight back into the first
     graph = (
-        f'[0:v]scale={width}:-2,fps=24,split[a][b];'
+        f'[0:v]{pre}scale={width}:-2,fps=24,split[a][b];'
         '[a]trim=start=1:end=9,setpts=PTS-STARTPTS,fps=24,settb=1/24[main];'
         '[b]trim=start=0:end=1,setpts=PTS-STARTPTS,fps=24,settb=1/24[head];'
         '[main][head]xfade=transition=fade:duration=1:offset=7,format=yuv420p[v]'
@@ -64,7 +66,7 @@ def loop_video(src, dst, width, crf):
                     '-cpu-used', '2', dst.replace('.mp4', '.webm')], check=True)
 
 
-for name, (prefix, width, crf) in VIDEOS.items():
+for name, (prefix, width, crf, *pre) in VIDEOS.items():
     src = source(prefix)
     if not src:
         print(f'media: no source for {name}')
@@ -73,7 +75,7 @@ for name, (prefix, width, crf) in VIDEOS.items():
     webm = dst.replace('.mp4', '.webm')
     if os.path.exists(webm) and os.path.getmtime(webm) > os.path.getmtime(src):
         continue
-    loop_video(src, dst, width, crf)
+    loop_video(src, dst, width, crf, *pre)
     print(f'media: {name} mp4 {os.path.getsize(dst) // 1024} KB, webm {os.path.getsize(webm) // 1024} KB')
 
 
@@ -131,3 +133,16 @@ if sheet:
             sprite.paste(cell, (i * S, j * S))
     sprite.save(f'{OUT}/badges.png', optimize=True)
     print('media: badges.png', sprite.size)
+
+# lightning: drawn on black, so they're added onto the sky as they are; trimmed to the bolt and scaled
+for name, pattern, size in (('lightning-strike', 'Lightning_strike_graphic*', 1024), ('lightning-bolt', 'Lightning_bolt_striking*', 512)):
+    hit = glob.glob(f'{SRC}/{pattern}.jpg')
+    if not hit:
+        continue
+    im = Image.open(hit[0]).convert('RGB')
+    a = np.asarray(im.convert('L')) > 40
+    ys, xs = np.where(a)
+    im = im.crop((max(0, xs.min() - 8), max(0, ys.min() - 8), min(im.width, xs.max() + 8), min(im.height, ys.max() + 8)))
+    im.thumbnail((size, size))
+    im.save(f'{OUT}/{name}.jpg', quality=82)
+    print(f'media: {name}.jpg', im.size)

@@ -147,12 +147,14 @@ export class Weather {
     this.steam.frustumCulled = false;
     this.group.add(this.steam);
 
-    // over the strongest few, a hand-drawn comic plume (public/media/steam.mp4, keyed off its green screen)
+    // over the strongest few manholes, a hand-drawn comic plume (public/media/steam.mp4); over the grills, gray
+    // smoke (smoke.mp4). Both are keyed off their green screen.
     this.plumes = [];
-    const strong = [...steamSources].sort((a, b) => b.strength - a.strength).slice(0, 10);
-    if (strong.length) {
-      const plumeMat = new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, uFade: { value: 1 } }]),
+    const manholes = steamSources.filter((e) => e.kind !== 'grill').sort((a, b) => b.strength - a.strength).slice(0, 10);
+    const grills = steamSources.filter((e) => e.kind === 'grill').slice(0, 10);
+    const keyed = (clip, tint) => {
+      const m = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, tint: { value: new THREE.Color(...tint) } }]),
         vertexShader: /* glsl */ `
           varying vec2 vUv;
           #include <fog_pars_vertex>
@@ -164,7 +166,7 @@ export class Weather {
           }`,
         fragmentShader: /* glsl */ `
           uniform sampler2D map;
-          uniform float uFade;
+          uniform vec3 tint;
           varying vec2 vUv;
           #include <fog_pars_fragment>
           void main() {
@@ -172,8 +174,9 @@ export class Weather {
             float green = c.g - max(c.r, c.b);
             float a = 1.0 - smoothstep(0.12, 0.3, green);
             c.g = min(c.g, max(c.r, c.b) + 0.03); // no green fringe
-            // tone the white down to the night
-            gl_FragColor = vec4(c * vec3(0.62, 0.64, 0.7), a * 0.85 * uFade);
+            // soften where the frame cuts the plume off, and tone the white down to the night
+            a *= smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.85, vUv.y);
+            gl_FragColor = vec4(c * tint, a * 0.85);
             #include <fog_fragment>
           }`,
         transparent: true,
@@ -181,21 +184,30 @@ export class Weather {
         side: THREE.DoubleSide,
         fog: true,
       });
-      plumeMat.uniforms.map.value = clipTexture('steam');
-      for (const [i, em] of strong.entries()) {
-        const h = 2.6 * (0.8 + em.strength * 0.4);
-        const g = new THREE.PlaneGeometry(h * 0.72, h).translate(0, h / 2, 0);
-        // the plume is the middle of the frame; every other one mirrored so they don't all match
-        const uv = g.attributes.uv;
-        for (let k = 0; k < uv.count; k++) uv.setX(k, i % 2 ? 0.7 - uv.getX(k) * 0.4 : 0.3 + uv.getX(k) * 0.4);
-        const m = new THREE.Mesh(g, plumeMat);
-        m.userData.noTerrain = true;
-        m.userData.noShadow = true;
-        m.renderOrder = 2;
-        m.position.set(em.x, (groundAt(em.x, em.z) ?? 0) + em.y - 0.1, em.z);
-        this.group.add(m);
-        this.plumes.push(m);
-      }
+      m.uniforms.map.value = clipTexture(clip);
+      return m;
+    };
+    const plume = (em, i, mat, h, aspect, u0, u1) => {
+      const g = new THREE.PlaneGeometry(h * aspect, h).translate(0, h / 2, 0);
+      // every other one mirrored so they don't all match
+      const uv = g.attributes.uv;
+      for (let k = 0; k < uv.count; k++) uv.setX(k, i % 2 ? u1 - uv.getX(k) * (u1 - u0) : u0 + uv.getX(k) * (u1 - u0));
+      const m = new THREE.Mesh(g, mat);
+      m.userData.noTerrain = true;
+      m.userData.noShadow = true;
+      m.renderOrder = 2;
+      m.position.set(em.x, (groundAt(em.x, em.z) ?? 0) + em.y - 0.1, em.z);
+      this.group.add(m);
+      this.plumes.push(m);
+    };
+    if (manholes.length) {
+      // the plume is the middle of the 16:9 frame
+      const mat = keyed('steam', [0.62, 0.64, 0.7]);
+      manholes.forEach((em, i) => plume(em, i, mat, 2.6 * (0.8 + em.strength * 0.4), 0.72, 0.3, 0.7));
+    }
+    if (grills.length) {
+      const mat = keyed('smoke', [0.7, 0.68, 0.66]);
+      grills.forEach((em, i) => plume(em, i, mat, 1.9, 1, 0, 1));
     }
   }
 

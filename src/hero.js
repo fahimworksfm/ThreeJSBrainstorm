@@ -157,6 +157,13 @@ export async function loadHero(urls = {}) {
 
 const _q = new THREE.Quaternion();
 const _v = new THREE.Vector3();
+/** Limb bones and the child each one points at. */
+const AIM = {
+  LeftShoulder: 'LeftArm', LeftArm: 'LeftForeArm', LeftForeArm: 'LeftHand', LeftHand: 'LeftHandMiddle1',
+  RightShoulder: 'RightArm', RightArm: 'RightForeArm', RightForeArm: 'RightHand', RightHand: 'RightHandMiddle1',
+  LeftUpLeg: 'LeftLeg', LeftLeg: 'LeftFoot', LeftFoot: 'LeftToeBase',
+  RightUpLeg: 'RightLeg', RightLeg: 'RightFoot', RightFoot: 'RightToeBase',
+};
 
 /**
  * World-space retarget: each target bone gets the source bone's rotation *relative to its
@@ -204,15 +211,42 @@ function retarget(sourceRoot, clip, targetRoot, targetBones, fps = 30) {
   const quats = Object.fromEntries(order.map((b) => [b.name, new Float32Array(frames * 4)]));
   const hipPos = new Float32Array(frames * 3);
   const world = {};
+  // the clip's average hip turn (the idle stands side-on): taken out so he faces the way he's going
+  let yaw = 0;
+  for (let f = 0; f < frames; f++) {
+    mixer.setTime((f / (frames - 1)) * clip.duration);
+    sourceRoot.updateMatrixWorld(true);
+    const d = hipsSrc.getWorldQuaternion(new THREE.Quaternion()).multiply(restSrc[hipsTgt.name].clone().invert());
+    const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(d);
+    yaw += Math.atan2(fw.x, fw.z) / frames;
+  }
+  const unturn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -yaw);
   for (let f = 0; f < frames; f++) {
     const t = (f / (frames - 1)) * clip.duration;
     times[f] = t;
     mixer.setTime(t);
     sourceRoot.updateMatrixWorld(true);
     for (const b of order) {
+      const aimAt = AIM[key(b)];
+      const tc = aimAt && targetBones[aimAt];
+      const sc = aimAt && src[aimAt];
+      if (tc && sc && tc.parent === b) {
+        // limbs: point the bone where the source's bone points. Rotation deltas only carry over between rigs
+        // that share a rest pose (this avatar rests in a T-pose with different arm and hand rolls than the
+        // mocap rig), which twisted the arms and hands; directions don't care.
+        const parentWorld = world[b.parent.name] ?? b.parent.getWorldQuaternion(new THREE.Quaternion());
+        const w0 = parentWorld.clone().multiply(restLocal[b.name]);
+        const cur = tc.position.clone().applyQuaternion(w0).normalize();
+        const want = sc.getWorldPosition(new THREE.Vector3()).sub(src[key(b)].getWorldPosition(_v)).normalize();
+        const w = new THREE.Quaternion().setFromUnitVectors(cur, want).multiply(w0);
+        world[b.name] = w;
+        _q.copy(parentWorld).invert().multiply(w);
+        _q.toArray(quats[b.name], f * 4);
+        continue;
+      }
       const qa = src[key(b)].getWorldQuaternion(new THREE.Quaternion());
       // delta from rest, applied to the target's rest orientation
-      const w = qa.multiply(restSrc[b.name].clone().invert()).multiply(restTgt[b.name]);
+      const w = qa.multiply(restSrc[b.name].clone().invert()).premultiply(unturn).multiply(restTgt[b.name]);
       world[b.name] = w;
       const parentWorld = world[b.parent.name] ?? b.parent.getWorldQuaternion(new THREE.Quaternion());
       _q.copy(parentWorld).invert().multiply(w);
