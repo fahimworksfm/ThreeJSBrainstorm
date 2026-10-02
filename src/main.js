@@ -39,6 +39,7 @@ import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
 import { FoodStops } from './food.js';
 import { Taxi } from './taxi.js';
+import { buildFerries } from './ferries.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -499,6 +500,10 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   // what the blocks really sound like (311 noise complaints)
   W.soundscape = new Soundscape(data?.nyc?.noise, P.city?.M.proj, audio);
   W.food = new FoodStops(P.buildings.realBoards, store, hud);
+  root.add(W.food.group); // the bodega cats
+  // ferries on the real ferry routes
+  W.ferries = buildFerries(P.city?.M.ferries);
+  root.add(W.ferries.group);
   W.taxi = new Taxi(root, P.city?.isRoad ?? ((x, z) => P.groundAt(x, z) < 0.05), store, hud);
   // the daily postcard: a real storefront somewhere in this neighborhood
   const faces = P.layout?.faces ?? P.city?.faces ?? [];
@@ -1788,6 +1793,7 @@ function frame(now) {
   SNOW.amount.value += ((W.weather.snowing ? 0.85 : 0) - SNOW.amount.value) * Math.min(1, dt * (W.weather.snowing ? 0.03 : 0.01));
   W.food.update(dt, player);
   W.taxi.update(dt, player);
+  W.ferries.update(dt);
   ghosts?.update(dt, player);
   const delivered = W.deliveries.update(dt, t, player);
   if (delivered) hud.toast(delivered);

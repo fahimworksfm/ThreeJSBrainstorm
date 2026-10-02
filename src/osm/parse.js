@@ -170,6 +170,7 @@ export function parseOSM(data, center) {
   // ---- parks, water, coastline
   const coast = [];
   const rails = [];
+  const ferries = [];
   for (const w of ways.values()) {
     const t = w.tags;
     if (!t) continue;
@@ -177,6 +178,11 @@ export function parseOSM(data, center) {
     if (t.natural === 'coastline') {
       const pts = W(w.nodes);
       if (pts.length >= 2) coast.push(pts);
+      continue;
+    }
+    if (t.route === 'ferry') {
+      const pts = W(w.nodes);
+      if (pts.length >= 2) ferries.push({ pts, name: t.name ?? '', operator: t.operator ?? '' });
       continue;
     }
     if (t.railway && /^(subway|rail|light_rail)$/.test(t.railway)) {
@@ -227,5 +233,5 @@ export function parseOSM(data, center) {
   for (const r of roads) all.push(...r.pts);
   for (const b of buildings) all.push(b.pts[0]);
   const box = bounds(all.length ? all : [[0, 0]]);
-  return { proj, angle, roads, paths, buildings, parks, sand, water, coast, rails, signals, lamps, trees, stations, entrances, pois, box, nodePos: raw };
+  return { proj, angle, roads, paths, buildings, parks, sand, water, coast, rails, ferries, signals, lamps, trees, stations, entrances, pois, box, nodePos: raw };
 }
