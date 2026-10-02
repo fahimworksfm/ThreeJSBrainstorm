@@ -72,6 +72,7 @@ export class Tricks {
       const total = this.points * this.combo;
       const best = this.store.get('bestCombo', 0);
       if (this.combo > best) this.store.set('bestCombo', this.combo);
+      if (this.combo >= 3) this.store.set('combos3', this.store.get('combos3', 0) + 1);
       this.hud.toast(`🤸 Combo x${this.combo}: ${total.toLocaleString()} pts${this.combo > best ? ' · new best!' : ''}`);
     }
     this.combo = 0;

@@ -106,6 +106,8 @@
           <div>
             <h3>Start at</h3>
             <div id="styles"></div>
+            <h3>Today's errands <small>$10 each</small></h3>
+            <div id="errands"></div>
             <h3>Work</h3>
             <div><button id="deliverybtn" class="place" type="button"><span class="pname">🛵 Take a delivery</span></button></div>
             <h3>Share</h3>
@@ -118,6 +120,10 @@
           <h3>Journal</h3>
           <div id="journal"></div>
           <button id="reset">Clear journal</button>
+          <h3>Your progress</h3>
+          <p class="sub">Progress is saved in this browser. Back it up to a file to move it to another device.</p>
+          <div class="start-row"><button id="backup" class="ghost" type="button">Back up progress</button><button id="restore" class="ghost" type="button">Restore from file</button></div>
+          <input id="restorefile" type="file" accept=".json,application/json" hidden />
         </section>
         <section class="pane" data-pane="badges" hidden>
           <h3>Badges</h3>

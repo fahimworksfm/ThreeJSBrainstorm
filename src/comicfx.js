@@ -12,7 +12,9 @@ export const COMIC = { pop() {} };
 export const JUICE = {
   trauma: 0,
   hitstop: 0,
+  calm: false, // Settings > Reduce motion: no shake, no freeze frames
   hit(trauma, stop = 0) {
+    if (this.calm) return;
     this.trauma = Math.min(1, this.trauma + trauma);
     this.hitstop = Math.max(this.hitstop, stop);
   },

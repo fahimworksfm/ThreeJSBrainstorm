@@ -42,6 +42,11 @@ greenmarkets go up on their real blocks (stalls, barricades, no traffic), with a
 film crews park on the blocks named in real film permits; and the soundscape comes from the last month of 311
 noise complaints (parties at night, construction by day, horns, dogs, ice cream trucks), pooled to ~50 m.
 
+**Errands, comfort, backups:** three errands a day (the same for everyone, picked from what the game counts:
+eat a slice, ride a cab, tag a wall...) pay $10 each; see Pause → Play. Settings → **Reduce motion** turns off
+camera shake, freeze frames, speed lines and the wobbly ink. Journal → **Back up / Restore** moves your progress
+between devices as a file.
+
 **Map, storms, sharing:** the full map (Tab) marks food stops, Citi Bike docks, landmarks, graffiti walls,
 today's street events and film shoots. Real thunderstorms (Live NYC, or `?weather=storm`) bring lightning and
 rolling thunder. **Pause → Share** copies a link that opens the game right where you're standing.

@@ -32,6 +32,7 @@ import { Regulars } from './regulars.js';
 import { Transit } from './transit.js';
 import { Achievements, Daily } from './achievements.js';
 import { Tricks } from './tricks.js';
+import { Errands } from './quests.js';
 import { buildFarCity } from './farcity.js';
 import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { season, holiday, buildDecor } from './holidays.js';
@@ -155,6 +156,9 @@ let ghosts = null; // created once the HUD exists
 let comicWords = null; // created once the camera exists
 const hud = new HUD();
 const achievements = new Achievements(store, hud, DISTRICTS);
+const errands = new Errands(store, hud, DISTRICTS);
+const errandsEl = document.getElementById('errands');
+errands.render(errandsEl);
 const minimap = new Minimap(document.getElementById('minimap'));
 const compass = new Compass(document.getElementById('compass'));
 const staminaBar = document.querySelector('#stamina i');
@@ -947,6 +951,7 @@ function takeCab() {
     return;
   }
   store.set('spent', store.get('spent', 0) + fare);
+  store.set('cabs', store.get('cabs', 0) + 1);
   fade.querySelector('span').textContent = '🚕';
   fade.classList.add('show');
   setTimeout(() => {
@@ -1048,6 +1053,51 @@ document.getElementById('fullscreen').addEventListener('click', (e) => {
   e.stopPropagation();
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.().catch(() => hud.toast('Fullscreen not supported here. Try Add to Home Screen.'));
+});
+// back up / restore everything the game saves in this browser (memories, walls, badges, settings...)
+document.getElementById('backup').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k?.startsWith('nightwalker.')) data[k] = localStorage.getItem(k);
+  }
+  const json = JSON.stringify({ game: 'night-walker-nyc', saved: new Date().toISOString(), data });
+  const name = `night-walker-progress-${new Date().toISOString().slice(0, 10)}.json`;
+  const saver = await downloadsReady;
+  if (saver) {
+    saver.save({ filename: name, data: json }).catch((err) => err?.code !== 'declined' && hud.toast('Backing up isn\'t available here'));
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+const restoreFile = document.getElementById('restorefile');
+document.getElementById('restore').addEventListener('click', (e) => {
+  e.stopPropagation();
+  restoreFile.click();
+});
+restoreFile.addEventListener('change', async () => {
+  const f = restoreFile.files?.[0];
+  restoreFile.value = '';
+  if (!f) return;
+  try {
+    const backup = JSON.parse(await f.text());
+    if (backup?.game !== 'night-walker-nyc' || typeof backup.data !== 'object') throw new Error('not a Night Walker backup');
+    let n = 0;
+    for (const [k, v] of Object.entries(backup.data)) {
+      if (!k.startsWith('nightwalker.') || typeof v !== 'string') continue;
+      localStorage.setItem(k, v);
+      n++;
+    }
+    hud.toast(`Restored ${n} saved items. Reloading…`);
+    setTimeout(() => location.reload(), 1200);
+  } catch (err) {
+    hud.toast(`Couldn't restore: ${err.message}`);
+  }
 });
 document.getElementById('reset').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -1248,8 +1298,10 @@ function applyGfx() {
   grade.uniforms.hatch.value = gfx.hatch ? INK.hatch ?? 0 : 0;
   grade.uniforms.shadowDots.value = gfx.hatch ? INK.shadowDots : 0;
   settings.comicWords = gfx.words;
-  outline.material.uniforms.wobble.value = gfx.boil ? 1.2 : 0;
-  outline.material.uniforms.broken.value = gfx.boil ? 0.35 : 0;
+  // reduce motion: calm camera, steady lines
+  JUICE.calm = !!gfx.calm;
+  outline.material.uniforms.wobble.value = gfx.boil && !gfx.calm ? 1.2 : 0;
+  outline.material.uniforms.broken.value = gfx.boil && !gfx.calm ? 0.35 : 0;
   lutPass.enabled = !!shared.lut && gfx.lut !== false;
   paint.enabled = !!gfx.paint && !LOW;
   if (ghosts && W) {
@@ -1679,7 +1731,7 @@ function frame(now) {
   if (flash > 0) {
     // a double flicker, like a real strike
     const f = flash > 0.7 || (flash > 0.35 && flash < 0.5) ? flash : flash * 0.3;
-    renderer.toneMappingExposure *= 1 + f * 2.2;
+    renderer.toneMappingExposure *= 1 + f * (gfx.calm ? 0.5 : 2.2); // gentler flashes with Reduce motion
     flash = Math.max(0, flash - dt * 3.5);
   }
   // the ride wheel takes the mouse while it's open
@@ -1791,6 +1843,7 @@ function frame(now) {
   if (postcardIn > 0 && --postcardIn === 0 && !photo) snapPostcard();
   if (W.daily.update(dt, player) === 'solved') showPostcard(true, 6000);
   postcardEl.querySelector('.heat').textContent = W.daily.solved ? '✅ Solved, come back tomorrow' : W.daily.heat;
+  errands.update(dt, errandsEl);
   achievements.update(dt, { minute, roof: !!player.roof, golden: lookMin() >= 1050 && lookMin() <= 1170 && !settings.rain });
   const stationName = near?.name.replace(/–/g, '-');
   const card = hasMetroCard();
@@ -1821,7 +1874,7 @@ function frame(now) {
   hud.setRide(MODES[player.mode].name, player.mode);
 
   // comic-movie touches: speed lines and a wider lens as you pick up speed
-  const rush = player.rush;
+  const rush = gfx.calm ? 0 : player.rush; // no speed lines or lens kick with Reduce motion
   grade.uniforms.speed.value += (rush - grade.uniforms.speed.value) * Math.min(1, dt * 4);
   const fov = baseFov + rush * 12;
   if (Math.abs(camera.fov - fov) > 0.05) {

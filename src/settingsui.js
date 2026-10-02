@@ -9,7 +9,7 @@ export const PRESETS = {
 
 export const DEFAULTS = {
   preset: 'high', ...PRESETS.high,
-  lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, ghosts: false, words: true, twos: true, realMap: true, panels: false,
+  lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, ghosts: false, calm: false, words: true, twos: true, realMap: true, panels: false,
   fov: 58, camera: 'cinematic', sensitivity: 1, volume: 0.8,
 };
 
@@ -38,6 +38,7 @@ const ROWS = [
   { key: 'realMap', label: 'Real OpenStreetMap streets', type: 'toggle' },
   { group: 'Camera and sound' },
   { key: 'camera', label: 'Camera', type: 'choice', options: [['cinematic', 'Cinematic'], ['classic', 'Classic']] },
+  { key: 'calm', label: 'Reduce motion (no shake, speed lines or wobbly lines)', type: 'toggle' },
   { key: 'fov', label: 'Field of view', type: 'range', min: 45, max: 100, step: 1, unit: '°' },
   { key: 'sensitivity', label: 'Mouse sensitivity', type: 'range', min: 0.3, max: 2.5, step: 0.1, unit: '×' },
   { key: 'volume', label: 'Volume', type: 'range', min: 0, max: 1, step: 0.05, pct: true },

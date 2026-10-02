@@ -23,9 +23,9 @@ export class FoodStops {
     }
   }
 
-  /** Cash in hand: every tip earned, less what's been spent. */
+  /** Cash in hand: every tip and errand reward earned, less what's been spent. */
   get cash() {
-    return Math.max(0, this.store.get('delivery.tips', 0) - this.store.get('spent', 0));
+    return Math.max(0, this.store.get('delivery.tips', 0) + this.store.get('bonus', 0) - this.store.get('spent', 0));
   }
 
   update(dt, player) {

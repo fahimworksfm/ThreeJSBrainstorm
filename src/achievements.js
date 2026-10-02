@@ -6,7 +6,7 @@ import { COMIC, JUICE } from './comicfx.js';
 const ALL = 'nightwalker.';
 
 /** Everything the badges count, read from saved progress. */
-function stats(store, districts) {
+export function stats(store, districts) {
   const s = { memories: 0, photos: 0, tags: 0, tagHoods: 0, plaques: 0, visited: new Set(store.get('visited', [])) };
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -35,6 +35,9 @@ function stats(store, districts) {
   s.streak = store.get('daily.streak', 0);
   s.crews = store.get('crews.covered', 0);
   s.meals = store.get('meals', 0);
+  s.cabs = store.get('cabs', 0);
+  s.errandDays = store.get('errandDays', 0);
+  s.combos3 = store.get('combos3', 0);
   return s;
 }
 
@@ -50,6 +53,7 @@ export const BADGES = [
   { id: 'photos', icon: '📸', name: 'Shutterbug', desc: 'Take 10 challenge photos', test: (s) => s.photos >= 10 },
   { id: 'courier', icon: '🛵', name: 'Courier', desc: 'Make 10 deliveries', test: (s) => s.runs >= 10 },
   { id: 'tips', icon: '💵', name: 'Big tipper', desc: 'Earn $100 in tips', test: (s) => s.tips >= 100 },
+  { id: 'errands', icon: '✅', name: 'Busy day', desc: "Finish all three of a day's errands", test: (s) => s.errandDays >= 1 },
   { id: 'meals', icon: '🍕', name: 'Regular customer', desc: 'Eat at 5 real spots', test: (s) => s.meals >= 5 },
   { id: 'citibike', icon: '🚲', name: 'Citi Biker', desc: 'Unlock a real Citi Bike', test: (s) => s.citibike >= 1 },
   { id: 'combo', icon: '🤸', name: 'Trick line', desc: 'Land a x5 bike combo', test: (s) => s.combo >= 5 },
