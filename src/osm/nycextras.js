@@ -248,7 +248,9 @@ export function buildNycExtras({ nyc, proj, chains, isRoad, inBox, curb }) {
       const cx = (a[0] + b[0]) / 2;
       const cz = (a[1] + b[1]) / 2;
       const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (!inBox(cx, cz, 20) || L < 30 || L > 400) continue;
+      // long festivals (ten blocks of an avenue) are built only where they run through this map
+      if (L < 30 || L > 1500) continue;
+      if (!inBox(a[0], a[1], 0) && !inBox(b[0], b[1], 0) && !inBox(cx, cz, 0)) continue;
       const tx = (b[0] - a[0]) / L;
       const tz = (b[1] - a[1]) / L;
       const ang = Math.atan2(tx, tz);
@@ -257,6 +259,7 @@ export function buildNycExtras({ nyc, proj, chains, isRoad, inBox, curb }) {
       for (const [px, pz] of [a, b]) {
         const ex = px + (cx - px) * (14 / L) * 2;
         const ez = pz + (cz - pz) * (14 / L) * 2;
+        if (!inBox(ex, ez, 5)) continue;
         for (const off of [-3, 0, 3]) barricades.push(new THREE.BoxGeometry(2.2, 0.22, 0.12).translate(0, 0.95, 0).rotateY(ang + Math.PI / 2).translate(ex - tz * off, curb, ez + tx * off));
       }
       // stalls down both sides of the roadway (a fair), or tables and chairs (a block party)
@@ -265,6 +268,7 @@ export function buildNycExtras({ nyc, proj, chains, isRoad, inBox, curb }) {
           const off = side * (party ? 1.6 : 2.6);
           const x = cx + tx * s - tz * off;
           const z = cz + tz * s + tx * off;
+          if (!inBox(x, z, 5)) continue;
           if (party) {
             tables.push(new THREE.BoxGeometry(0.8, 0.05, 1.8).translate(0, 0.74, 0).rotateY(ang).translate(x, curb, z));
             for (const k of [-0.6, 0, 0.6]) tables.push(new THREE.BoxGeometry(0.42, 0.45, 0.42).translate(side * -0.75, 0.22, k).rotateY(ang).translate(x, curb, z));
