@@ -212,7 +212,10 @@ export class Pedestrians {
       if (!p.prop) continue;
       p.propIdx = slot[p.prop]++;
       if (p.prop === 'dog') this.dogs.setColorAt(p.propIdx, cc.set(p.dogColor));
-      if (p.prop === 'stroller') this.strollers.setColorAt(p.propIdx, cc.set(pick(STROLLERS)));
+      if (p.prop === 'stroller') {
+        p.strollerColor = pick(STROLLERS);
+        this.strollers.setColorAt(p.propIdx, cc.set(p.strollerColor));
+      }
     }
     this.propM = new THREE.Matrix4();
     this._axis = new THREE.Vector3();
@@ -235,6 +238,10 @@ export class Pedestrians {
     this.p = new THREE.Vector3();
     this.sc = new THREE.Vector3();
     this.zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    this.col = new THREE.Color();
+    this.frustum = new THREE.Frustum();
+    this.sphere = new THREE.Sphere(new THREE.Vector3(), 2.5);
+    this.camera = null; // set to the camera to skip drawing people out of view
     // "..." speech bubbles over a few people nearby
     const bubble = document.createElement('canvas');
     bubble.width = 128;
@@ -411,7 +418,7 @@ export class Pedestrians {
   }
 
   /** Dog trotting at your side, stroller out in front, phone in hand. */
-  placeProp(p, x, z, q, dt) {
+  placeProp(p, x, z, q, dt, slot) {
     const L = this.propL;
     const M = this.propM;
     M.compose(this.p.set(x, D.sidewalkY, z), q, this.sc.set(1, 1, 1));
@@ -425,32 +432,30 @@ export class Pedestrians {
     } else {
       L.makeRotationX(-0.5).setPosition(0.12, 1.3 * p.height, 0.38);
     }
-    this.propMesh(p).setMatrixAt(p.propIdx, M.multiply(L));
+    const mesh = this.propMesh(p);
+    mesh.setMatrixAt(slot, M.multiply(L));
+    if (p.prop === 'dog') mesh.setColorAt(slot, this.col.set(p.dogColor));
+    else if (p.prop === 'stroller') mesh.setColorAt(slot, this.col.set(p.strollerColor));
   }
 
   update(dt, cam, player, raining = false) {
     this.raining = raining;
-    const { m, limb, q, p: pos, sc, zero } = this;
+    const { m, limb, q, p: pos, sc } = this;
     const up = new THREE.Vector3(0, 1, 0);
     const px = player.pos.x;
     const pz = player.pos.z;
     const fast = player.mode !== 'walk' && Math.abs(player.speed) > 2;
+    // only the people in view get drawn, packed to the front of each batch: the GPU skips the rest entirely
+    const view = this.camera;
+    if (view) this.frustum.setFromProjectionMatrix(this.tmp.multiplyMatrices(view.projectionMatrix, view.matrixWorldInverse));
+    const skinnedNow = new Set(this.skinned?.map((sk) => sk.ped).filter((v) => v !== null) ?? []);
+    const c = this.col;
+    let k = 0;
+    const props = { dog: 0, stroller: 0, phone: 0 };
     this.peds.forEach((p, i) => {
       const near = Math.abs(p.cx - cam.x) < VIEW + p.reach && Math.abs(p.cz - cam.z) < VIEW + p.reach;
-      if (!near) {
-        if (p.hidden) return;
-        p.hidden = true;
-        this.torso.setMatrixAt(i, zero);
-        this.head.setMatrixAt(i, zero);
-        this.hair.setMatrixAt(i, zero);
-        for (let s = 0; s < 2; s++) {
-          this.legs.setMatrixAt(i * 2 + s, zero);
-          this.arms.setMatrixAt(i * 2 + s, zero);
-        }
-        if (p.prop) this.propMesh(p).setMatrixAt(p.propIdx, zero);
-        return;
-      }
-      p.hidden = false;
+      p.hidden = !near;
+      if (!near) return;
       let [x, z, dx, dz] = this.at(p, p.s);
       // step aside for you, and well aside for anything with wheels
       const ddx = x - px;
@@ -475,28 +480,43 @@ export class Pedestrians {
       p.phase += speed * p.dir * dt * 3.4;
       x += -dz * p.side;
       z += dx * p.side;
-      const yaw = Math.atan2(dx * p.dir, dz * p.dir);
-      q.setFromAxisAngle(up, yaw);
       const y = D.sidewalkY + Math.abs(Math.cos(p.phase)) * 0.03;
-      m.compose(pos.set(x, y, z), q, sc.set(1, p.height, 1));
       (p.last ??= { x: 0, y: 0, z: 0 }).x = x;
       p.last.y = y;
       p.last.z = z;
-      this.torso.setMatrixAt(i, m);
-      this.head.setMatrixAt(i, m);
-      this.hair.setMatrixAt(i, m);
+      // a skinned stand-in is drawing this one, or it's behind the camera
+      if (skinnedNow.has(i)) return;
+      if (view && !this.frustum.intersectsSphere(this.sphere.set(this.p.set(x, y + 1, z), 2.5))) return;
+      const yaw = Math.atan2(dx * p.dir, dz * p.dir);
+      q.setFromAxisAngle(up, yaw);
+      m.compose(pos.set(x, y, z), q, sc.set(1, p.height, 1));
+      this.torso.setMatrixAt(k, m);
+      this.head.setMatrixAt(k, m);
+      this.hair.setMatrixAt(k, m);
+      this.torso.setColorAt(k, c.set(p.top));
+      this.head.setColorAt(k, c.set(p.skin));
+      this.hair.setColorAt(k, c.set(p.hair));
       const swing = Math.sin(p.phase) * 0.5 * p.amp;
       for (let s = 0; s < 2; s++) {
         const side = s ? 1 : -1;
         limb.makeRotationX(swing * side).setPosition(side * 0.1, 0.9, 0);
-        this.legs.setMatrixAt(i * 2 + s, this.tmp.multiplyMatrices(m, limb));
+        this.legs.setMatrixAt(k * 2 + s, this.tmp.multiplyMatrices(m, limb));
+        this.legs.setColorAt(k * 2 + s, c.set(p.bottom));
         // phone people hold the right arm up in front of them
         const armSwing = p.prop === 'phone' && side > 0 ? -1.25 : p.prop === 'stroller' ? -0.9 : -swing * side * 0.8;
         limb.makeRotationX(armSwing).multiply(this.tilt.makeRotationZ(side * 0.08)).setPosition(side * 0.24, 1.45, 0);
-        this.arms.setMatrixAt(i * 2 + s, this.tmp.multiplyMatrices(m, limb));
+        this.arms.setMatrixAt(k * 2 + s, this.tmp.multiplyMatrices(m, limb));
+        this.arms.setColorAt(k * 2 + s, c.set(p.top));
       }
-      if (p.prop) this.placeProp(p, x, z, q, dt);
+      if (p.prop) this.placeProp(p, x, z, q, dt, props[p.prop]++);
+      k++;
     });
+    this.torso.count = this.head.count = this.hair.count = k;
+    this.legs.count = this.arms.count = k * 2;
+    this.dogs.count = props.dog;
+    this.strollers.count = props.stroller;
+    this.phones.count = props.phone;
+    for (const mesh of [this.torso, this.head, this.hair, this.legs, this.arms, this.dogs, this.strollers]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     for (const mesh of [this.torso, this.head, this.hair, this.legs, this.arms, this.dogs, this.strollers, this.phones]) mesh.instanceMatrix.needsUpdate = true;
     // skinned stand-ins for the nearest pedestrians
     if (this.skinned) {
@@ -511,14 +531,6 @@ export class Pedestrians {
           continue;
         }
         const p = this.peds[s.ped];
-        const i = s.ped;
-        this.torso.setMatrixAt(i, zero);
-        this.head.setMatrixAt(i, zero);
-        this.hair.setMatrixAt(i, zero);
-        for (let k = 0; k < 2; k++) {
-          this.legs.setMatrixAt(i * 2 + k, zero);
-          this.arms.setMatrixAt(i * 2 + k, zero);
-        }
         const [, , dx, dz] = this.at(p, p.s);
         s.root.visible = true;
         s.root.position.set(p.last.x, D.sidewalkY, p.last.z);

@@ -32,6 +32,7 @@ import { Regulars } from './regulars.js';
 import { Transit } from './transit.js';
 import { Achievements, Daily } from './achievements.js';
 import { Tricks } from './tricks.js';
+import { buildFarCity } from './farcity.js';
 import { Ghosts } from './ghosts.js';
 import { HydrantSpray } from './spray.js';
 import { generateLayout, makeGroundQuery } from './layout.js';
@@ -434,6 +435,12 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const sky = buildSky(shared);
   const clouds = buildClouds();
   root.add(...P.parts, P.kit.build(shared.pool), sky.mesh, clouds.group, buildTrees(P.trees, shared.leaves ?? null));
+  // the real city past the edge of the map, on the horizon
+  if (P.city && data?.nyc?.far) {
+    const far = buildFarCity(data.nyc.far, P.city.M.proj, P.city.box);
+    root.add(far.group);
+    console.info(`skyline: ${far.count} far blocks`);
+  }
 
   const road = buildRoad(shared.noise, D.roadRect, reflectSize(), shared.asphalt ?? null);
   road.setReflections(settings.reflections);
@@ -442,6 +449,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   weather.setViewport(innerHeight * pixelRatio, camera.fov);
   const memories = new Memories(shared, audio, hud, P.place ?? null);
   const peds = P.peds;
+  peds.camera = camera; // draw only the people in view
   const pigeons = new Pigeons(peds);
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
   const knock = new Knockables(peds, P.grid, audio);
@@ -453,7 +461,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group, transit.group);
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
-    if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial) return;
+    if (!o.isMesh || o.material.transparent || o.material.isShaderMaterial || o.userData.noShadow) return;
     o.castShadow = true;
     o.receiveShadow = !o.material.isMeshBasicMaterial;
   });
@@ -637,6 +645,7 @@ function updateMaterials(L, first) {
     if (first && o.userData.foliage) setFoliage(o, W.def.foliage ?? 'autumn');
     const m = o.material;
     if (!m || Array.isArray(m)) return;
+    m.userData.onLight?.(L);
     if (first && m.isMeshStandardMaterial) {
       m.roughness = 1; // no glints in a drawing
       m.metalness = 0;

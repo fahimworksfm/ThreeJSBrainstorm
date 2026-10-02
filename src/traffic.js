@@ -179,11 +179,11 @@ export class Traffic {
     const cabin = sedan.glass;
     const wheels = [];
     for (const [x, z] of [[-0.82, 1.45], [0.82, 1.45], [-0.82, -1.45], [0.82, -1.45]]) {
-      const w = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 12);
+      const w = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 10);
       w.rotateZ(Math.PI / 2);
       w.translate(x, 0.34, z);
       wheels.push(w);
-      const hub = new THREE.CylinderGeometry(0.2, 0.2, 0.28, 10);
+      const hub = new THREE.CylinderGeometry(0.2, 0.2, 0.28, 8);
       hub.rotateZ(Math.PI / 2);
       hub.translate(x, 0.34, z);
       wheels.push(hub);

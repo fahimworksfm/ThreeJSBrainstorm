@@ -15,7 +15,7 @@ export function buildTrees(positions, leaves = null) {
   const limb = (from, to, r0, r1) => {
     const dir = new THREE.Vector3().subVectors(to, from);
     const len = dir.length();
-    const g = new THREE.CylinderGeometry(r1, r0, len, 6);
+    const g = new THREE.CylinderGeometry(r1, r0, len, 6, 1, true); // no end caps: they're never seen
     g.translate(0, len / 2, 0);
     g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir.normalize()));
     wood.push(g.translate(from.x, from.y, from.z));
@@ -36,7 +36,8 @@ export function buildTrees(positions, leaves = null) {
   ];
   // with drawn leaves, the blobs shrink into a dark core and leaf cards make the silhouette
   const core = leaves ? 0.72 : 1;
-  const crownGeo = mergeGeometries(blobs.map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r * core, 1).scale(1, 0.85, 1).translate(x, y, z)));
+  // under leaf cards the core only needs to be a rough dark mass: a quarter of the triangles
+  const crownGeo = mergeGeometries(blobs.map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r * core, leaves ? 0 : 1).scale(1, 0.85, 1).translate(x, y, z)));
   const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x2a1d15, roughness: 1 }), positions.length);
   const crowns = new THREE.InstancedMesh(
     crownGeo,
