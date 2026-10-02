@@ -3,8 +3,8 @@
 export const PRESETS = {
   low: { ratio: 1, shadows: false, shadowRes: 2048, ao: false, reflections: false, bloom: true, shafts: false, cones: true, paint: false },
   medium: { ratio: 1.25, shadows: true, shadowRes: 2048, ao: false, reflections: true, bloom: true, shafts: true, cones: true, paint: false },
-  high: { ratio: 1.5, shadows: true, shadowRes: 3072, ao: true, reflections: true, bloom: true, shafts: true, cones: true, paint: false },
-  ultra: { ratio: 2, shadows: true, shadowRes: 4096, ao: true, reflections: true, bloom: true, shafts: true, cones: true, paint: false },
+  high: { ratio: 1.5, shadows: true, shadowRes: 3072, ao: true, reflections: true, bloom: true, shafts: true, cones: true, paint: true },
+  ultra: { ratio: 2, shadows: true, shadowRes: 4096, ao: true, reflections: true, bloom: true, shafts: true, cones: true, paint: true },
 };
 
 export const DEFAULTS = {
