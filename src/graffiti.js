@@ -188,7 +188,7 @@ export class Graffiti {
   spray() {
     const s = this.near;
     if (!s || this.spraying) return null;
-    const word = WORDS[Math.floor(Math.random() * WORDS.length)];
+    const word = this.tagName || WORDS[Math.floor(Math.random() * WORDS.length)]; // yours, if you set one
     const seed = Math.floor(Math.random() * 1000);
     if (s.marker) {
       this.group.remove(s.marker);

@@ -42,6 +42,11 @@ greenmarkets go up on their real blocks (stalls, barricades, no traffic), with a
 film crews park on the blocks named in real film permits; and the soundscape comes from the last month of 311
 noise complaints (parties at night, construction by day, horns, dogs, ice cream trucks), pooled to ~50 m.
 
+**Offline, announcements, your tag:** once a neighborhood has loaded, the site keeps it (a service worker),
+so the game still opens and plays with no signal, on the train included. Trains leaving a station near you
+chime and announce "Stand clear of the closing doors, please." Settings → **Your graffiti tag** puts your own
+name on the walls you take.
+
 **Errands, comfort, backups:** three errands a day (the same for everyone, picked from what the game counts:
 eat a slice, ride a cab, tag a wall...) pay $10 each; see Pause → Play. Settings → **Reduce motion** turns off
 camera shake, freeze frames, speed lines and the wobbly ink. Journal → **Back up / Restore** moves your progress

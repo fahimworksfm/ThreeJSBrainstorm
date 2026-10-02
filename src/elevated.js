@@ -346,16 +346,18 @@ export function buildElevated(shared, kit) {
     return best;
   }
 
-  const events = { braking: false, horn: null };
+  const events = { braking: false, horn: null, departed: null };
   const terminal = el.terminalStart ? stationZ[0] : null;
   function update(dt) {
     events.braking = false;
     events.horn = null;
+    events.departed = null;
     for (const tr of trains) {
       if (tr.mode === 'dwell') {
         tr.timer -= dt;
         if (tr.timer <= 0) {
           tr.mode = 'run';
+          events.departed = tr.g.getWorldPosition(new THREE.Vector3()); // the doors just closed
           if (terminal !== null && tr.dir < 0 && Math.abs(tr.z - terminal) < 2) setDirection(tr, 1);
           if (style.horn) events.horn = tr.g.getWorldPosition(new THREE.Vector3());
         }

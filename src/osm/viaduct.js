@@ -329,16 +329,18 @@ export function buildViaduct({ line, stations, crossings, streetW, shared, kit, 
     return best;
   }
 
-  const events = { braking: false, horn: null };
+  const events = { braking: false, horn: null, departed: null };
   const turnAt = TRAIN_LEN / 2 + 4;
   function update(dt) {
     events.braking = false;
     events.horn = null;
+    events.departed = null;
     for (const tr of trains) {
       if (tr.mode === 'dwell') {
         tr.timer -= dt;
         if (tr.timer <= 0) {
           tr.mode = 'run';
+          events.departed = tr.pos.clone(); // the doors just closed
           if (style.horn) events.horn = tr.pos.clone();
         }
       } else {

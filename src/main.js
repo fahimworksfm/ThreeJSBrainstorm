@@ -463,6 +463,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
   const knock = new Knockables(peds, P.grid, audio);
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
+  graffiti.tagName = gfx.tag || '';
   const plaques = new Plaques(data?.wiki, P.city ?? null, store, def.id, hud);
   const regulars = new Regulars(P.layout?.faces ?? P.city?.faces ?? [], P.streets.openHydrants ?? [], def.name, () => nightness(lookMin()), hud, audio);
   const transit = new Transit(P.elevated.entrances, P.city ?? null, data?.nyc, def, hud);
@@ -1300,6 +1301,7 @@ function applyGfx() {
   settings.comicWords = gfx.words;
   // reduce motion: calm camera, steady lines
   JUICE.calm = !!gfx.calm;
+  if (W) W.graffiti.tagName = gfx.tag || '';
   outline.material.uniforms.wobble.value = gfx.boil && !gfx.calm ? 1.2 : 0;
   outline.material.uniforms.broken.value = gfx.boil && !gfx.calm ? 0.35 : 0;
   lutPass.enabled = !!shared.lut && gfx.lut !== false;
@@ -1568,6 +1570,10 @@ function photoFrame(dt) {
 }
 /** Save the frame that was just drawn as a comic panel: a white border, an ink frame, a caption box. */
 // the claude.ai viewer's save prompt, when the page runs there (null everywhere else)
+// offline play (built site only; not inside the claude.ai viewer, which hosts its own copy)
+if (import.meta.env.PROD && 'serviceWorker' in navigator && !window.claude && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
 const downloadsReady = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 function savePhoto() {
   // the challenges look at exactly what this frame shows
@@ -1687,6 +1693,7 @@ function comicSounds(dt) {
   comicWords.update();
 }
 const tmpDir = new THREE.Vector3();
+let lastDoors = -1e9;
 
 function frame(now) {
   // rAF can hand us a timestamp from before a long rebuild; never run time backwards
@@ -1818,6 +1825,20 @@ function frame(now) {
 
   const pos = camera.position;
   comicSounds(dt);
+  // the doors closing at the station you're standing by: the chime and the announcement
+  const dep = W.elevated.events.departed;
+  if (dep && dep.distanceTo(pos) < 45 && !audio.muted) {
+    audio.doors();
+    if (window.speechSynthesis && performance.now() - lastDoors > 20000) {
+      lastDoors = performance.now();
+      const u = new SpeechSynthesisUtterance('Stand clear of the closing doors, please.');
+      const us = speechSynthesis.getVoices().filter((v) => /^en[-_]US/i.test(v.lang));
+      if (us.length) u.voice = us[0];
+      u.rate = 1.05;
+      u.volume = 0.7 * audio.volume;
+      setTimeout(() => speechSynthesis.speak(u), 400);
+    }
+  }
   const horn = W.elevated.events.horn;
   if (horn) audio.horn(Math.max(0, 1 - horn.distanceTo(pos) / 500));
   audio.update(dt, {

@@ -772,3 +772,5 @@ body.touch #photobar .k { display: none; }
 #errands .errand { font-size: 13px; color: var(--ink); }
 #errands .errand.done { color: var(--dim); text-decoration: line-through; }
 h3 small { font-weight: 400; color: var(--dim); letter-spacing: 0.05em; }
+
+.set-text { font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; padding: 5px 9px; width: 9em; text-transform: uppercase; letter-spacing: 0.08em; }

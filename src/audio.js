@@ -332,6 +332,26 @@ export class CityAudio {
     lfo.stop(now + dur);
   }
 
+  /** The subway's two-tone door chime: ding-dong, falling. */
+  doors() {
+    const ctx = this.ctx;
+    if (!ctx || this.muted) return;
+    const now = ctx.currentTime;
+    [[1047, 0], [831, 0.32]].forEach(([f, at]) => {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, now + at);
+      g.gain.exponentialRampToValueAtTime(0.18, now + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.9);
+      o.connect(g).connect(this.master);
+      g.connect(this.reverb);
+      o.start(now + at);
+      o.stop(now + at + 1);
+    });
+  }
+
   chime() {
     const ctx = this.ctx;
     if (!ctx) return;

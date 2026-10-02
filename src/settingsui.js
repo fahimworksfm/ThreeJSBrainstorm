@@ -9,7 +9,7 @@ export const PRESETS = {
 
 export const DEFAULTS = {
   preset: 'high', ...PRESETS.high,
-  lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, ghosts: false, calm: false, words: true, twos: true, realMap: true, panels: false,
+  lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, ghosts: false, calm: false, tag: '', words: true, twos: true, realMap: true, panels: false,
   fov: 58, camera: 'cinematic', sensitivity: 1, volume: 0.8,
 };
 
@@ -31,6 +31,7 @@ const ROWS = [
   { key: 'paint', label: 'Painted distance (brush strokes)', type: 'toggle' },
   { key: 'lut', label: 'Color grade (texture pack)', type: 'toggle' },
   { key: 'twos', label: 'Animate on twos', type: 'toggle' },
+  { key: 'tag', label: 'Your graffiti tag (letters and numbers)', type: 'text', max: 8, placeholder: 'random', clean: (v) => v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) },
   { key: 'words', label: 'Sound-effect words', type: 'toggle' },
   { key: 'lensRain', label: 'Rain on the lens', type: 'toggle' },
   { key: 'panels', label: 'Comic panel lines in the sky', type: 'toggle' },
@@ -108,6 +109,19 @@ export function buildSettings(root, values, onChange) {
         input.addEventListener('pointerdown', (e) => e.stopPropagation());
         wrap.append(input, out);
         el.append(wrap);
+      } else if (row.type === 'text') {
+        const input = document.createElement('input');
+        Object.assign(input, { type: 'text', value: values[row.key] ?? '', maxLength: row.max ?? 12, placeholder: row.placeholder ?? '' });
+        input.className = 'set-text';
+        input.addEventListener('pointerdown', (e) => e.stopPropagation());
+        // typing in the box shouldn't walk the hero around
+        input.addEventListener('keydown', (e) => e.stopPropagation());
+        input.addEventListener('change', () => {
+          const v = row.clean ? row.clean(input.value) : input.value;
+          input.value = v;
+          onChange(row.key, v);
+        });
+        el.append(input);
       }
       root.append(el);
     }
