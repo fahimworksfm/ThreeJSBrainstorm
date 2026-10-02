@@ -330,6 +330,35 @@ export function buildViaduct({ line, stations, crossings, streetW, shared, kit, 
   }
 
   const events = { braking: false, horn: null, departed: null };
+
+  // live timing: a dispatcher (from the live arrivals) says when the next real train is due at a station going
+  // a given way, and a train standing at the station before it waits just long enough to pull in on time
+  let dispatcher = null;
+  const stationInfo = stations.map((st, i) => {
+    path.at(stationS[i], f);
+    return { s: stationS[i], name: st.name, x: f[0], z: f[1], dx: f[2], dz: f[3] };
+  });
+  function timeToReal(tr) {
+    if (!dispatcher) return;
+    // the station this train will reach next
+    let next = -1;
+    let gap = Infinity;
+    stationInfo.forEach((st, i) => {
+      const d = (st.s - tr.s) * tr.dir;
+      if (d > 5 && d < gap) {
+        gap = d;
+        next = i;
+      }
+    });
+    if (next < 0) return;
+    const due = dispatcher(next, tr.dir);
+    if (!Number.isFinite(due)) return;
+    // run time at line speed, plus getting going and braking
+    const run = gap / VMAX + VMAX / ACCEL;
+    // never stand at a platform more than a minute and a half: run early instead when the real one is far off
+    tr.timer = Math.max(tr.timer, Math.min(90, due - run));
+    tr.liveFor = { station: stationInfo[next].name, due };
+  }
   const turnAt = TRAIN_LEN / 2 + 4;
   function update(dt) {
     events.braking = false;
@@ -361,6 +390,7 @@ export function buildViaduct({ line, stations, crossings, streetW, shared, kit, 
           tr.mode = 'dwell';
           tr.timer = atEnd ? 12 : style.dwell;
           if (atEnd) setDirection(tr, -tr.dir);
+          timeToReal(tr);
         }
       }
       place(tr);
@@ -377,5 +407,5 @@ export function buildViaduct({ line, stations, crossings, streetW, shared, kit, 
     return best;
   }
 
-  return { group, update, colliders, rumbleAt, events, entrances, path };
+  return { group, update, colliders, rumbleAt, events, entrances, path, trains, stations: stationInfo, setDispatcher: (fn) => (dispatcher = fn) };
 }

@@ -467,6 +467,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const plaques = new Plaques(data?.wiki, P.city ?? null, store, def.id, hud);
   const regulars = new Regulars(P.layout?.faces ?? P.city?.faces ?? [], P.streets.openHydrants ?? [], def.name, () => nightness(lookMin()), hud, audio);
   const transit = new Transit(P.elevated.entrances, P.city ?? null, data?.nyc, def, hud);
+  // the trains on the el keep to the real timetable when the live arrivals are in
+  P.elevated.setDispatcher?.((i, dir) => transit.eta(P.elevated.stations[i], dir));
   // the real calendar: today's season on the trees, and the holiday's decorations out
   const decor = buildDecor(P.layout?.faces ?? P.city?.faces ?? [], params.get('holiday') ?? holiday());
   const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);

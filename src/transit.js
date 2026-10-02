@@ -160,6 +160,39 @@ export class Transit {
     d.mesh.bikes.forEach((bk, i) => (bk.visible = i < (total ? Math.max(1, shown) : 0)));
   }
 
+  /**
+   * Seconds until the next real train at the station nearest st ({ x, z, dx, dz }), heading along the track
+   * in direction dir (+1/-1); null when there's no live time for it.
+   */
+  eta(st, dir) {
+    if (!this.live || !st) return null;
+    let ent = null;
+    let bd = 220;
+    for (const e of this.entrances) {
+      const d = Math.hypot(e.x - st.x, e.z - st.z);
+      if (e.stop && d < bd) {
+        bd = d;
+        ent = e;
+      }
+    }
+    if (!ent) return null;
+    // which way is uptown here: GTFS "N" trips run north
+    if (!this.north) {
+      const [lat, lon] = this.def.ll;
+      const [ox, oz] = this.city.M.proj.toWorld(lat, lon);
+      const [nx, nz] = this.city.M.proj.toWorld(lat + 0.001, lon);
+      this.north = [nx - ox, nz - oz];
+    }
+    const way = st.dx * dir * this.north[0] + st.dz * dir * this.north[1] > 0 ? 'N' : 'S';
+    const now = (Date.now() + (this.skew ?? 0)) / 1000;
+    let best = null;
+    for (const a of this.trains) {
+      if (a.stop !== ent.stop || a.dir !== way || a.at < now + 15) continue;
+      if (best === null || a.at < best) best = a.at;
+    }
+    return best === null ? null : best - now;
+  }
+
   minutes(at) {
     return Math.max(0, Math.round((at * 1000 - (Date.now() + (this.skew ?? 0))) / 60000));
   }
