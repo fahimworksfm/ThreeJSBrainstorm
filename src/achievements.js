@@ -41,6 +41,7 @@ export function stats(store, districts) {
   s.cats = store.get('cats', 0);
   s.rats = store.get('rats', 0);
   s.walked = store.get('walked', 0);
+  s.henge = store.get('henge', 0);
   return s;
 }
 
@@ -68,6 +69,7 @@ export const BADGES = [
   { id: 'marathon', icon: '🏃', name: 'Marathon', desc: 'Walk 42.2 km, the length of the New York City Marathon', test: (s) => s.walked >= 42195 },
   { id: 'rats', icon: '🐀', name: 'Pizza rat', desc: 'Scare off 10 rats where 311 says they live', test: (s) => s.rats >= 10 },
   { id: 'fullmoon', icon: '🌕', name: 'Moonwalker', desc: 'Walk under a real full moon (Live time)', test: (s, live) => live.fullMoon },
+  { id: 'henge', icon: '☀️', name: 'Streethenge', desc: 'See the real sun set (or rise) right down your street (Live time)', test: (s) => s.henge >= 1 },
   { id: 'golden', sprite: 16, icon: '🌇', name: 'Golden hour', desc: 'Catch the sunset on a rooftop', test: (s, live) => live.roof && live.golden },
 ];
 

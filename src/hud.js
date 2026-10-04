@@ -162,11 +162,11 @@ export class HUD {
     b.classList.add('show');
   }
 
-  toast(msg) {
+  toast(msg, ms = 1600) {
     this.el.toast.textContent = msg;
     this.el.toast.classList.add('show');
     clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => this.el.toast.classList.remove('show'), 1600);
+    this.toastTimer = setTimeout(() => this.el.toast.classList.remove('show'), ms);
   }
 
   /** groups: [{ name, entries: [{title, text}], total }] */

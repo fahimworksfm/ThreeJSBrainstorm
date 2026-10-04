@@ -99,7 +99,8 @@ export class Transit {
 
   async poll() {
     const [lat, lon] = this.def.ll;
-    const q = new URLSearchParams({ stops: this.stops.join(','), lat: String(lat), lon: String(lon), r: '900' });
+    const routes = [...new Set(this.entrances.flatMap((e) => e.routes ?? []))].join(',');
+    const q = new URLSearchParams({ stops: this.stops.join(','), routes, lat: String(lat), lon: String(lon), r: '900' });
     try {
       const r = await fetch(`${this.base}?${q}`, { signal: AbortSignal.timeout(15000) });
       if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) throw new Error(`HTTP ${r.status}`);
@@ -108,6 +109,7 @@ export class Transit {
       this.skew = d.t * 1000 - Date.now();
       this.trains = Array.isArray(d.trains) ? d.trains : [];
       if (Array.isArray(d.bikes)) this.placeDocks(d.bikes);
+      this.alerts = Array.isArray(d.alerts) ? d.alerts : [];
       this.live = true;
       this.fails = 0;
     } catch (e) {
@@ -200,13 +202,16 @@ export class Transit {
   /** The board for a station: the next two trains each way. */
   board(e) {
     const list = this.trains.filter((a) => a.stop === e.stop && a.at * 1000 > Date.now() + (this.skew ?? 0) - 20000);
-    if (!list.length) return null;
+    if (!list.length && !(this.alerts ?? []).some((a) => a.lines.some((l) => e.routes?.includes(l)))) return null;
     const row = (dir, label) => {
       const next = list.filter((a) => a.dir === dir).slice(0, 3);
       if (!next.length) return '';
       return `<div class="row"><span class="dir">${label}</span>${next.map((a) => `${bullet(a.route)}<b>${this.minutes(a.at) || 'now'}</b><small>${this.minutes(a.at) ? 'min' : ''}</small>`).join('')}</div>`;
     };
-    return `<div class="head">${esc(e.station ?? e.name)} <span class="live">● LIVE</span></div>${row('N', '▲ Uptown')}${row('S', '▼ Downtown')}`;
+    // the MTA's own word on these lines, if there's something going on
+    const al = (this.alerts ?? []).find((a) => a.lines.some((l) => e.routes?.includes(l)));
+    const note = al ? `<div class="alert">${al.lines.map(bullet).join('')}<span><b>${esc(al.kind || 'Service change')}</b> ${esc(al.text)}</span></div>` : '';
+    return `<div class="head">${esc(e.station ?? e.name)} <span class="live">● LIVE</span></div>${row('N', '▲ Uptown')}${row('S', '▼ Downtown')}${note}`;
   }
 
   /** Every frame: poll the feeds now and then, and show the board or the dock you're standing at. */

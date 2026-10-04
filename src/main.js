@@ -31,12 +31,13 @@ import { setTerrain, liftAll, heightAt, terrainOn } from './terrain.js';
 import { Plaques } from './plaques.js';
 import { Regulars } from './regulars.js';
 import { Transit } from './transit.js';
-import { Achievements, Daily } from './achievements.js';
+import { Achievements, Daily, nycDate } from './achievements.js';
 import { Tricks } from './tricks.js';
 import { Errands } from './quests.js';
 import { buildFarCity } from './farcity.js';
 import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { Moon, moonPosition, phaseName } from './moon.js';
+import { nextHenges, hengeNow, nycWhen } from './henge.js';
 import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
 import { FoodStops } from './food.js';
@@ -257,13 +258,37 @@ const TIPS = [
   'Tip: press C to switch between first and third person.',
   'Tip: Settings has graphics presets if things feel slow.',
 ];
+// on this day in New York: Wikipedia's on-this-day events that happened in the city (fetched once a day)
+let onThisDay = null;
+async function loadOnThisDay() {
+  const [, m, d] = nycDate().split('-');
+  const key = `otd.${m}${d}`;
+  const saved = store.get(key, null);
+  if (saved) return (onThisDay = saved);
+  try {
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${m}/${d}`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const NYC = /New York City|Manhattan|Brooklyn|the Bronx|Queens, New York|Staten Island|Harlem|Coney Island|Times Square|Central Park|Broadway|Wall Street|Empire State|Statue of Liberty|Brooklyn Bridge|subway/i;
+    const list = ((await r.json()).events ?? [])
+      .filter((e) => NYC.test(e.text) || (e.pages ?? []).some((p) => NYC.test(`${p.title} ${p.description ?? ''}`) && /New York|Manhattan|Brooklyn|Bronx|Queens|Staten/.test(p.description ?? '')))
+      .map((e) => ({ year: e.year, text: e.text.length > 170 ? `${e.text.slice(0, 167)}…` : e.text }));
+    store.set(key, list);
+    return (onThisDay = list);
+  } catch {
+    return null;
+  }
+}
+loadOnThisDay();
+
 function showCard(def, arrive = false) {
   // a moving picture up top: the view from the train when riding there, the Wonder Wheel for Coney Island
   const vid = document.getElementById('load-vid');
   if (arrive) showClip(vid, 'subway-window');
   else if (def.id === 'coney') showClip(vid, 'card-coney');
   else hideClip(vid);
-  document.getElementById('load-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+  // half the time, if Wikipedia has one, something that happened in New York on this date instead of a tip
+  const otd = onThisDay?.length && Math.random() < 0.5 ? onThisDay[Math.floor(Math.random() * onThisDay.length)] : null;
+  document.getElementById('load-tip').textContent = otd ? `📅 On this day in ${otd.year}: ${otd.text} (Wikipedia)` : TIPS[Math.floor(Math.random() * TIPS.length)];
   document.getElementById('load-boro').textContent = def.borough;
   document.getElementById('load-name').textContent = def.name;
   document.getElementById('load-blurb').textContent = def.blurb;
@@ -1614,6 +1639,53 @@ const camEuler = new THREE.Euler();
 
 // ---------- what the hero glances at: an uncollected memory nearby, or someone passing close ----------
 let interestTimer = 0;
+// ---------- street-henge: the real sun lined up with the street you're on
+const henge = { next: 0, still: 0, shown: new Set(), seen: new Set(), cache: new Map(), last: null, toastAt: -1e9, stillSince: null };
+/** A direction on the real map (unit [x, z]) as a compass bearing, degrees clockwise from north. */
+function compassOf(dir) {
+  const n = bearing(0);
+  const e = bearing(90);
+  if (!n || !e) return null;
+  return ((Math.atan2(dir[0] * e[0] + dir[1] * e[1], dir[0] * n[0] + dir[1] * n[1]) * 180) / Math.PI + 360) % 360;
+}
+function updateHenge() {
+  if (!W.city?.streetHere || !W.def.ll) return;
+  // in real seconds (slow frames still count)
+  const now = performance.now() / 1000;
+  if (Math.hypot(player.vel.x, player.vel.z) >= 0.3) henge.stillSince = now;
+  henge.stillSince ??= now;
+  if (now < henge.next) return;
+  henge.next = now + 1;
+  henge.still = now - henge.stillSince;
+  const st = player.roof ? null : W.city.streetHere(player.pos.x, player.pos.z);
+  if (!st || st.straight < 180) return;
+  const az = compassOf(st.dir);
+  if (az == null) return;
+  const name = st.name;
+  const big = W.def.borough === 'Manhattan' ? 'MANHATTANHENGE' : 'STREETHENGE';
+  // right now (Live time: the real sun): the sun sitting at the end of the street
+  const off = isLive() ? hengeNow(az, ...W.def.ll) : null;
+  const today = new Date().toDateString();
+  if (off != null && off < 1.2 && !henge.seen.has(`${name}|${today}`)) {
+    henge.seen.add(`${name}|${today}`);
+    hud.banner(`${big}!`, `The sun, right down ${name}`);
+    hud.toast(`☀️ The real sun is lined up with ${name} right now: look down the street`, 6000);
+    store.set('henge', store.get('henge', 0) + 1);
+    JUICE.hit(0.2);
+    return;
+  }
+  // standing still on a long straight street: when does the sun line up with it?
+  if (henge.still < 3 || henge.shown.has(name) || now - henge.toastAt < 90) return;
+  const key = `${name}|${Math.round(az)}`;
+  if (!henge.cache.has(key)) henge.cache.set(key, nextHenges(az, ...W.def.ll));
+  const list = henge.cache.get(key);
+  henge.shown.add(name);
+  if (!list.length) return;
+  const sunset = list.find((h) => h.kind === 'sunset') ?? list[0];
+  henge.toastAt = now;
+  hud.toast(`☀️ ${name} lines up with the ${sunset.kind}: next on ${nycWhen(sunset.when)}`, 6000);
+}
+
 function pickInterest(dt) {
   interestTimer -= dt;
   if (interestTimer > 0) return;
@@ -1940,6 +2012,7 @@ function frame(now) {
   W.peds.update(dt, camera.position, player, settings.rain);
   W.pigeons.update(t, dt, player);
   W.rats.update(t, dt, player, nightness(lookMin()));
+  updateHenge();
   countSteps();
   W.spray.update(dt, camera.position, player);
   if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);

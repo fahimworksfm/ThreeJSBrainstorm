@@ -579,6 +579,40 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
     return bd < pad ? best : null;
   };
 
+  /** The street segment you're on: its name, direction (unit [x, z]) and how far it runs straight. */
+  const streetHere = (x, z, pad = 6) => {
+    let best = null;
+    let bd = Infinity;
+    for (const s of segBuckets.near(x, z, 20)) {
+      const r = closestOnSegment(x, z, s.p[0], s.p[1], s.q[0], s.q[1]);
+      const d = Math.sqrt(r[3]) - s.c.width / 2;
+      if (d < bd) {
+        bd = d;
+        best = s;
+      }
+    }
+    if (!best?.c.name || bd > pad) return null;
+    const dx = best.q[0] - best.p[0];
+    const dz = best.q[1] - best.p[1];
+    const l = Math.hypot(dx, dz) || 1;
+    // how far the street keeps this heading: the chain's points that stay within ~2 degrees of it
+    const ux = dx / l;
+    const uz = dz / l;
+    const pts = best.c.pts;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const pt of pts) {
+      const ax = pt[0] - best.p[0];
+      const az = pt[1] - best.p[1];
+      const along = ax * ux + az * uz;
+      if (Math.abs(ax * uz - az * ux) < 2 + Math.abs(along) * 0.035) {
+        lo = Math.min(lo, along);
+        hi = Math.max(hi, along);
+      }
+    }
+    return { name: best.c.name, dir: [ux, uz], straight: Number.isFinite(hi) ? hi - lo : l };
+  };
+
   const colliderIndex = new Buckets(24);
   for (const c of colliders) colliderIndex.add(c.x0, c.z0, c.x1, c.z1, c);
   const inBuilding = (x, z, pad = 0) => {
@@ -1080,7 +1114,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   return {
     M, box, group, mask, groundAt, isRoad, isWater, walkable, spot, inBuilding,
     crews, fairs, upcoming, lots, faces, signNames, colliders: [...colliders, ...corners.colliders], roofs, corners, lanes, parked, routes, trees, kitLamps,
-    elevated, looseEntrances, mapImage, describe, place, start, midtown: toMid > 1200 ? midtown : null,
+    elevated, looseEntrances, mapImage, describe, streetHere, place, start, midtown: toMid > 1200 ? midtown : null,
     counts: { buildings: lots.length, streets: chains.length, trees: trees.length, lanes: lanes.length, blocks: groundPolys.length },
   };
 }

@@ -1,11 +1,12 @@
 // Live NYC transit for the neighborhood you're in (a Vercel serverless function, free, no keys):
-// next subway arrivals from the MTA's GTFS-realtime feeds, and Citi Bike docks with bikes free right now.
-// GET /api/transit?stops=R01,R03&lat=40.77&lon=-73.91
+// next subway arrivals from the MTA's GTFS-realtime feeds, service alerts on those lines, and Citi Bike docks
+// with bikes free right now. GET /api/transit?stops=R01,R03&routes=N,W&lat=40.77&lon=-73.91
 import { arrivals } from './_gtfs.js';
 
 const MTA = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs';
 const FEEDS = ['', '-ace', '-bdfm', '-g', '-jz', '-nqrw', '-l', '-si'];
 const GBFS = 'https://gbfs.citibikenyc.com/gbfs/en';
+const ALERTS = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts.json';
 
 // a warm function instance keeps the feeds for a little while, so many players cost the MTA one fetch
 const cache = new Map();
@@ -42,6 +43,32 @@ async function trains(stops) {
   return out.sort((a, b) => a.at - b.at).slice(0, 80);
 }
 
+/**
+ * Service alerts in effect right now for these subway lines (the MTA's alerts feed, as JSON): the kind of
+ * alert ("Delays", "Part Suspended", ...), the lines, and the MTA's own short headline.
+ */
+async function alerts(routes) {
+  if (!routes.size) return [];
+  const feed = await cached('mta-alerts', 60000, () => get(ALERTS, 'json'));
+  const now = Date.now() / 1000;
+  const text = (t) => (t?.translation ?? []).find((x) => x.language === 'en')?.text ?? t?.translation?.[0]?.text ?? '';
+  const out = [];
+  for (const e of feed?.entity ?? []) {
+    const a = e.alert;
+    if (!a) continue;
+    const on = (a.active_period ?? []).some((p) => (!p.start || p.start <= now) && (!p.end || p.end > now));
+    if (a.active_period?.length && !on) continue;
+    const lines = [...new Set((a.informed_entity ?? []).map((i) => i.route_id).filter((r) => r && routes.has(r)))];
+    if (!lines.length) continue;
+    const kind = a['transit_realtime.mercury_alert']?.alert_type ?? '';
+    const head = text(a.header_text).replace(/\s+/g, ' ').trim();
+    if (head) out.push({ kind, lines, text: head.length > 220 ? `${head.slice(0, 217)}…` : head });
+  }
+  // what changes your trip first: suspensions and delays, then reroutes and the rest
+  const rank = (k) => (/suspend/i.test(k) ? 0 : /delay/i.test(k) ? 1 : /reroute|express|local|skip/i.test(k) ? 2 : 3);
+  return out.sort((a, b) => rank(a.kind) - rank(b.kind)).slice(0, 8);
+}
+
 async function bikes(lat, lon, radius) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
   const [info, status] = await Promise.all([
@@ -69,9 +96,10 @@ export default async function handler(req, res) {
   const q = new URL(req.url, 'http://x').searchParams;
   const stops = new Set((q.get('stops') ?? '').split(',').map((s) => s.trim()).filter((s) => /^[A-Z0-9]{2,4}$/.test(s)).slice(0, 24));
   const radius = Math.min(1500, Number(q.get('r')) || 900);
-  const [t, b] = await Promise.all([trains(stops), bikes(Number(q.get('lat')), Number(q.get('lon')), radius)]);
+  const routes = new Set((q.get('routes') ?? '').split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z0-9]{1,3}$/.test(s)).slice(0, 16));
+  const [t, b, a] = await Promise.all([trains(stops), bikes(Number(q.get('lat')), Number(q.get('lon')), radius), alerts(routes).catch(() => [])]);
   res.setHeader('content-type', 'application/json');
   res.setHeader('cache-control', 'public, s-maxage=20, stale-while-revalidate=40');
   res.setHeader('access-control-allow-origin', '*');
-  res.end(JSON.stringify({ t: Math.round(Date.now() / 1000), trains: t, bikes: b }));
+  res.end(JSON.stringify({ t: Math.round(Date.now() / 1000), trains: t, bikes: b, alerts: a }));
 }
