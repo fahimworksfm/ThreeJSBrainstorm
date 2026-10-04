@@ -293,6 +293,32 @@ async function noise(box) {
   });
 }
 
+/**
+ * Where the rats are: the last 30 days of 311 rodent complaints, pooled into ~50 m cells the same way (so no
+ * single address stands out): [lon, lat, count].
+ */
+async function rats(box) {
+  const [s, w, n, e] = box;
+  const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 19);
+  const rows = await all(DATASETS.noise, {
+    $select: 'latitude,longitude',
+    $where: `created_date > '${since}' and complaint_type = 'Rodent' and latitude between ${s} and ${n} and longitude between ${w} and ${e}`,
+  });
+  if (!rows) return null;
+  const cells = new Map();
+  for (const r of rows) {
+    const lat = Number(r.latitude);
+    const lon = Number(r.longitude);
+    if (!lat || !lon) continue;
+    const key = `${Math.round(lon / 0.0005)}|${Math.round(lat / 0.0005)}`;
+    cells.set(key, (cells.get(key) ?? 0) + 1);
+  }
+  return [...cells].map(([k, count]) => {
+    const [i, j] = k.split('|');
+    return [r5(Number(i) * 0.0005), r5(Number(j) * 0.0005), count];
+  });
+}
+
 /** Minimal PNG reader for 8-bit RGB/RGBA, non-interlaced (what the terrain tiles are). */
 function readPNG(buf) {
   let p = 8;
@@ -398,7 +424,7 @@ for (const d of districts) {
     entrances: await entrances(box), bikes: await bikes(box),
     films: d.boro ? keepLocal(await films(d.boro.replace(/^The /, '')), d.id) : null,
     events: d.boro ? keepLocal(await events(d.boro.replace(/^The /, '')), d.id) : null,
-    noise: await noise(box),
+    noise: await noise(box), rats: await rats(box),
     elevation: await elevation(box), far: await far(d),
   };
   const got = Object.entries(data).filter(([, v]) => v?.length || v?.m?.length || v?.c?.length);

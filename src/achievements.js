@@ -39,6 +39,8 @@ export function stats(store, districts) {
   s.errandDays = store.get('errandDays', 0);
   s.combos3 = store.get('combos3', 0);
   s.cats = store.get('cats', 0);
+  s.rats = store.get('rats', 0);
+  s.walked = store.get('walked', 0);
   return s;
 }
 
@@ -62,6 +64,10 @@ export const BADGES = [
   { id: 'streak', sprite: 14, icon: '🔥', name: 'Regular', desc: 'Solve the postcard 3 days running', test: (s) => s.streak >= 3 },
   { id: 'owl', sprite: 15, icon: '🦉', name: 'Night owl', desc: 'Be out walking at 3 a.m.', test: (s, live) => live.minute >= 180 && live.minute < 240 },
   { id: 'cats', sprite: 19, icon: '🐈‍⬛', name: 'Bodega regular', desc: 'Say hi to 5 bodega cats', test: (s) => s.cats >= 5 },
+  { id: 'walk5', icon: '👟', name: 'Wore out a pair', desc: 'Walk 5 km of real streets', test: (s) => s.walked >= 5000 },
+  { id: 'marathon', icon: '🏃', name: 'Marathon', desc: 'Walk 42.2 km, the length of the New York City Marathon', test: (s) => s.walked >= 42195 },
+  { id: 'rats', icon: '🐀', name: 'Pizza rat', desc: 'Scare off 10 rats where 311 says they live', test: (s) => s.rats >= 10 },
+  { id: 'fullmoon', icon: '🌕', name: 'Moonwalker', desc: 'Walk under a real full moon (Live time)', test: (s, live) => live.fullMoon },
   { id: 'golden', sprite: 16, icon: '🌇', name: 'Golden hour', desc: 'Catch the sunset on a rooftop', test: (s, live) => live.roof && live.golden },
 ];
 
@@ -126,7 +132,7 @@ export class Achievements {
     }
     const p = document.createElement('p');
     p.className = 'badge-sum';
-    p.textContent = `${this.got.size} / ${BADGES.length} badges · ${s.visited.size} neighborhoods · postcard streak ${s.streak}`;
+    p.textContent = `${this.got.size} / ${BADGES.length} badges · ${s.visited.size} neighborhoods · ${(s.walked / 1000).toFixed(1)} km walked · postcard streak ${s.streak}`;
     el.prepend(p);
   }
 }

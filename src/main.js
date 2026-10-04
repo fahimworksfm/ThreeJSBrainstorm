@@ -20,7 +20,8 @@ import { CURB, D, activateDistrict } from './config.js';
 import { DISTRICTS, BOROUGHS } from './districts/index.js';
 import { reseed, chance } from './random.js';
 import { Pigeons } from './pigeons.js';
-import { nycMinute, liveWeather } from './live.js';
+import { Rats } from './rats.js';
+import { nycMinute, liveWeather, aqiLabel } from './live.js';
 import { PhotoChallenges } from './photos.js';
 import { Knockables } from './knockables.js';
 import { Radio } from './radio.js';
@@ -35,6 +36,7 @@ import { Tricks } from './tricks.js';
 import { Errands } from './quests.js';
 import { buildFarCity } from './farcity.js';
 import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
+import { Moon, moonPosition, phaseName } from './moon.js';
 import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
 import { FoodStops } from './food.js';
@@ -473,6 +475,8 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   const peds = P.peds;
   peds.camera = camera; // draw only the people in view
   const pigeons = new Pigeons(peds);
+  const rats = new Rats(data?.nyc?.rats, P.city?.M.proj, peds, store);
+  if (rats.count) console.info(`rats: ${rats.count} spots from 311`);
   const spray = new HydrantSpray(shared, P.streets.openHydrants ?? []);
   const knock = new Knockables(peds, P.grid, audio);
   const graffiti = new Graffiti(P.layout?.faces ?? P.city?.faces ?? [], store, def.id, audio);
@@ -485,7 +489,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   // the real calendar: today's season on the trees, and the holiday's decorations out
   const decor = buildDecor(P.layout?.faces ?? P.city?.faces ?? [], params.get('holiday') ?? holiday());
   const deliveries = new Deliveries(P.layout?.faces ?? P.city?.faces ?? [], P.describe ?? describeLocation, shared.beam, store);
-  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group, transit.group, decor.group);
+  root.add(P.traffic.group, weather.group, memories.group, peds.group, pigeons.group, rats.group, spray.group, knock.group, graffiti.group, deliveries.group, plaques.group, regulars.group, transit.group, decor.group);
   decor.group.name = 'decor';
   // opaque things cast and catch sun shadows
   root.traverse((o) => {
@@ -503,7 +507,7 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   }
 
   W = {
-    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, spray, knock, graffiti, deliveries, plaques, regulars, transit, clouds, buildings: P.buildings,
+    def, root, layout: P.layout, groundAt: P.groundAt, grid: P.grid, roofs: P.roofs, peds, pigeons, rats, spray, knock, graffiti, deliveries, plaques, regulars, transit, clouds, buildings: P.buildings,
     streets: P.streets, elevated: P.elevated, landmarks: P.landmarks, sky, road, traffic: P.traffic, weather, memories,
     describe: P.describe ?? null, mapImage: P.mapImage ?? null, isWater: P.isWater ?? null, real: P.real ?? null, city: P.city ?? null,
   };
@@ -599,7 +603,10 @@ async function refreshLive(announce = false) {
   if (!w) return;
   live = w;
   applyTime(true);
-  if (announce) hud.toast(`Live: ${w.temp}°F, ${w.label} in ${W.def.name} · weather by Open-Meteo.com`);
+  const air = w.aqi != null ? ` · air ${aqiLabel(w.aqi)} (AQI ${w.aqi})` : '';
+  const sky = moonNow && moonNow.el > 0 ? ` · ${phaseName(moonNow)} up` : '';
+  if (announce) hud.toast(`Live: ${w.temp}°F, ${w.label} in ${W.def.name}${air}${sky} · Open-Meteo.com`);
+  if (w.smoke > 0.15) setTimeout(() => hud.toast('🌫️ Smoke in the air today: the haze is real (PM2.5 from Open-Meteo)'), 2200);
 }
 // live mode: the look follows today's real sunrise and sunset, and the sun shines from its real direction
 let sunCache = null;
@@ -617,10 +624,17 @@ function lookMin() {
 }
 /** Turn a look's sun direction to the real sun's compass bearing, keeping its height. */
 function aimRealSun(v) {
+  if (!realSun()) return;
+  const h = bearing(sunPosition(new Date(), ...W.def.ll).az);
+  if (!h) return;
+  const flat = Math.hypot(v.x, v.z);
+  v.set(h[0] * flat, v.y, h[1] * flat);
+}
+/** A compass bearing (degrees clockwise from north) as a unit [x, z] on the real map; null on the drawn one. */
+function bearing(az) {
   const proj = W?.city?.M.proj;
-  if (!proj || !realSun()) return;
+  if (!proj || !W.def.ll) return null;
   const [lat, lon] = W.def.ll;
-  const { az } = sunPosition(new Date(), lat, lon);
   const kx = 111320 * Math.cos((lat * Math.PI) / 180);
   const [ox, oz] = proj.toWorld(lat, lon);
   const [ex, ez] = proj.toWorld(lat, lon + 1 / kx);
@@ -628,14 +642,38 @@ function aimRealSun(v) {
   const a = (az * Math.PI) / 180;
   const hx = (ex - ox) * Math.sin(a) + (nx - ox) * Math.cos(a);
   const hz = (ez - oz) * Math.sin(a) + (nz - oz) * Math.cos(a);
-  const flat = Math.hypot(v.x, v.z);
-  const k = flat / (Math.hypot(hx, hz) || 1);
-  v.set(hx * k, v.y, hz * k);
+  const l = Math.hypot(hx, hz) || 1;
+  return [hx / l, hz / l];
+}
+// the real moon, at the clock's time (the real time in live mode; today at the chosen hour otherwise)
+const moon = new Moon();
+scene.add(moon.group);
+const moonDir = new THREE.Vector3();
+let moonNow = null;
+let moonTimer = 0;
+let moonMinute = -999;
+function updateMoon(dt) {
+  moonTimer -= dt;
+  // every few seconds, and at once when the clock jumps (a new start time, a train ride)
+  if (moonTimer <= 0 || !moonNow || Math.abs(minute - moonMinute) > 3) {
+    moonTimer = 5;
+    moonMinute = minute;
+    const ll = W?.def.ll ?? [40.73, -73.99];
+    const when = new Date(Date.now() + (minute - nycMinute()) * 60000);
+    moonNow = moonPosition(when, ...ll);
+  }
+  // on the drawn map north is -z
+  const h = bearing(moonNow.az) ?? [Math.sin((moonNow.az * Math.PI) / 180), -Math.cos((moonNow.az * Math.PI) / 180)];
+  const el = (Math.max(moonNow.el, 2) * Math.PI) / 180; // just over the rooftops when it's low
+  moonDir.set(h[0] * Math.cos(el), Math.sin(el), h[1] * Math.cos(el));
+  const clear = live ? 1 - Math.max(0, live.cloud - 0.4) * 1.4 : settings.rain ? 0.2 : 1;
+  moon.update(camera, moonNow, moonDir, nightness(lookMin()), Math.max(0, clear));
 }
 let materialTimer = 0;
 let rainyNight = Math.random() < 0.5;
 let wasNight = false;
 const tmpColor = new THREE.Color();
+const tmpVec = new THREE.Vector3();
 const snowRoad = new THREE.Color(0.42, 0.44, 0.48);
 // thunderstorms: lightning now and then, thunder a few seconds behind it
 let flash = 0;
@@ -704,12 +742,17 @@ function applyTime(force = false) {
   const [fr, fg, fb, density] = L.fog;
   scene.fog.color.setRGB(fr, fg, fb);
   scene.fog.density = density * (live?.haze ?? 1);
-  scene.background.setRGB(fr, fg, fb);
+  // wildfire smoke: the whole sky goes a dirty amber, and the sun with it
+  const smoke = params.get('weather') === 'smoke' ? 0.6 : (live?.smoke ?? 0);
+  if (smoke) scene.fog.color.lerp(tmpColor.setRGB(0.55, 0.4, 0.24).multiplyScalar(0.8 - 0.4 * nightness(lookMin())), smoke);
+  if (smoke) scene.fog.density = Math.max(scene.fog.density, 0.004) * (1 + smoke * 3.5);
+  scene.background.copy(scene.fog.color);
   hemi.color.setRGB(...L.hemiSky);
   hemi.groundColor.setRGB(...L.hemiGround);
   hemi.intensity = L.hemi;
   sun.color.setRGB(...L.sun);
-  sun.intensity = L.sunI;
+  if (smoke) sun.color.lerp(tmpColor.setRGB(1, 0.55, 0.25), smoke);
+  sun.intensity = L.sunI * (1 - smoke * 0.5);
   sunDir.set(...L.sunDir);
   aimRealSun(sunDir);
   sunDir.normalize();
@@ -725,12 +768,23 @@ function applyTime(force = false) {
   g.contrast.value = L.contrast;
   g.shadowTint.value.set(...L.shadowTint);
   g.highlightTint.value.set(...L.highlightTint);
+  if (smoke) {
+    // everything seen through it goes sepia
+    g.highlightTint.value.lerp(tmpVec.set(1.12, 0.86, 0.6), smoke);
+    g.shadowTint.value.lerp(tmpVec.set(0.75, 0.55, 0.38), smoke * 0.6);
+    g.saturation.value *= 1 - smoke * 0.35;
+  }
   heroLight.intensity = nightness(lookMin()) * 5;
   // sun shafts: strongest with a low sun, gone at night
   skySun.set(...L.sky.sunDir);
   aimRealSun(skySun);
   skySun.normalize();
-  W.sky.set({ ...L.sky, sunDir: [skySun.x, skySun.y, skySun.z], amount: L.sky.amount * 0.45 });
+  // smoke: a flat amber-brown sky down to the horizon, the stars gone
+  const smokeSky = (c, k = 1) => c.map((v, i) => v + ([0.6, 0.42, 0.24][i] * (0.75 - 0.45 * nightness(lookMin())) - v) * smoke * k);
+  W.sky.set({
+    ...L.sky, sunDir: [skySun.x, skySun.y, skySun.z], amount: L.sky.amount * 0.45,
+    ...(smoke ? { top: smokeSky(L.sky.top, 0.85), horizon: smokeSky(L.sky.horizon), cloud: smokeSky(L.sky.cloud), sun: smokeSky(L.sky.sun, 0.5), stars: (L.sky.stars ?? 0) * (1 - smoke) } : {}),
+  });
   const low = skySun.y;
   raysLevel = THREE.MathUtils.smoothstep(low, -0.04, 0.06) * (0.35 + 1.05 * (1 - THREE.MathUtils.smoothstep(low, 0.2, 0.6)));
   raysColor.setRGB(...L.sun);
@@ -1486,6 +1540,28 @@ let frames = 0;
 let fpsTime = 0;
 let edgeCooldown = 0;
 let portraitDone = false;
+// how far you've walked: real meters on the real map (one unit is a meter), saved every few seconds
+let walked = store.get('walked', 0);
+let walkedSaved = walked;
+const lastStep = new THREE.Vector3(NaN, 0, NaN);
+let lastStepAt = 0;
+addEventListener('pagehide', () => store.set('walked', Math.round(walked)));
+function countSteps() {
+  const p = player.pos;
+  const now = performance.now();
+  // real time since the last frame (the game's own step is clamped on slow frames)
+  const real = Math.min(1, (now - lastStepAt) / 1000);
+  lastStepAt = now;
+  if (player.mode === 'walk' && !player.roof && Number.isFinite(lastStep.x)) {
+    const d = Math.hypot(p.x - lastStep.x, p.z - lastStep.z);
+    if (d < 10 * real + 0.05) walked += d; // faster than a sprint is a train or a cab, not walking
+  }
+  lastStep.set(p.x, 0, p.z);
+  if (walked - walkedSaved > 25) {
+    store.set('walked', Math.round(walked));
+    walkedSaved = walked;
+  }
+}
 // the drawn face from the character sheet (public/media/portrait.png); the 3D snapshot below is the fallback
 {
   const face = new Image();
@@ -1793,6 +1869,7 @@ function frame(now) {
     photoFrame(dt);
     W.sky.update(t, camera);
     W.clouds.update(camera);
+    updateMoon(0);
     composer.render();
     if (captureNext) {
       captureNext = false;
@@ -1862,6 +1939,8 @@ function frame(now) {
   W.memories.update(t, dt, camera.position);
   W.peds.update(dt, camera.position, player, settings.rain);
   W.pigeons.update(t, dt, player);
+  W.rats.update(t, dt, player, nightness(lookMin()));
+  countSteps();
   W.spray.update(dt, camera.position, player);
   if (!player.roof) W.knock.update(dt, player, MODES[player.mode].radius);
   pickInterest(dt);
@@ -1909,6 +1988,7 @@ function frame(now) {
   }
   W.sky.update(t, camera);
   W.clouds.update(camera);
+  updateMoon(dt);
   W.road.update(t, W.weather.intensity * W.wet);
 
   const pos = camera.position;
@@ -1953,7 +2033,11 @@ function frame(now) {
   if (W.daily.update(dt, player) === 'solved') showPostcard(true, 6000);
   postcardEl.querySelector('.heat').textContent = W.daily.solved ? '✅ Solved, come back tomorrow' : W.daily.heat;
   errands.update(dt, errandsEl);
-  achievements.update(dt, { minute, roof: !!player.roof, golden: lookMin() >= 1050 && lookMin() <= 1170 && !settings.rain });
+  achievements.update(dt, {
+    minute, roof: !!player.roof, golden: lookMin() >= 1050 && lookMin() <= 1170 && !settings.rain,
+    // a real full moon, up, on a real night out (live mode)
+    fullMoon: isLive() && moonNow?.lit > 0.97 && moonNow.el > 5 && nightness(lookMin()) > 0.6,
+  });
   const stationName = near?.name.replace(/–/g, '-');
   const card = hasMetroCard();
   hud.setPrompt(near && input.active && !IS_TOUCH ? (card ? `Press E to take ${W.def.el.ride} from ${stationName}` : 'Find a memory to earn a MetroCard for the trains') : '');
@@ -2023,4 +2107,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, moon: () => ({ ...moonNow, name: moonNow && phaseName(moonNow), canvas: moon.canvas, group: moon.group }), get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };
