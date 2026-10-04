@@ -141,13 +141,15 @@ export class Input extends EventTarget {
       <div class="joy"><div class="knob"></div></div>
       <div class="buttons">
         <button data-act="action" class="act hidden">Train</button>
-        <button data-act="jump">Jump</button>
         <button data-act="run">Run</button>
+        <button data-act="jump" class="big">Jump</button>
+        <button data-act="vehicle" class="ride">Ride</button>
+      </div>
+      <div class="minis">
         <button data-act="camera">View</button>
         <button data-act="map">Map</button>
         <button data-act="taxi">Taxi</button>
-        <button data-act="postcard" aria-label="Today's postcard">📮</button>
-        <button data-act="vehicle" class="big">Ride</button>
+        <button data-act="postcard" aria-label="Today's postcard">Card</button>
       </div>
       <button data-act="pause" class="pause" aria-label="Pause">❚❚</button>`;
     document.body.append(ui);

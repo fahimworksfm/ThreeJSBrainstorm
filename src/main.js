@@ -1248,6 +1248,9 @@ document.getElementById('reset').addEventListener('click', (e) => {
 input.addEventListener('start', () => {
   audio.start();
   overlay.classList.add('gone');
+  // from now on the menu is the pause screen: a smaller logo, where you are, and Resume
+  overlay.classList.add('paused');
+  document.getElementById('start').textContent = 'Resume';
   // the title loop is for the first screen only; the pause menu shows the city itself
   if (overlay.classList.contains('intro')) {
     overlay.classList.remove('intro');
@@ -1256,6 +1259,7 @@ input.addEventListener('start', () => {
 });
 input.addEventListener('pause', () => {
   renderAlmanac();
+  document.getElementById('eyebrow').textContent = `Paused · ${W?.def.name ?? 'New York'}`;
   if (!travelOpen) overlay.classList.remove('gone');
 });
 
