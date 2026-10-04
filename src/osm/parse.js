@@ -130,7 +130,7 @@ export function parseOSM(data, center) {
       id, pts, holes: holes.map(W).filter((hp) => hp.length >= 3), area, h, minH: minH > 0 ? minH : 0, levels,
       type: t.building, name: t.name, shop: !!t.shop || /retail|commercial/.test(t.building ?? ''), amenity: t.amenity,
       roofShape: t['roof:shape'], rand: hash01(id),
-      poiTags: t.name && (t.shop || t.amenity) ? t : null,
+      poiTags: t.name && (t.shop || (t.amenity && t.amenity !== 'place_of_worship')) ? t : null,
     });
   };
   for (const w of ways.values()) {
@@ -214,7 +214,19 @@ export function parseOSM(data, center) {
   const poiOf = (p, t) => ({
     p, name: t.name, kind: t.shop ? 'shop' : t.amenity, trade: t.shop ?? t.amenity, cuisine: t.cuisine, brand: t.brand,
     allNight: /24\/7/.test(t.opening_hours ?? ''),
+    hours: t.opening_hours ?? null,
   });
+  // places of worship (their bells): from nodes and from mapped outlines
+  const churches = [];
+  const worship = (p, t) => churches.push({ p, name: t.name ?? '', religion: t.religion ?? '', denomination: t.denomination ?? '' });
+  for (const w of ways.values()) {
+    if (w.tags?.amenity !== 'place_of_worship') continue;
+    const pts = (w.nodes ?? []).map((id) => nodes.get(id)).filter(Boolean);
+    if (!pts.length) continue;
+    const lat = pts.reduce((a, n) => a + n.lat, 0) / pts.length;
+    const lon = pts.reduce((a, n) => a + n.lon, 0) / pts.length;
+    worship(proj.toWorld(lat, lon), w.tags);
+  }
   // shops mapped as a whole building outline sign from the middle of it
   for (const b of buildings) if (b.poiTags) pois.push(poiOf(centroid(b.pts), b.poiTags));
   for (const n of nodes.values()) {
@@ -226,12 +238,13 @@ export function parseOSM(data, center) {
     if (t.natural === 'tree') trees.push(p);
     if (t.railway === 'station') stations.push({ p, name: t.name ?? 'Station' });
     if (t.railway === 'subway_entrance') entrances.push({ p, name: t.name });
-    if (t.name && (t.shop || t.amenity)) pois.push(poiOf(p, t));
+    if (t.amenity === 'place_of_worship') worship(p, t);
+    else if (t.name && (t.shop || t.amenity)) pois.push(poiOf(p, t));
   }
 
   const all = [];
   for (const r of roads) all.push(...r.pts);
   for (const b of buildings) all.push(b.pts[0]);
   const box = bounds(all.length ? all : [[0, 0]]);
-  return { proj, angle, roads, paths, buildings, parks, sand, water, coast, rails, ferries, signals, lamps, trees, stations, entrances, pois, box, nodePos: raw };
+  return { proj, angle, roads, paths, buildings, parks, sand, water, coast, rails, ferries, signals, lamps, trees, stations, entrances, pois, churches, box, nodePos: raw };
 }

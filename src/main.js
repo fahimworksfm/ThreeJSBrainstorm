@@ -40,6 +40,11 @@ import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { Moon, moonPosition, phaseName } from './moon.js';
 import { dayOfYear, seasonDay, foliageNow } from './foliage.js';
 import { FallingLeaves } from './leaves.js';
+import { Gates } from './gates.js';
+import { Bells } from './bells.js';
+import { isOpen } from './hours.js';
+/** Today's weekday in New York, 0 = Sunday. */
+const nycWeekday = () => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(new Date()));
 import { nextHenges, hengeNow, nycWhen } from './henge.js';
 import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
@@ -545,6 +550,12 @@ async function loadDistrict(id, { arrive = false, onStatus = () => {} } = {}) {
   W.soundscape = new Soundscape(data?.nyc?.noise, P.city?.M.proj, audio);
   W.food = new FoodStops(P.buildings.realBoards, store, hud);
   root.add(W.food.group); // the bodega cats
+  // shops keep their real hours: the gate comes down when they close, and they won't serve you
+  W.gates = new Gates(P.buildings.realBoards);
+  root.add(W.gates.group);
+  W.food.closed = (s) => !isOpen(s, nycWeekday(), minute);
+  W.bells = new Bells(P.city?.M.churches, audio, hud);
+  if (W.bells.count) console.info(`bells: ${W.bells.count} churches`);
   // ferries on the real ferry routes
   W.ferries = buildFerries(P.city?.M.ferries, P.city?.box);
   root.add(W.ferries.group);
@@ -2101,6 +2112,8 @@ function frame(now) {
   // snow settles over a minute or so, and melts off slower
   SNOW.amount.value += ((W.weather.snowing ? 0.85 : 0) - SNOW.amount.value) * Math.min(1, dt * (W.weather.snowing ? 0.03 : 0.01));
   W.food.update(dt, player);
+  W.gates.update(nycWeekday(), minute);
+  W.bells.update(minute, nycWeekday(), player.pos);
   W.taxi.update(dt, player);
   W.ferries.update(dt);
   ghosts?.update(dt, player);
@@ -2257,4 +2270,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { openTravel: () => openTravel(), scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, moon: () => ({ ...moonNow, name: moonNow && phaseName(moonNow), canvas: moon.canvas, group: moon.group }), get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { get gates() { return W.gates; }, get bells() { return W.bells; }, openTravel: () => openTravel(), scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, moon: () => ({ ...moonNow, name: moonNow && phaseName(moonNow), canvas: moon.canvas, group: moon.group }), get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };

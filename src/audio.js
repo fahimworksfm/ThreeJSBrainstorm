@@ -372,6 +372,38 @@ export class CityAudio {
     });
   }
 
+  /**
+   * A church bell: the strike, then the hum dying away. A real bell's overtones aren't in tune with each other
+   * (hum, prime, minor-third tierce, quint, nominal), which is what makes it sound like a bell and not a chime.
+   * gain: how loud (0..1, by distance); pitch: the bell's prime in Hz; at: seconds from now.
+   */
+  bell(gain = 0.5, pitch = 330, at = 0) {
+    const ctx = this.ctx;
+    if (!ctx || this.muted || gain < 0.01) return;
+    const t = ctx.currentTime + at;
+    const parts = [[0.5, 0.5, 7], [1, 1, 5], [1.183, 0.6, 3.5], [1.506, 0.35, 2.5], [2, 0.5, 2.2], [2.514, 0.25, 1.5], [2.662, 0.2, 1.2], [3.011, 0.15, 1]];
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.18;
+    // far off, the city eats the highs
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900 + gain * 5000;
+    out.connect(lp).connect(this.master);
+    lp.connect(this.reverb);
+    for (const [ratio, amp, decay] of parts) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = pitch * ratio;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + decay + 0.05);
+    }
+  }
+
   /** A spray can: a rattle, then the hiss. */
   spray() {
     const ctx = this.ctx;

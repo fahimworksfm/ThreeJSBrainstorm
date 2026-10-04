@@ -86,12 +86,15 @@ export class FoodStops {
 
   get prompt() {
     const s = this.near;
-    return s ? `Press E for ${s.item} at ${title(s.name)} ($${s.price}, you have $${this.cash})` : '';
+    if (!s) return '';
+    if (this.closed?.(s)) return `${title(s.name)} is closed right now (gate's down)`;
+    return `Press E for ${s.item} at ${title(s.name)} ($${s.price}, you have $${this.cash})`;
   }
 
   buy(player) {
     const s = this.near;
     if (!s) return null;
+    if (this.closed?.(s)) return `🔒 ${title(s.name)} is closed right now: try an all-night deli`;
     if (this.cash < s.price) return `💸 Short on cash: do a delivery (J) first`;
     this.store.set('spent', this.store.get('spent', 0) + s.price);
     this.store.set('meals', this.store.get('meals', 0) + 1);

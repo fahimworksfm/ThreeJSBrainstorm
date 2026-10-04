@@ -13,25 +13,59 @@ const LAMP_ON = {
   G: new THREE.Color(0.3, 4, 1.8),
 };
 
-/** Green street-name blades, one row per name. */
+const COLS = 2;
+const ROW = 48;
+/**
+ * Green street-name blades, the NYC way: the name big, the direction ("W") and the kind ("St") small beside
+ * it, ordinals as plain numbers ("W 47 St"). Two columns of rows, so a busy neighborhood fits on a phone.
+ */
 function signAtlas(names) {
-  const rows = Math.max(1, names.length);
+  const rows = Math.max(1, Math.ceil(names.length / COLS));
   const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 64 * rows;
+  c.width = 512 * COLS;
+  c.height = ROW * rows;
   const ctx = c.getContext('2d');
   names.forEach((name, i) => {
-    const y = i * 64;
+    const x = (i % COLS) * 512;
+    const y = Math.floor(i / COLS) * ROW;
     ctx.fillStyle = '#0f6b3a';
-    ctx.fillRect(0, y, 512, 64);
+    ctx.fillRect(x, y, 512, ROW);
     ctx.strokeStyle = '#e8f2ec';
     ctx.lineWidth = 3;
-    ctx.strokeRect(4, y + 4, 504, 56);
+    ctx.strokeRect(x + 4, y + 4, 504, ROW - 8);
+    // "West 47th Street" -> small "W", big "47", small "St"
+    let n = name.replace(/\b(\d+)(st|nd|rd|th)\b/gi, '$1');
+    const pre = n.match(/^(?:North|South|East|West|N|S|E|W)\b\.?\s+/i);
+    let head = '';
+    if (pre && n.length > pre[0].length + 2) {
+      head = pre[0].trim()[0].toUpperCase();
+      n = n.slice(pre[0].length);
+    }
+    const suf = n.match(/\s+(St|Ave|Av|Blvd|Rd|Pl|Dr|Pkwy|Expy|Ln|Ter|Ct|Sq|Way)\.?$/i);
+    const tail = suf ? suf[1].replace(/^Ave$/i, 'Av') : '';
+    if (suf) n = n.slice(0, suf.index);
     ctx.fillStyle = '#f2f7f4';
-    ctx.font = 'bold 38px "Helvetica Neue", Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name, 256, y + 34, 480);
+    ctx.textBaseline = 'alphabetic';
+    const big = 'bold 34px "Helvetica Neue", Arial, sans-serif';
+    const small = 'bold 20px "Helvetica Neue", Arial, sans-serif';
+    ctx.font = big;
+    const wBig = Math.min(ctx.measureText(n).width, 400);
+    ctx.font = small;
+    const wHead = head ? ctx.measureText(head).width + 8 : 0;
+    const wTail = tail ? ctx.measureText(tail).width + 8 : 0;
+    let cx = x + 256 - (wHead + wBig + wTail) / 2;
+    const base = y + ROW / 2 + 12;
+    if (head) {
+      ctx.fillText(head, cx, base);
+      cx += wHead;
+    }
+    ctx.font = big;
+    ctx.fillText(n, cx, base, 400);
+    cx += wBig + 8;
+    if (tail) {
+      ctx.font = small;
+      ctx.fillText(tail, cx, base);
+    }
   });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -64,7 +98,7 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
   const nameIndex = new Map();
   const slot = (name) => {
     if (!nameIndex.has(name)) {
-      if (names.length >= 60) return -1;
+      if (names.length >= 170) return -1;
       nameIndex.set(name, names.length);
       names.push(name);
     }
@@ -226,9 +260,13 @@ export function buildCorners({ junctions, signalized, isRoad, inBuilding, busy, 
     const atlas = signAtlas(names);
     for (const g of blades) {
       const uv = g.attributes.uv;
-      // canvas row r (from the top) sits at v in [1 - (r + 1) / rows, 1 - r / rows]
-      const r = g.userData.row;
-      for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - (r + 1 - uv.getY(i)) / atlas.rows);
+      // name n is in column n % COLS, canvas row floor(n / COLS) from the top
+      const r = Math.floor(g.userData.row / COLS);
+      const col = g.userData.row % COLS;
+      for (let i = 0; i < uv.count; i++) {
+        uv.setX(i, (col + uv.getX(i)) / COLS);
+        uv.setY(i, 1 - (r + 1 - uv.getY(i)) / atlas.rows);
+      }
     }
     add(blades, new THREE.MeshStandardMaterial({ map: atlas.tex, emissiveMap: atlas.tex, emissive: 0xffffff, emissiveIntensity: 0.3, side: THREE.DoubleSide }));
   }

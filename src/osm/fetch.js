@@ -15,6 +15,7 @@ export const KEEP_TAGS = new Set([
   'service', 'access', 'oneway', 'junction', 'lanes', 'width', 'footway', 'type',
   'cuisine', 'opening_hours', 'brand', // shop signs
   'route', 'operator', // ferry routes
+  'religion', 'denomination', // churches (the bells)
 ]);
 
 /** Shrink an Overpass response: fewer tags, fewer digits. */
@@ -69,6 +70,8 @@ export function query([s, w, n, e]) {
   way["shop"]["name"](${b});
   node["amenity"~"^(${AMENITIES})$"]["name"](${b});
   way["amenity"~"^(${AMENITIES})$"]["name"](${b});
+  node["amenity"="place_of_worship"](${b});
+  way["amenity"="place_of_worship"](${b});
 );
 out body;
 >;
