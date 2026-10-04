@@ -37,6 +37,8 @@ import { Errands } from './quests.js';
 import { buildFarCity } from './farcity.js';
 import { sunPosition, sunTimes, lookMinuteFor } from './sun.js';
 import { Moon, moonPosition, phaseName } from './moon.js';
+import { dayOfYear, seasonDay, foliageNow } from './foliage.js';
+import { FallingLeaves } from './leaves.js';
 import { nextHenges, hengeNow, nycWhen } from './henge.js';
 import { season, holiday, buildDecor } from './holidays.js';
 import { Soundscape } from './soundscape.js';
@@ -855,7 +857,14 @@ function applyTime(force = false) {
 /** Facades brighter by day, windows and neon brighter by night, no specular anywhere. */
 function updateMaterials(L, first) {
   W.root.traverse((o) => {
-    if (first && o.userData.foliage) setFoliage(o, W.season);
+    if (first && o.userData.foliage) {
+      setFoliage(o, seasonDay(params.get('season')) ?? dayOfYear());
+      // the trees shedding today let their leaves go around you
+      if (!W.leaves) {
+        W.leaves = new FallingLeaves(o, (x, z) => W.groundAt(x, z) + heightAt(x, z));
+        if (W.leaves.count) W.root.add(W.leaves.group);
+      }
+    }
     const m = o.material;
     if (!m || Array.isArray(m)) return;
     m.userData.onLight?.(L);
@@ -1039,6 +1048,7 @@ function goTo(id, arrive) {
   // give the fade a frame to paint before the heavy rebuild
   setTimeout(async () => {
     await loadDistrict(id, { arrive, onStatus: (text) => (fade.querySelector('span').textContent = text) });
+    renderAlmanac();
     setTimeout(() => fade.classList.remove('show', 'card'), 350);
   }, 450);
 }
@@ -1245,6 +1255,7 @@ input.addEventListener('start', () => {
   }
 });
 input.addEventListener('pause', () => {
+  renderAlmanac();
   if (!travelOpen) overlay.classList.remove('gone');
 });
 
@@ -1473,6 +1484,7 @@ for (const tab of document.querySelectorAll('.tabs button')) {
     for (const t of document.querySelectorAll('.tabs button')) t.classList.toggle('on', t === tab);
     for (const p of document.querySelectorAll('.pane')) p.hidden = p.dataset.pane !== tab.dataset.tab;
     if (tab.dataset.tab === 'badges') achievements.render(document.getElementById('badges'));
+    if (tab.dataset.tab === 'play') renderAlmanac();
   });
 }
 
@@ -1527,6 +1539,7 @@ loadTexturePack(shared, './textures/', { small: LOW, renderer })
   }
   last = performance.now();
   fade.classList.remove('show', 'card');
+  renderAlmanac();
   requestAnimationFrame(frame);
 });
 
@@ -1547,16 +1560,25 @@ function adaptResolution(dt) {
   } else {
     slowTime = fastTime = 0;
   }
+  const now = performance.now() / 1000;
   if (slowTime > 1.5 && quality.scale > 0.5) {
+    // dropping right after going up: this machine sits on the edge, so hold here for longer each time
+    // (every change resizes the frame, which flickers; flipping up and down every few seconds was worse)
+    if (now - resUp < 12) resHold = Math.min(600, resHold * 2);
     quality.scale = Math.max(0.5, quality.scale - 0.1);
     slowTime = 0;
+    resDown = now;
     resize();
-  } else if (fastTime > 5 && quality.scale < 1) {
-    quality.scale = Math.min(1, quality.scale + 0.1);
+  } else if (fastTime > 5 && quality.scale < 1 && now - resDown > resHold) {
+    quality.scale = Math.min(1, quality.scale + 0.05);
     fastTime = 0;
+    resUp = now;
     resize();
   }
 }
+let resUp = -1e9;
+let resDown = -1e9;
+let resHold = 15;
 
 // ---------- loop ----------
 let t = Number(params.get('t') || 0) + 3;
@@ -1639,6 +1661,51 @@ const camEuler = new THREE.Euler();
 
 // ---------- what the hero glances at: an uncollected memory nearby, or someone passing close ----------
 let interestTimer = 0;
+// ---------- the almanac on the menu: tonight's real sky, air and trees for the neighborhood you're in
+let manhattanhenge = null;
+const fmtMin = (m) => {
+  const h = Math.floor(m / 60) % 24;
+  return `${((h + 11) % 12) + 1}:${String(Math.floor(m % 60)).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+function renderAlmanac() {
+  const el = document.getElementById('almanac');
+  if (!el || !W) return;
+  const ll = W.def.ll ?? [40.73, -73.99];
+  const now = new Date();
+  const rows = [];
+  const { rise, set } = sunTimes(now, ...ll);
+  rows.push(['☀️', `Sunrise ${fmtMin(rise)} · sunset ${fmtMin(set)}`]);
+  const m = moonPosition(now, ...ll);
+  rows.push(['🌙', `${phaseName(m)[0].toUpperCase()}${phaseName(m).slice(1)}, ${Math.round(m.lit * 100)}% lit · ${m.el > 0 ? 'up now' : 'below the horizon now'}`]);
+  if (live) {
+    const air = live.aqi != null ? ` · air ${aqiLabel(live.aqi)} (AQI ${live.aqi})` : '';
+    rows.push(['🌡️', `${live.temp}°F, ${live.label}${air}`]);
+  }
+  // the trees on this map, by species
+  let crowns = null;
+  W.root.traverse((o) => {
+    if (o.userData.foliage) crowns = o;
+  });
+  const f = crowns?.userData.species?.some(Boolean) ? foliageNow(crowns.userData.species, seasonDay(params.get('season')) ?? dayOfYear()) : null;
+  const names = (l) => l.map((s) => s.replace(/\b(\w)/g, (c) => c.toUpperCase())).join(', ');
+  if (f?.bloom.length) rows.push(['🌸', `In bloom on these streets: ${names(f.bloom)}`]);
+  if (f?.peak.length) rows.push(['🍂', `Peak color here: ${names(f.peak)}`]);
+  else if (f?.turning.length) rows.push(['🍁', `Turning here: ${names(f.turning)}`]);
+  manhattanhenge ??= nextHenges(299, 40.758, -73.985).find((h) => h.kind === 'sunset');
+  if (manhattanhenge) rows.push(['🌇', `Next Manhattanhenge: ${nycWhen(manhattanhenge.when)}`]);
+  el.replaceChildren(...rows.map(([icon, text]) => {
+    const r = document.createElement('div');
+    r.className = 'a-row';
+    r.innerHTML = '<b></b><span></span>';
+    r.querySelector('b').textContent = icon;
+    r.querySelector('span').textContent = text;
+    return r;
+  }));
+  const src = document.createElement('small');
+  src.textContent = 'The real sun and moon for this spot; trees from the NYC street tree census.';
+  el.append(src);
+}
+
 // ---------- street-henge: the real sun lined up with the street you're on
 const henge = { next: 0, still: 0, shown: new Set(), seen: new Set(), cache: new Map(), last: null, toastAt: -1e9, stillSince: null };
 /** A direction on the real map (unit [x, z]) as a compass bearing, degrees clockwise from north. */
@@ -2012,6 +2079,7 @@ function frame(now) {
   W.peds.update(dt, camera.position, player, settings.rain);
   W.pigeons.update(t, dt, player);
   W.rats.update(t, dt, player, nightness(lookMin()));
+  W.leaves?.update(dt, camera.position);
   updateHenge();
   countSteps();
   W.spray.update(dt, camera.position, player);

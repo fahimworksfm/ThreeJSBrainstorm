@@ -299,28 +299,73 @@ function fitBody(root, bodyScene) {
   const skinWeight = new Float32Array(N * 4);
   const p = new THREE.Vector3();
   const q = new THREE.Vector3();
-  const w = new Float32Array(segs.length);
+  const K = segs.length;
+  // every vertex's pull toward every bone segment (zero where it must never go), normalized
+  const pull = new Float32Array(N * K);
+  const allowed = new Uint8Array(N * K);
   for (let i = 0; i < N; i++) {
     p.set(px[i], py[i], pz[i]);
-    for (let k = 0; k < segs.length; k++) {
+    let sum = 0;
+    for (let k = 0; k < K; k++) {
       const sg = segs[k];
       // the wrong side, or a leg reaching up into the hips: no pull at all
-      if ((sg.side && px[i] * sg.side < -0.015) || (sg.shin && py[i] > crotch + 0.12) || (sg.arm && (Math.abs(px[i]) < armIn || py[i] > armTop))) {
-        w[k] = 0;
-        continue;
-      }
+      if ((sg.side && px[i] * sg.side < -0.015) || (sg.shin && py[i] > crotch + 0.12) || (sg.arm && (Math.abs(px[i]) < armIn || py[i] > armTop))) continue;
       const t = THREE.MathUtils.clamp(q.copy(p).sub(sg.A).dot(sg.AB) / sg.AB.lengthSq(), 0, 1);
       const d = q.copy(sg.A).addScaledVector(sg.AB, t).distanceTo(p);
-      w[k] = 1 / (d ** 4 + 1e-7);
+      const w = 1 / (d ** 4 + 1e-7);
+      pull[i * K + k] = w;
+      allowed[i * K + k] = 1;
+      sum += w;
     }
-    // the four strongest
-    const order = [...w.keys()].sort((a, b) => w[b] - w[a]).slice(0, 4);
-    let sum = 0;
-    for (const k of order) sum += w[k];
-    order.forEach((k, j) => {
-      skinIndex[i * 4 + j] = segs[k].bone;
-      skinWeight[i * 4 + j] = sum > 0 ? w[k] / sum : j === 0 ? 1 : 0;
+    for (let k = 0; k < K; k++) pull[i * K + k] /= sum || 1;
+  }
+  // then soften it across the surface, so a joint bends the skin over a hand's width instead of creasing it
+  // (a turning head twists the neck gradually, and doesn't pinch it)
+  const index = geo.index?.array;
+  if (index) {
+    const nb = Array.from({ length: N }, () => []);
+    for (let f = 0; f < index.length; f += 3) {
+      const [i0, i1, i2] = [index[f], index[f + 1], index[f + 2]];
+      nb[i0].push(i1, i2);
+      nb[i1].push(i0, i2);
+      nb[i2].push(i0, i1);
+    }
+    const next = new Float32Array(N * K);
+    for (let pass = 0; pass < 6; pass++) {
+      for (let i = 0; i < N; i++) {
+        const n = nb[i];
+        let sum = 0;
+        for (let k = 0; k < K; k++) {
+          if (!allowed[i * K + k]) {
+            next[i * K + k] = 0;
+            continue;
+          }
+          let acc = 0;
+          for (const j of n) acc += pull[j * K + k];
+          const v = 0.5 * pull[i * K + k] + (0.5 * acc) / (n.length || 1);
+          next[i * K + k] = v;
+          sum += v;
+        }
+        for (let k = 0; k < K; k++) next[i * K + k] /= sum || 1;
+      }
+      pull.set(next);
+    }
+  }
+  // the four strongest bones (segments of the same bone added together)
+  const byBone = new Map();
+  for (let i = 0; i < N; i++) {
+    byBone.clear();
+    for (let k = 0; k < K; k++) {
+      const v = pull[i * K + k];
+      if (v > 0) byBone.set(segs[k].bone, (byBone.get(segs[k].bone) ?? 0) + v);
+    }
+    const top = [...byBone].sort((x, y) => y[1] - x[1]).slice(0, 4);
+    const sum = top.reduce((a2, [, v]) => a2 + v, 0) || 1;
+    top.forEach(([bone, v], j) => {
+      skinIndex[i * 4 + j] = bone;
+      skinWeight[i * 4 + j] = v / sum;
     });
+    if (!top.length) skinWeight[i * 4] = 1;
   }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4));
@@ -606,11 +651,13 @@ export function turnBone(bone, axis, angle) {
  */
 export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t, air = 0, vy = 0, land = 0 }) {
   const s = hero.sec;
-  const k = Math.min(1, dt * 6);
-  // don't twist around to look straight behind; ease back to center instead
-  const lookable = Math.abs(look) < 2.2 ? THREE.MathUtils.clamp(look, -1.1, 1.1) : 0;
+  // eased slowly, so a twitch of the mouse doesn't jerk his head around
+  const k = Math.min(1, dt * 3);
+  // don't twist around to look straight behind; ease back to center instead, and ignore small turns
+  const lookable = Math.abs(look) < 2.2 && Math.abs(look) > 0.2 ? THREE.MathUtils.clamp(look, -0.9, 0.9) : 0;
   s.look += (lookable - s.look) * k;
-  s.pitch += (THREE.MathUtils.clamp(pitch, -0.6, 0.5) - s.pitch) * k;
+  // the camera looking down at the street shouldn't fold his head onto his chest: a little nod at most
+  s.pitch += (THREE.MathUtils.clamp(pitch, -0.25, 0.4) - s.pitch) * k;
   s.lean += (THREE.MathUtils.clamp(-turnRate * speed * 0.035, -0.28, 0.28) - s.lean) * Math.min(1, dt * 8);
   hero.root.updateMatrixWorld(true);
   const fwd = _axis.set(0, 0, 1).applyQuaternion(hero.root.quaternion).clone();
@@ -618,10 +665,10 @@ export function heroSecondary(hero, dt, { speed, turnRate, look, pitch, phase, t
   const up = new THREE.Vector3(0, 1, 0);
   const b = hero.bones;
   turnBone(b.Spine, fwd, s.lean);
-  turnBone(b.Spine1, up, s.look * 0.25);
-  turnBone(b.Neck, up, s.look * 0.3);
-  turnBone(b.Head, up, s.look * 0.3);
-  turnBone(b.Head, right, -s.pitch * 0.45);
+  turnBone(b.Spine1, up, s.look * 0.22);
+  turnBone(b.Neck, up, s.look * 0.24);
+  turnBone(b.Head, up, s.look * 0.24);
+  turnBone(b.Head, right, -s.pitch * 0.3);
   // in the air: knees tuck on the way up, legs reach for the ground on the way down, arms out
   s.air = (s.air ?? 0) + ((air > 0.02 ? 1 : 0) - (s.air ?? 0)) * Math.min(1, dt * 14);
   if (s.air > 0.01 || land > 0.01) {

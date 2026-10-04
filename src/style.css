@@ -814,3 +814,9 @@ body.touch #memory-vid { width: 150px; }
 }
 #boltpop.go { animation: boltpop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) forwards; }
 @keyframes boltpop { 0% { opacity: 0; scale: 0.3; rotate: -12deg; } 12% { opacity: 1; scale: 1.15; rotate: 4deg; } 25% { scale: 1; } 70% { opacity: 1; } 100% { opacity: 0; scale: 1.05; } }
+
+/* the almanac: tonight's real sky, air and trees */
+#almanac { display: grid; gap: 4px; margin-bottom: 6px; font: 13px/1.45 system-ui, sans-serif; color: var(--ink); }
+#almanac .a-row { display: flex; gap: 8px; }
+#almanac .a-row b { flex: none; width: 1.4em; text-align: center; }
+#almanac small { color: var(--dim); }

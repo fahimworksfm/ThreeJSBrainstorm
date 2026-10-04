@@ -752,7 +752,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
   // NYC's street tree census: every real street tree, sized by its trunk
   if (nyc?.trees?.length) {
     const census = [];
-    for (const [lon, lat, dbh] of nyc.trees) {
+    for (const [lon, lat, dbh, species] of nyc.trees) {
       const [x, z] = M.proj.toWorld(lat, lon);
       if (!inBox(x, z, 2)) continue;
       // street trees stand at the curb, and mapped roads run a little wide: step onto the nearest free sidewalk
@@ -765,7 +765,7 @@ export function buildCity(data, def, shared, { low = false, radius = 620 } = {})
           if (free(px, pz)) spot = [px, pz];
         }
       }
-      if (spot) census.push([spot[0], spot[1], 0.95 + Math.min(dbh, 36) / 36 * 1.05]);
+      if (spot) census.push([spot[0], spot[1], 0.95 + Math.min(dbh, 36) / 36 * 1.05, CURB, species]);
     }
     if (census.length > 20) {
       trees.length = 0;

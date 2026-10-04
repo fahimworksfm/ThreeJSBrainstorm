@@ -3,6 +3,7 @@ import { nearFade } from './fx.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CURB } from './config.js';
 import { rand, range } from './random.js';
+import { treeState, dayOfYear, seasonDay } from './foliage.js';
 
 /**
  * Street trees drawn like the reference panels: a real trunk that forks into branches, under
@@ -49,6 +50,9 @@ export function buildTrees(positions, leaves = null) {
   const s = new THREE.Vector3();
   const p = new THREE.Vector3();
   const col = new THREE.Color();
+  // per tree: its species (street tree census) and its own few days' lead or lag, for the seasons
+  const species = positions.map((t) => t[4] ?? null);
+  const base = [];
   positions.forEach(([x, z, sc, y = CURB], i) => {
     // sc ~1.3-1.9 from the placers: trees from ~7 m to ~11 m tall
     const k = sc / 1.6;
@@ -56,9 +60,12 @@ export function buildTrees(positions, leaves = null) {
     m.compose(p.set(x, y, z), q, s.set(k * range(0.9, 1.1), k, k * range(0.9, 1.1)));
     trunks.setMatrixAt(i, m);
     crowns.setMatrixAt(i, m);
+    base.push(m.clone());
     crowns.setColorAt(i, col.setHSL(range(0.27, 0.35), 0.45, range(0.28, 0.4)));
   });
   crowns.userData.foliage = true;
+  crowns.userData.species = species;
+  crowns.userData.base = base;
   let cards = null;
   if (leaves) {
     // four leaf cards per cluster, spread over its surface and turned outward
@@ -98,30 +105,59 @@ export function buildTrees(positions, leaves = null) {
   return g;
 }
 
-const AUTUMN = [0xd9822b, 0xe3a531, 0xc4542a, 0xe8c547, 0xb86420, 0x9aa03a, 0xd06a2a];
-/** Recolor tree crowns: summer greens, spring blossom, autumn oranges, or bare winter branches. */
-export function setFoliage(crowns, kind) {
+/**
+ * Recolor the crowns for a day of the year (or a season name): every tree after its own species' calendar,
+ * fall color and timing, spring blossom, bare branches in winter (see foliage.js).
+ */
+export function setFoliage(crowns, when) {
+  const doy = typeof when === 'number' ? when : seasonDay(when) ?? dayOfYear();
   const c = new THREE.Color();
   const cards = crowns.userData.cards;
-  // winter: leaves gone, just the branches
-  crowns.visible = kind !== 'bare';
-  if (cards) cards.visible = kind !== 'bare';
-  if (kind === 'bare') return;
+  const { species = [], base = [] } = crowns.userData;
+  const m = new THREE.Matrix4();
+  const shrink = new THREE.Matrix4();
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  let leafy = 0;
+  let autumn = 0;
+  const drop = [];
+  for (let i = 0; i < crowns.count; i++) {
+    const k = Math.abs((Math.sin(i * 12.9898) * 43758.5453) % 1);
+    const st = treeState(species[i], doy, k);
+    if (st.leaf <= 0.02) {
+      crowns.setMatrixAt(i, zero);
+      cards?.setMatrixAt(i, zero);
+      drop.push(0);
+      continue;
+    }
+    leafy++;
+    if (st.dropping > 0.2 || (st.color[0] > st.color[1] * 1.05 && !st.bloom)) autumn++;
+    // a thinning crown: smaller, hugging the branches
+    const s = 0.55 + 0.45 * st.leaf;
+    m.copy(base[i] ?? m.identity()).multiply(shrink.makeScale(s, 0.75 + 0.25 * st.leaf, s));
+    crowns.setMatrixAt(i, m);
+    cards?.setMatrixAt(i, m);
+    c.setRGB(st.color[0], st.color[1], st.color[2], THREE.SRGBColorSpace);
+    if (cards) {
+      // the drawn leaf cards carry the shape; tint them toward this tree's color
+      cards.setColorAt(i, c.clone().multiplyScalar(1.6).lerp(new THREE.Color(1, 1, 1), 0.25));
+      c.multiplyScalar(0.45); // shadowed inside of the crown
+    }
+    crowns.setColorAt(i, c);
+    drop.push(st.dropping * st.leaf);
+  }
+  crowns.instanceMatrix.needsUpdate = true;
+  if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
   if (cards) {
+    cards.instanceMatrix.needsUpdate = true;
+    if (cards.instanceColor) cards.instanceColor.needsUpdate = true;
     const L = cards.userData.leaves;
-    cards.material.map = (kind === 'autumn' ? L.autumn : L.summer) ?? L.autumn ?? L.summer;
+    // the summer cards are green, the autumn ones warm: whichever most trees on the map are
+    cards.material.map = (autumn > leafy * 0.4 ? L.autumn : L.summer) ?? L.autumn ?? L.summer;
     cards.material.needsUpdate = true;
   }
-  for (let i = 0; i < crowns.count; i++) {
-    const h = (Math.sin(i * 12.9898) * 43758.5453) % 1;
-    const r = Math.abs(h);
-    if (kind === 'autumn') c.set(AUTUMN[Math.floor(r * AUTUMN.length)]).multiplyScalar(0.85 + r * 0.25);
-    else if (kind === 'spring' && r < 0.3) c.setHSL(0.92 + r * 0.1, 0.55, 0.78); // callery pears and cherries in bloom
-    else c.setHSL(0.27 + r * 0.08, kind === 'spring' ? 0.55 : 0.45, (kind === 'spring' ? 0.36 : 0.28) + r * 0.12);
-    if (cards) c.multiplyScalar(0.45); // shadowed inside of the crown
-    crowns.setColorAt(i, c);
-  }
-  crowns.instanceColor.needsUpdate = true;
+  crowns.visible = leafy > 0;
+  if (cards) cards.visible = leafy > 0;
+  crowns.userData.dropping = drop;
 }
 
 /**
