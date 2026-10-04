@@ -203,19 +203,32 @@ export class HUD {
   }
 
   /** groups: [{ name, entries: [{title, text}], total }] */
+  /**
+   * The journal: an overall tally, then each neighborhood with memories found as a progress row (its
+   * memories underneath), and the untouched ones folded into a single line at the end.
+   */
   setJournal(groups) {
     const j = this.el.journal;
     j.replaceChildren();
-    for (const g of groups) {
-      const h = document.createElement('h5');
-      h.textContent = `${g.name}  ·  ${g.entries.length} / ${g.total}`;
-      j.append(h);
-      if (!g.entries.length) {
-        const p = document.createElement('p');
-        p.className = 'empty';
-        p.textContent = 'Nothing here yet. Follow the blue lights.';
-        j.append(p);
-      }
+    const found = groups.reduce((a, g) => a + g.entries.length, 0);
+    const total = groups.reduce((a, g) => a + g.total, 0);
+    const sum = document.createElement('div');
+    sum.className = 'j-sum';
+    sum.innerHTML = '<b></b><span></span><i><em></em></i>';
+    sum.querySelector('b').textContent = `${found} / ${total}`;
+    sum.querySelector('span').textContent = 'memories found across the city';
+    sum.querySelector('em').style.width = `${total ? (found / total) * 100 : 0}%`;
+    j.append(sum);
+    const started = groups.filter((g) => g.entries.length);
+    const fresh = groups.filter((g) => !g.entries.length);
+    for (const g of started) {
+      const box = document.createElement('details');
+      box.className = `j-hood${g.entries.length === g.total ? ' done' : ''}`;
+      box.open = started.length <= 2;
+      box.innerHTML = '<summary><span class="n"></span><span class="c"></span><i><em></em></i></summary>';
+      box.querySelector('.n').textContent = g.name;
+      box.querySelector('.c').textContent = g.entries.length === g.total ? 'Complete ✓' : `${g.entries.length} / ${g.total}`;
+      box.querySelector('em').style.width = `${(g.entries.length / g.total) * 100}%`;
       for (const e of g.entries) {
         const item = document.createElement('div');
         item.className = 'entry';
@@ -224,8 +237,17 @@ export class HUD {
         const p = document.createElement('p');
         p.textContent = e.text;
         item.append(t, p);
-        j.append(item);
+        box.append(item);
       }
+      j.append(box);
+    }
+    if (fresh.length) {
+      const p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = started.length
+        ? `Not started yet: ${fresh.map((g) => g.name.split(',')[0]).join(', ')}.`
+        : 'No memories yet. In each neighborhood, follow the blue lights: every one you reach is written down here.';
+      j.append(p);
     }
   }
 

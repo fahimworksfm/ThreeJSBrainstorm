@@ -986,3 +986,74 @@ body.touch #hud #toast .tag { font-size: 12px; padding: 5px 9px 4px; }
 }
 .tabs button { padding: 10px 10px 9px; letter-spacing: 0.1em; }
 #touch .pause { background: #f4ecd8; color: #111; border: 3px solid #111; border-radius: 0; box-shadow: 3px 3px 0 #f5c518; }
+
+/* ---------- menu, pass 3: a solid panel, readable over the video, with the comic edge ---------- */
+#overlay .card {
+  background: linear-gradient(180deg, rgba(14, 12, 20, 0.9), rgba(14, 12, 20, 0.96) 320px);
+  border-right: 4px solid #111; box-shadow: 6px 0 0 #f5c518, 14px 0 40px rgba(0, 0, 0, 0.5);
+}
+#overlay.intro .card { background: linear-gradient(180deg, rgba(14, 12, 20, 0.55), rgba(14, 12, 20, 0.95) 420px); }
+#overlay h3 { display: flex; align-items: center; gap: 10px; }
+#overlay h3::after { content: ''; flex: 1; height: 2px; background: linear-gradient(90deg, rgba(245, 197, 24, 0.5), transparent); }
+.pane { gap: 18px; }
+
+/* journal */
+#journal { max-height: none; gap: 10px; }
+.j-sum { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 10px; padding: 12px 14px; background: #f4ecd8; color: #111; border: 3px solid #111; box-shadow: 4px 4px 0 #f5c518; }
+.j-sum b { font: 30px/1 Bangers, Impact, sans-serif; letter-spacing: 0.04em; color: #c2261e; }
+.j-sum span { font: 500 14px Oswald, sans-serif; letter-spacing: 0.04em; }
+.j-sum i, .j-hood summary i, #badges .prog i { grid-column: 1 / -1; display: block; height: 6px; background: rgba(0, 0, 0, 0.25); overflow: hidden; }
+.j-sum i em, .j-hood summary i em, #badges .prog i em { display: block; height: 100%; background: linear-gradient(90deg, #f5c518, #ff8a2b); }
+.j-hood { background: rgba(255, 255, 255, 0.05); border-left: 3px solid #f5c518; }
+.j-hood.done { border-left-color: #2ecc71; }
+.j-hood summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 10px 14px; }
+.j-hood summary::-webkit-details-marker { display: none; }
+.j-hood summary .n { font: 500 15px Oswald, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; }
+.j-hood summary .c { font: 600 14px Oswald, sans-serif; color: #f5c518; }
+.j-hood.done summary .c { color: #2ecc71; }
+.j-hood .entry { padding: 4px 14px 12px 22px; }
+#journal .empty { color: #a9a5b5; font: 14px/1.5 system-ui, sans-serif; font-style: normal; }
+
+/* badges: solid tiles, locked ones readable with how far along you are */
+#badges { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+#badges .badge-sum { font: 500 14px Oswald, sans-serif; letter-spacing: 0.04em; color: #c9c6d2; }
+#badges .badge-sum b { color: #f5c518; font: 22px Bangers, Impact, sans-serif; letter-spacing: 0.05em; }
+#badges .badge { opacity: 1; filter: none; background: #1b1922; border: 2px solid #2a2733; border-radius: 0; padding: 8px 10px; align-items: center; }
+#badges .badge:not(.got) .icon { filter: grayscale(1) brightness(0.7); opacity: 0.7; }
+#badges .badge:not(.got) b { color: #c9c6d2; }
+#badges .badge.got { background: #f4ecd8; border: 2px solid #111; box-shadow: 3px 3px 0 #f5c518; }
+#badges .badge.got b { color: #111; }
+#badges .badge.got small { color: #4a4238; }
+#badges .txt { display: grid; gap: 2px; min-width: 0; flex: 1; }
+#badges b { font: 600 15px Oswald, sans-serif; letter-spacing: 0.03em; }
+#badges small { font: 12px/1.35 system-ui, sans-serif; color: #8e8a9a; }
+#badges .prog { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; margin-top: 3px; }
+#badges .prog i { grid-column: auto; height: 5px; }
+#badges .prog span { font: 600 11px Oswald, sans-serif; color: #f5c518; }
+
+/* settings: grouped, toggles as comic switches */
+.set-row { background: #1b1922; border-left: 3px solid #2a2733; }
+.set-row:hover { background: #24212d; }
+.set-toggle { border-radius: 0; min-width: 58px; }
+.set-toggle.on { box-shadow: 2px 2px 0 #111; }
+
+/* controls: keycaps in two columns */
+.keys { grid-template-columns: auto 1fr auto 1fr; gap: 8px 14px; align-items: center; }
+.keys dt { background: #f4ecd8; color: #111; border: 2px solid #111; box-shadow: 0 3px 0 #111; border-radius: 3px; padding: 1px 8px; min-width: 22px; text-align: center; }
+.keys dd { color: #d8d4e2; font-size: 13px; }
+@media (max-width: 640px) { .keys { grid-template-columns: auto 1fr; } }
+
+/* ---------- in-game prompts, the station board and the map label in the same paper style ---------- */
+#hud #prompt {
+  background: #f4ecd8; color: #111; border: 3px solid #111; box-shadow: 4px 4px 0 #f5c518; border-radius: 0;
+  font: 600 15px/1.4 Oswald, sans-serif; letter-spacing: 0.02em; backdrop-filter: none; padding: 8px 14px 7px;
+}
+#hud #prompt kbd { background: #111; color: #f5c518; box-shadow: 0 2px 0 #f5c518; border-radius: 3px; font-weight: 700; }
+#hud #info #location {
+  background: #c2261e; color: #fff; clip-path: none; border: 3px solid #111; border-bottom: 0; padding: 5px 10px 3px;
+  font: 17px/1 Bangers, Impact, sans-serif; letter-spacing: 0.06em; text-shadow: 1px 1px 0 #111;
+}
+#hud #info #sublocation { background: #f4ecd8; color: #111; border: 3px solid #111; border-bottom: 0; font-weight: 500; }
+#mapframe { box-shadow: 5px 5px 0 #f5c518; }
+#board { border: 3px solid #111; box-shadow: 5px 5px 0 #f5c518; border-radius: 0; }
+#badges .badge-sum span { display: block; }

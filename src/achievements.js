@@ -73,6 +73,14 @@ export const BADGES = [
   { id: 'golden', sprite: 16, icon: '🌇', name: 'Golden hour', desc: 'Catch the sunset on a rooftop', test: (s, live) => live.roof && live.golden },
 ];
 
+/** How far along a countable badge is: [now, goal] (for the progress bar), or null. */
+const PROGRESS = {
+  memory25: (s) => [s.memories, 25], hoods5: (s) => [s.visited.size, 5], boroughs: (s) => [s.boroughs, 5], plaques: (s) => [s.plaques, 5],
+  allcity: (s) => [s.tagHoods, 5], crews: (s) => [s.crews, 5], photos: (s) => [s.photos, 10], courier: (s) => [s.runs, 10],
+  tips: (s) => [s.tips, 100], meals: (s) => [s.meals, 5], combo: (s) => [s.combo, 5], streak: (s) => [s.streak, 3],
+  cats: (s) => [s.cats, 5], rats: (s) => [s.rats, 10], walk5: (s) => [+(s.walked / 1000).toFixed(1), 5], marathon: (s) => [+(s.walked / 1000).toFixed(1), 42.2],
+};
+
 /** Today's date in New York, like "2026-10-02". */
 export function nycDate(d = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(d);
@@ -112,14 +120,16 @@ export class Achievements {
     }
   }
 
-  /** The badge list for the menu. */
+  /** The badge list for the menu: earned ones first, the rest with how far along you are. */
   render(el) {
     el.replaceChildren();
     const s = stats(this.store, this.districts);
-    for (const b of BADGES) {
+    const list = [...BADGES].sort((a, b) => Number(this.got.has(b.id)) - Number(this.got.has(a.id)));
+    for (const b of list) {
+      const got = this.got.has(b.id);
       const row = document.createElement('div');
-      row.className = `badge${this.got.has(b.id) ? ' got' : ''}`;
-      row.innerHTML = '<span class="icon"></span><span><b></b><small></small></span>';
+      row.className = `badge${got ? ' got' : ''}`;
+      row.innerHTML = '<span class="icon"></span><span class="txt"><b></b><small></small></span>';
       const icon = row.querySelector('.icon');
       icon.textContent = b.icon;
       // the hand-drawn badge art, when it loads (the emoji stays underneath as the fallback)
@@ -130,11 +140,22 @@ export class Achievements {
       }
       row.querySelector('b').textContent = b.name;
       row.querySelector('small').textContent = b.desc;
+      const pr = !got && PROGRESS[b.id]?.(s);
+      if (pr && pr[0] > 0) {
+        const bar = document.createElement('span');
+        bar.className = 'prog';
+        bar.innerHTML = '<i><em></em></i><span></span>';
+        bar.querySelector('em').style.width = `${Math.min(100, (pr[0] / pr[1]) * 100)}%`;
+        bar.querySelector('span').textContent = `${pr[0]} / ${pr[1]}`;
+        row.querySelector('.txt').append(bar);
+      }
       el.append(row);
     }
     const p = document.createElement('p');
     p.className = 'badge-sum';
-    p.textContent = `${this.got.size} / ${BADGES.length} badges · ${s.visited.size} neighborhoods · ${(s.walked / 1000).toFixed(1)} km walked · postcard streak ${s.streak}`;
+    p.innerHTML = '<b></b> <span></span>';
+    p.querySelector('b').textContent = `${this.got.size} / ${BADGES.length} badges`;
+    p.querySelector('span').textContent = `${s.visited.size} neighborhood${s.visited.size === 1 ? '' : 's'} · ${(s.walked / 1000).toFixed(1)} km walked · postcard streak ${s.streak}`;
     el.prepend(p);
   }
 }
