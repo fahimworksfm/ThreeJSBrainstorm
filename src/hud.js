@@ -3,6 +3,15 @@ import { show as showClip, hide as hideClip } from './media.js';
 
 const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 
+/** Which color a message gets: badges gold, money green, warnings red, live data blue, everything else cyan. */
+function toastKind(t) {
+  if (/🏅|badge|streak|complete/i.test(t)) return 'gold';
+  if (/\$\d|tip|earned|cash|paid/i.test(t)) return 'money';
+  if (/no |not |can't|closed|warning|smoke|delay|suspend|first\b/i.test(t) && !/🎫 MetroCard earned/.test(t)) return 'warn';
+  if (/live|real |open-meteo|311|permit|census|mta/i.test(t)) return 'live';
+  return 'info';
+}
+
 /** "31st St & 30th Ave", "Crescent St · 24th Ave – 25th Ave", ... */
 export function describeLocation(x, z, opts = {}) {
   const { nsW, ewW, sidewalk, NX, NZ, colX, rowZ, PITCH_X, PITCH_Z, nsRoads, ewRoads } = D;
@@ -162,11 +171,35 @@ export class HUD {
     b.classList.add('show');
   }
 
-  toast(msg, ms = 1600) {
-    this.el.toast.textContent = msg;
-    this.el.toast.classList.add('show');
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => this.el.toast.classList.remove('show'), ms);
+  /**
+   * A message in the stack at the right: up to three at once, newest at the bottom, each up long enough to read
+   * (by its length unless ms says otherwise). The same message again just stays up longer.
+   */
+  toast(msg, ms = null) {
+    const box = this.el.toast;
+    const text = String(msg);
+    const life = ms ?? Math.min(7000, 1800 + text.length * 45);
+    const same = [...box.children].find((n) => n.dataset.msg === text && !n.classList.contains('out'));
+    if (same) {
+      clearTimeout(same.timer);
+      same.timer = setTimeout(() => this.dropToast(same), life);
+      return;
+    }
+    const n = document.createElement('div');
+    n.className = `tag ${toastKind(text)}`;
+    n.dataset.msg = text;
+    n.textContent = text;
+    box.append(n);
+    // three at most: the oldest goes
+    const live = [...box.children].filter((c) => !c.classList.contains('out'));
+    if (live.length > 3) this.dropToast(live[0]);
+    n.timer = setTimeout(() => this.dropToast(n), life);
+  }
+
+  dropToast(n) {
+    clearTimeout(n.timer);
+    n.classList.add('out');
+    setTimeout(() => n.remove(), 300);
   }
 
   /** groups: [{ name, entries: [{title, text}], total }] */

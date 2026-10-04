@@ -151,11 +151,14 @@ export class Compass {
   update(yaw, pos, world) {
     const { ctx, w, h } = this;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(12,10,14,0.82)';
-    ctx.fillRect(0, 4, w, h - 8);
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(1, 5, w - 2, h - 10);
+    // a strip of comic paper with an ink border and a yellow drop shadow, like the captions
+    ctx.fillStyle = '#f5c518';
+    ctx.fillRect(5, 8, w - 6, h - 9);
+    ctx.fillStyle = '#f4ecd8';
+    ctx.fillRect(2, 4, w - 7, h - 10);
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(2, 4, w - 7, h - 10);
     // heading: yaw 0 looks north (-z); compass angle grows clockwise
     const heading = (-yaw * 180) / Math.PI;
     const span = 140; // degrees visible
@@ -167,15 +170,19 @@ export class Compass {
     ctx.textBaseline = 'middle';
     for (let deg = 0; deg < 360; deg += 15) {
       const x = xOf(deg);
-      if (x === null) continue;
+      if (x === null || x < 10 || x > w - 14) continue;
       const major = deg % 90 === 0;
       if (major) {
-        ctx.fillStyle = deg === 0 ? '#f5c518' : '#fff';
-        ctx.font = "18px Bangers, Impact, sans-serif";
+        ctx.fillStyle = deg === 0 ? '#c2261e' : '#111';
+        ctx.font = "20px Bangers, Impact, sans-serif";
         ctx.fillText('NESW'[deg / 90], x, h / 2 + 1);
+      } else if (deg % 45 === 0) {
+        ctx.fillStyle = '#111';
+        ctx.font = "12px Bangers, Impact, sans-serif";
+        ctx.fillText(['NE', 'SE', 'SW', 'NW'][(deg - 45) / 90], x, h / 2 + 1);
       } else {
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fillRect(x - 1, h / 2 - (deg % 45 === 0 ? 5 : 3), 2, deg % 45 === 0 ? 10 : 6);
+        ctx.fillStyle = 'rgba(17,17,17,0.55)';
+        ctx.fillRect(x - 1, h / 2 - 3, 2, 6);
       }
     }
     const mark = (x, z, color, shape) => {
@@ -200,11 +207,16 @@ export class Compass {
       for (const it of world.memories.items) if (!it.done) mark(it.g.position.x, it.g.position.z, '#f5c518', 'diamond');
       for (const e of world.elevated.entrances) mark(e.x, e.z, '#2ecc71', 'dot');
     }
-    ctx.fillStyle = '#fff';
+    // where you're facing: a red ink pointer under the strip
+    ctx.fillStyle = '#c2261e';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(w / 2 - 5, h);
-    ctx.lineTo(w / 2 + 5, h);
-    ctx.lineTo(w / 2, h - 7);
+    ctx.moveTo(w / 2 - 6, h);
+    ctx.lineTo(w / 2 + 6, h);
+    ctx.lineTo(w / 2, h - 8);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
   }
 }

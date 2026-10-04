@@ -18,6 +18,7 @@ import { INK, lookAt, nightness, START_TIMES } from './look.js';
 
 import { CURB, D, activateDistrict } from './config.js';
 import { DISTRICTS, BOROUGHS } from './districts/index.js';
+import { drawSubwayMap } from './subwaymap.js';
 import { reseed, chance } from './random.js';
 import { Pigeons } from './pigeons.js';
 import { Rats } from './rats.js';
@@ -991,6 +992,8 @@ function placeButton(place, onPick) {
 }
 
 function renderMenus() {
+  // where you are, on the Play tab
+  if (W) document.getElementById('here-name').textContent = `📍 ${W.def.name}, ${W.def.borough}`;
   // title screen: playable neighborhoods
   const picker = document.getElementById('picker');
   picker.replaceChildren();
@@ -1023,17 +1026,8 @@ function renderMenus() {
     });
     timePicker.append(b);
   }
-  // the train map: every borough
-  const map = document.getElementById('map');
-  map.replaceChildren();
-  for (const b of BOROUGHS) {
-    const col = document.createElement('section');
-    const h = document.createElement('h3');
-    h.textContent = b.name;
-    col.append(h);
-    for (const p of b.places) col.append(placeButton(p, (id) => goTo(id, true)));
-    map.append(col);
-  }
+  // the train map: the city drawn like a subway map, every neighborhood at its real place
+  if (W) drawSubwayMap(document.getElementById('map'), DISTRICTS, W.def.id, (id) => goTo(id, true));
 }
 
 function goTo(id, arrive) {
@@ -1172,6 +1166,7 @@ function openTravel() {
     return;
   }
   travelOpen = true;
+  document.body.classList.add('menu-open');
   renderMenus();
   input.pause();
   travel.classList.add('show');
@@ -1179,6 +1174,7 @@ function openTravel() {
 function closeTravel(relock) {
   travelOpen = false;
   travel.classList.remove('show');
+  if (overlay.classList.contains('gone')) document.body.classList.remove('menu-open');
   if (relock) input.start();
 }
 document.getElementById('travel-close').addEventListener('click', () => closeTravel(true));
@@ -1248,6 +1244,7 @@ document.getElementById('reset').addEventListener('click', (e) => {
 input.addEventListener('start', () => {
   audio.start();
   overlay.classList.add('gone');
+  document.body.classList.remove('menu-open');
   // from now on the menu is the pause screen: a smaller logo, where you are, and Resume
   overlay.classList.add('paused');
   document.getElementById('start').textContent = 'Resume';
@@ -1259,6 +1256,7 @@ input.addEventListener('start', () => {
 });
 input.addEventListener('pause', () => {
   renderAlmanac();
+  document.body.classList.add('menu-open');
   document.getElementById('eyebrow').textContent = `Paused · ${W?.def.name ?? 'New York'}`;
   if (!travelOpen) overlay.classList.remove('gone');
 });
@@ -1491,6 +1489,11 @@ for (const tab of document.querySelectorAll('.tabs button')) {
     if (tab.dataset.tab === 'play') renderAlmanac();
   });
 }
+
+document.getElementById('here-change').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.querySelector('.tabs button[data-tab="places"]').click();
+});
 
 // ---------- start ----------
 // the title screen: the hand-drawn logo and a looping street scene behind the menu
@@ -2252,4 +2255,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-window.__nightwalker = { scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, moon: () => ({ ...moonNow, name: moonNow && phaseName(moonNow), canvas: moon.canvas, group: moon.group }), get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };
+window.__nightwalker = { openTravel: () => openTravel(), scene, camera, renderer, player, input, quality, minimap, hud, heightAt, audio, moon: () => ({ ...moonNow, name: moonNow && phaseName(moonNow), canvas: moon.canvas, group: moon.group }), get world() { return W; }, loadDistrict, challenges, setMinute: (m) => { minute = m; applyTime(true); } };

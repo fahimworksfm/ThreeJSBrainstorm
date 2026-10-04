@@ -92,16 +92,14 @@
         </div>
         <nav class="tabs">
           <button data-tab="play" class="on">Play</button>
+          <button data-tab="places">Places</button>
           <button data-tab="journal">Journal</button>
           <button data-tab="badges">Badges</button>
           <button data-tab="settings">Settings</button>
           <button data-tab="controls">Controls</button>
         </nav>
         <section class="pane" data-pane="play">
-          <div>
-            <h3>Neighborhood</h3>
-            <div id="picker"></div>
-          </div>
+          <div id="here-row"><span id="here-name"></span><button id="here-change" class="linkish" type="button">Change neighborhood</button></div>
           <div>
             <h3>Start at</h3>
             <div id="styles"></div>
@@ -116,6 +114,10 @@
             <h3>Radio</h3>
             <div><button id="radiobtn" class="place" type="button"><span class="pname">📻 Radio off</span></button></div>
           </div>
+        </section>
+        <section class="pane" data-pane="places" hidden>
+          <h3>Pick a neighborhood</h3>
+          <div id="picker"></div>
         </section>
         <section class="pane" data-pane="journal" hidden>
           <h3>Journal</h3>
@@ -171,9 +173,11 @@
 
     <div id="travel">
       <div class="travel-card">
-        <div class="eyebrow">Where to?</div>
+        <div class="travel-head">
+          <div><div class="eyebrow">MetroCard · Where to?</div><h2>Pick a stop</h2></div>
+          <button id="travel-close">Stay here</button>
+        </div>
         <div id="map"></div>
-        <button id="travel-close">Stay here</button>
       </div>
     </div>
 
