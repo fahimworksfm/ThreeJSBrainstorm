@@ -1057,3 +1057,66 @@ body.touch #hud #toast .tag { font-size: 12px; padding: 5px 9px 4px; }
 #mapframe { box-shadow: 5px 5px 0 #f5c518; }
 #board { border: 3px solid #111; box-shadow: 5px 5px 0 #f5c518; border-radius: 0; }
 #badges .badge-sum span { display: block; }
+
+/* =================== phones, pass 4 =================== */
+/* portrait: the caption keeps clear of the side buttons; the map credit is one small line */
+@media (orientation: portrait) and (max-width: 600px) {
+  body.touch #hud #subtitle { left: max(10px, env(safe-area-inset-left)); width: calc(100vw - 92px - env(safe-area-inset-left)); transform: none; top: auto; bottom: max(200px, calc(env(safe-area-inset-bottom) + 190px)); }
+  body.touch #hud #subtitle.show { transform: none; }
+  body.touch #hud #subtitle #subtitle-text { font-size: 13px; padding: 10px 12px 9px; }
+  body.touch #hud #subtitle #subtitle-title { font-size: 16px; }
+  body.touch #osmcredit { font-size: 7px; white-space: nowrap; }
+}
+
+/* landscape phones: a short, wide screen. Left: hero and a small map; right: mission, then the thumb
+   cluster; the small buttons in a row along the top; captions and messages in the middle band. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body.touch #hud #compass { display: none; }
+  body.touch #hud #herohud { top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); }
+  body.touch #hud #herohud #badge { width: 40px; height: 40px; }
+  body.touch #hud #hbars > div { width: 90px; height: 8px; }
+  body.touch #hud #hbars > #progress { width: 72px; height: 7px; }
+  body.touch #hud #radar { top: max(58px, calc(env(safe-area-inset-top) + 50px)); bottom: auto; left: max(10px, env(safe-area-inset-left)); right: auto; width: 116px; }
+  body.touch #hud #radar #minimap { width: 110px; height: 110px; }
+  body.touch #hud #info #location { font-size: 12px; max-width: 116px; padding: 3px 7px 2px; }
+  body.touch #osmcredit { font-size: 6px; white-space: nowrap; }
+  body.touch #mission { top: max(8px, env(safe-area-inset-top)); right: max(60px, calc(env(safe-area-inset-right) + 58px)); max-width: 40vw; }
+  body.touch #hud #district { font-size: 14px; padding: 2px 8px 1px; }
+  body.touch #hud #objective { font-size: 11px; padding: 4px 8px 3px; }
+  body.touch #hud #hint { display: none; }
+  body.touch #touch .pause { top: max(8px, env(safe-area-inset-top)); width: 40px; height: 40px; }
+  body.touch #touch .buttons { bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px)); right: max(14px, env(safe-area-inset-right)); gap: 10px; }
+  body.touch #touch .buttons button { width: 56px; height: 56px; }
+  body.touch #touch .buttons [data-act='jump'] { width: 72px; height: 72px; }
+  body.touch #touch .minis { top: max(8px, env(safe-area-inset-top)); left: 50%; right: auto; transform: translateX(-50%); grid-auto-flow: column; gap: 8px; }
+  body.touch #touch .minis button { width: 44px; height: 36px; border-radius: 18px; font-size: 10px; }
+  body.touch #hud #subtitle { left: 50%; top: max(56px, calc(env(safe-area-inset-top) + 50px)); bottom: auto; width: min(46vw, 420px); min-width: 0; transform: translateX(-50%); }
+  body.touch #hud #subtitle.show { transform: translateX(-50%); }
+  body.touch #hud #subtitle #subtitle-text { font-size: 12px; padding: 8px 10px 7px; }
+  body.touch #hud #subtitle #subtitle-title { font-size: 15px; }
+  body.touch #hud #toast { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; right: auto; transform: translateX(-50%); align-items: center; max-width: 44vw; }
+  body.touch #board { top: auto; bottom: 70px; transform: translateX(-50%); max-width: 46vw; font-size: 12px; }
+  #dial { display: none; }
+  /* the menu: the logo shrinks to a header, Play is on the first screen */
+  #overlay .card { width: 100%; max-width: none; padding: max(14px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left)); gap: 12px; border-right: 0; box-shadow: none; }
+  #overlay .card > div:first-child { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  #overlay h1.logo img { width: auto; height: 64px; }
+  #overlay h1 { margin: 0; }
+  #overlay .sub:not(.touch-only) { display: none; }
+  #overlay .eyebrow { order: 2; font-size: 11px; }
+  #picker { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  /* the train map fills the height */
+  .travel-card { padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left)); gap: 6px; }
+  .travel-head h2 { font-size: 22px; }
+  .travel-head .eyebrow { display: none; }
+}
+/* phones: bigger names and tap targets on the train map (it's drawn small there) */
+@media (max-width: 600px), (max-height: 500px) {
+  .subway .stop .name { font-size: 24px; stroke-width: 5px; }
+  .subway .stop .hit { r: 36; }
+  .subway .stop .bul { font-size: 12px; }
+  .subway .boro-name { font-size: 40px; }
+}
+@media (max-width: 600px), (max-height: 500px) {
+  .travel-head h2 { text-shadow: 2px 2px 0 #e3262e; }
+}

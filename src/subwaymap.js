@@ -23,7 +23,7 @@ const STOPS = {
   chinatown: [270, 650, 'l'],
   williamsburg: [520, 640, 'r'],
   'bed-stuy': [560, 740, 'r'],
-  rockaway: [840, 900, 'l'],
+  rockaway: [840, 900, 'b'],
   coney: [460, 910, 'r'],
   'st-george': [130, 860, 'r'],
 };
@@ -55,8 +55,9 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const DARK = new Set(['#fccc0a', '#a7a9ac', '#808183']);
 
 /** A metro-style path through the stops: straight runs joined by 45° bends. */
+let STOP_AT = (id) => STOPS[id];
 function route(ids) {
-  const pts = ids.map((id) => STOPS[id]).filter(Boolean);
+  const pts = ids.filter((id) => STOPS[id]).map((id) => STOP_AT(id));
   if (pts.length < 2) return '';
   let d = `M${pts[0][0]},${pts[0][1]}`;
   for (let i = 1; i < pts.length; i++) {
@@ -77,10 +78,19 @@ function route(ids) {
  * Draw the map into el. districts: id -> def ({ name, el.bullets }); here: the id you're in; pick(id): ride there.
  */
 export function drawSubwayMap(el, districts, here, pick) {
-  const boros = BOROS.map(([n, x, y]) => `<text class="boro-name" x="${x}" y="${y}">${n}</text>`).join('');
+  // a tall screen (a phone held upright) gets the map stretched tall: same stops, more room between them
+  const tall = el.clientHeight > el.clientWidth * 1.25;
+  const sy = tall ? 1.55 : 1;
+  const P = (id) => {
+    const [x, y, side] = STOPS[id];
+    return [x, Math.round(30 + (y - 30) * sy), side];
+  };
+  STOP_AT = P;
+  const boros = BOROS.map(([n, x, y]) => `<text class="boro-name" x="${x}" y="${Math.round(30 + (y - 30) * sy)}">${n}</text>`).join('');
   const lines = LINES.map((l) => `<path class="line" d="${route(l.stops)}" stroke="${l.c}"/>`).join('');
   const dashed = DASHED.map((l) => `<path class="line dash" d="${route(l.stops)}" stroke="${l.c}"><title>${esc(l.label)}</title></path>`).join('');
-  const stops = Object.entries(STOPS).filter(([id]) => districts[id]).map(([id, [x, y, side]]) => {
+  const stops = Object.keys(STOPS).filter((id) => districts[id]).map((id) => {
+    const [x, y, side] = P(id);
     const d = districts[id];
     const isHere = id === here;
     const bullets = (d.el?.bullets ?? []).filter(([b]) => b.length <= 3).slice(0, 4);
@@ -104,7 +114,7 @@ export function drawSubwayMap(el, districts, here, pick) {
       ${isHere ? `<text class="you" x="${nx}" y="${side === 't' ? ny - 18 : by + 26}" text-anchor="${anchor}">YOU ARE HERE</text>` : ''}
     </g>`;
   }).join('');
-  el.innerHTML = `<svg class="subway" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+  el.innerHTML = `<svg class="subway" viewBox="20 ${tall ? 0 : 30} 960 ${tall ? Math.round(1000 * sy) : 980}" preserveAspectRatio="xMidYMid meet">
     <rect width="${W}" height="${H}" class="water"/>
     ${boros}${dashed}${lines}${stops}
   </svg>`;

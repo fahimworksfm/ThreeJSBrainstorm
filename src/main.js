@@ -1170,6 +1170,8 @@ function openTravel() {
   renderMenus();
   input.pause();
   travel.classList.add('show');
+  // now it has a size: draw the map to fit it (tall on a phone held upright)
+  drawSubwayMap(document.getElementById('map'), DISTRICTS, W.def.id, (id) => goTo(id, true));
 }
 function closeTravel(relock) {
   travelOpen = false;
