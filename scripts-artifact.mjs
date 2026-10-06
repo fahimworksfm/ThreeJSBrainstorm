@@ -8,7 +8,7 @@ const body = html.match(/<body>([\s\S]*?)<\/body>/)[1];
 const out = `<title>Night Walker NYC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700;800&family=Comic+Neue:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
 <style>${css}</style>
 ${body.trim()}
 <script type="module">${js}</script>

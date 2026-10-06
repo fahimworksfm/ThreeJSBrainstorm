@@ -10,7 +10,7 @@ export const PRESETS = {
 export const DEFAULTS = {
   preset: 'high', ...PRESETS.high,
   lensRain: true, print: true, hatch: true, boil: true, lut: true, hills: true, ghosts: false, calm: false, tag: '', words: true, twos: true, realMap: true, panels: false,
-  fov: 58, camera: 'cinematic', sensitivity: 1, volume: 0.8,
+  fov: 58, camera: 'cinematic', sensitivity: 1, volume: 0.8, textSize: 'm', contrast: false,
 };
 
 const ROWS = [
@@ -43,6 +43,9 @@ const ROWS = [
   { key: 'fov', label: 'Field of view', type: 'range', min: 45, max: 100, step: 1, unit: '°' },
   { key: 'sensitivity', label: 'Mouse sensitivity', type: 'range', min: 0.3, max: 2.5, step: 0.1, unit: '×' },
   { key: 'volume', label: 'Volume', type: 'range', min: 0, max: 1, step: 0.05, pct: true },
+  { group: 'Display' },
+  { key: 'textSize', label: 'Text size', type: 'choice', options: [['s', 'Small'], ['m', 'Medium'], ['l', 'Large']] },
+  { key: 'contrast', label: 'High contrast (solid panels, brighter text)', type: 'toggle' },
 ];
 
 /** Render the settings rows into `root`; onChange(key, value) fires on every edit. */

@@ -80,6 +80,7 @@ import { makeCityEnvironment } from './env.js';
 import { Minimap, Compass } from './minimap.js';
 import { show as showClip, hide as hideClip, clipTexture, pauseAll as pauseClips } from './media.js';
 import './style.css';
+import { startUI } from './ui/index.js';
 
 const params = new URLSearchParams(location.search);
 const store = {
@@ -636,11 +637,13 @@ async function refreshLive(announce = false) {
   liveTimer = 600;
   if (!isLive() || !W?.def.ll) {
     live = null;
+    hud.setTemp(null);
     return;
   }
   const w = await liveWeather(...W.def.ll);
   if (!w) return;
   live = w;
+  hud.setTemp(w.temp);
   applyTime(true);
   const air = w.aqi != null ? ` · air ${aqiLabel(w.aqi)} (AQI ${w.aqi})` : '';
   const sky = moonNow && moonNow.el > 0 ? ` · ${phaseName(moonNow)} up` : '';
@@ -1004,7 +1007,8 @@ function placeButton(place, onPick) {
 
 function renderMenus() {
   // where you are, on the Play tab
-  if (W) document.getElementById('here-name').textContent = `📍 ${W.def.name}, ${W.def.borough}`;
+  const hereName = document.getElementById('here-name');
+  if (W && hereName) hereName.textContent = `📍 ${W.def.name}, ${W.def.borough}`;
   // title screen: playable neighborhoods
   const picker = document.getElementById('picker');
   picker.replaceChildren();
@@ -1256,6 +1260,8 @@ document.getElementById('reset').addEventListener('click', (e) => {
 });
 input.addEventListener('start', () => {
   audio.start();
+  ui.walk();
+  ui.setMode('pause');
   overlay.classList.add('gone');
   document.body.classList.remove('menu-open');
   // from now on the menu is the pause screen: a smaller logo, where you are, and Resume
@@ -1271,7 +1277,10 @@ input.addEventListener('pause', () => {
   renderAlmanac();
   document.body.classList.add('menu-open');
   document.getElementById('eyebrow').textContent = `Paused · ${W?.def.name ?? 'New York'}`;
-  if (!travelOpen) overlay.classList.remove('gone');
+  // after the first walk, the pause menu is the phone; the title card is for the first screen only
+  if (travelOpen) return;
+  if (overlay.classList.contains('intro')) overlay.classList.remove('gone');
+  else ui.open('home', 'pause');
 });
 
 function climbEscape() {
@@ -1478,6 +1487,9 @@ function applyGfx() {
   audio.setVolume(gfx.volume);
   radio.setVolume(gfx.volume);
   document.body.classList.toggle('panels', !!gfx.panels);
+  document.documentElement.dataset.text = gfx.textSize ?? 'm';
+  document.documentElement.classList.toggle('contrast', !!gfx.contrast);
+  document.documentElement.classList.toggle('calm', !!gfx.calm);
   resize();
 }
 function changeSetting(key, value) {
@@ -1492,21 +1504,58 @@ function changeSetting(key, value) {
   }
 }
 const settingsUI = buildSettings(document.getElementById('settings'), gfx, changeSetting);
-// menu tabs
-for (const tab of document.querySelectorAll('.tabs button')) {
-  tab.addEventListener('click', (e) => {
+// the menu is the walker's phone (src/ui): the game's panels move into its apps
+function fillPhone(app) {
+  if (!W) return;
+  const mem = W.memories.items;
+  let train = null;
+  let bd = Infinity;
+  for (const e of W.elevated.entrances) {
+    const d = Math.hypot(e.x - player.pos.x, e.z - player.pos.z);
+    if (d < bd) {
+      bd = d;
+      train = e;
+    }
+  }
+  const next = train && W.transit.live ? W.transit.trains?.filter((a) => a.stop === train.stop).map((a) => W.transit.minutes(a.at)).filter((m) => m > 0).sort((a, b) => a - b)[0] : null;
+  const m = moonNow ?? moonPosition(new Date(), ...(W.def.ll ?? [40.73, -73.99]));
+  ui.widgets({
+    place: W.def.name,
+    borough: W.def.borough,
+    memories: { found: mem.filter((it) => it.done).length, total: mem.length },
+    metro: hasMetroCard(),
+    cash: W.food.cash,
+    errands: errands.list(),
+    moon: { name: phaseName(m).replace(/^\w/, (c) => c.toUpperCase()), lit: m.lit, waxing: m.waxing },
+    train: train ? { name: (train.station ?? train.name ?? 'Station').replace(/–/g, '-'), walk: Math.max(1, Math.round(bd / 80)), next: next ?? null } : null,
+    photos: challenges.list.map((c) => ({ label: c.label, stars: c.stars })),
+  });
+  if (app === 'wallet') achievements.render(document.getElementById('badges'));
+  if (app === 'weather' || app === 'home') renderAlmanac();
+  if (app === 'maps' || app === 'weather') renderMenus();
+}
+const ui = startUI({
+  resume: () => input.start(),
+  app: fillPhone,
+  travel: () => {
+    if (!hasMetroCard()) {
+      hud.toast('🎫 No MetroCard yet: find a memory in this neighborhood to earn one');
+      return;
+    }
+    ui.close();
+    openTravel();
+  },
+  photo: () => {
+    input.start();
+    setTimeout(() => !photo && togglePhoto(), 60);
+  },
+});
+for (const b of document.querySelectorAll('#title-apps button')) {
+  b.addEventListener('click', (e) => {
     e.stopPropagation();
-    for (const t of document.querySelectorAll('.tabs button')) t.classList.toggle('on', t === tab);
-    for (const p of document.querySelectorAll('.pane')) p.hidden = p.dataset.pane !== tab.dataset.tab;
-    if (tab.dataset.tab === 'badges') achievements.render(document.getElementById('badges'));
-    if (tab.dataset.tab === 'play') renderAlmanac();
+    ui.open(b.dataset.app, 'title');
   });
 }
-
-document.getElementById('here-change').addEventListener('click', (e) => {
-  e.stopPropagation();
-  document.querySelector('.tabs button[data-tab="places"]').click();
-});
 
 // ---------- start ----------
 // the title screen: the hand-drawn logo and a looping street scene behind the menu
@@ -1973,14 +2022,75 @@ function updateDial(dt) {
       best = it;
     }
   }
-  const hint = document.getElementById('hint');
   const text = W.deliveries.hint(player) ?? (best ? `Nearest: ${best.mem.title} · ${bd < 1000 ? `${Math.round(bd / 10) * 10} m` : `${(bd / 1000).toFixed(1)} km`}` : 'All memories found. Take the train somewhere new.');
-  if (hint.textContent !== text) hint.textContent = text;
+  hud.setHint(text);
 }
 document.getElementById('pausebtn').addEventListener('click', (e) => {
   e.stopPropagation();
   input.pause();
 });
+
+// ---------- markers: a diamond on the nearest memory (and the station once they're all found), or an arrow
+// at the edge of the screen pointing the way when it's out of view. They replace the old compass strip.
+const markV = new THREE.Vector3();
+function updateMarkers() {
+  if (!input.active || photo || hud.el.hud.classList.contains('hidden') || !W) {
+    if (markersOn) ui.markers([]);
+    markersOn = false;
+    return;
+  }
+  const targets = [];
+  let best = null;
+  let bd = Infinity;
+  for (const it of W.memories.items) {
+    if (it.done) continue;
+    const d = Math.hypot(it.g.position.x - player.pos.x, it.g.position.z - player.pos.z);
+    if (d < bd) {
+      bd = d;
+      best = it;
+    }
+  }
+  if (best) targets.push({ id: 'mem', kind: 'memory', x: best.g.position.x, y: best.g.position.y + 1.6, z: best.g.position.z, dist: bd });
+  else {
+    let st = null;
+    let sd = Infinity;
+    for (const e of W.elevated.entrances) {
+      const d = Math.hypot(e.x - player.pos.x, e.z - player.pos.z);
+      if (d < sd) {
+        sd = d;
+        st = e;
+      }
+    }
+    if (st) targets.push({ id: 'st', kind: 'station', x: st.x, y: W.groundAt(st.x, st.z) + 2.6, z: st.z, dist: sd });
+  }
+  const w = innerWidth;
+  const h = innerHeight;
+  const list = [];
+  for (const tg of targets) {
+    if (tg.dist < 4) continue;
+    markV.set(tg.x, tg.y, tg.z).project(camera);
+    const behind = markV.z > 1;
+    let nx = behind ? -markV.x : markV.x;
+    let ny = behind ? -markV.y : markV.y;
+    const on = !behind && Math.abs(nx) < 0.9 && Math.abs(ny) < 0.8;
+    if (on) {
+      list.push({ ...tg, on, x: Math.round((nx * 0.5 + 0.5) * w), y: Math.round((-ny * 0.5 + 0.5) * h), angle: 0 });
+      continue;
+    }
+    // to the edge of the screen, the way it is
+    if (behind && Math.abs(nx) < 0.05 && Math.abs(ny) < 0.05) nx = 0.05;
+    const dx = nx * w * 0.5;
+    const dy = -ny * h * 0.5;
+    const len = Math.hypot(dx, dy) || 1;
+    const rx = w / 2 - (IS_TOUCH ? 96 : 44);
+    const ry = h / 2 - 70;
+    const k = Math.min(rx / Math.abs(dx / len || 1e-6), ry / Math.abs(dy / len || 1e-6));
+    list.push({ ...tg, on: false, x: Math.round(w / 2 + (dx / len) * k), y: Math.round(h / 2 + (dy / len) * k), angle: Math.atan2(dy, dx) });
+  }
+  ui.markers(list);
+  markersOn = list.length > 0;
+}
+let markersOn = false;
 
 let lastSpeed = 0;
 let lastLand = 0;
@@ -2251,6 +2361,8 @@ function frame(now) {
   staminaBar.style.width = `${Math.round(player.stamina * 100)}%`;
   updateDial(dt);
   staminaBar.parentElement.classList.toggle('low', player.stamina < 0.25);
+  hud.setEnergy(player.stamina);
+  updateMarkers();
   if (player.hero && !portraitDone && frames > 5) portraitDone = renderPortrait();
   hud.setLocation((W.describe ?? describeLocation)(player.pos.x, player.pos.z, { roof: !!player.roof }));
   hud.setClock(minute * 6);

@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Oswald:wght@400;500;600&family=Comic+Neue:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700;800&family=Oswald:wght@400;500;600&family=Comic+Neue:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
     <title>Night Walker NYC</title>
     <meta name="description" content="A first-person night walk through New York City neighborhoods, built with three.js." />
   </head>
@@ -90,6 +90,13 @@
           <button id="start">Click to play</button>
           <button id="fullscreen" class="ghost">Fullscreen</button>
         </div>
+        <nav id="title-apps" aria-label="Menu">
+          <button data-app="maps" type="button">Places</button>
+          <button data-app="notes" type="button">Journal</button>
+          <button data-app="wallet" type="button">Wallet</button>
+          <button data-app="weather" type="button">Tonight</button>
+          <button data-app="settings" type="button">Settings</button>
+        </nav>
         <nav class="tabs">
           <button data-tab="play" class="on">Play</button>
           <button data-tab="places">Places</button>

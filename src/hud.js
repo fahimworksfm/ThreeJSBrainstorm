@@ -1,5 +1,6 @@
 import { D } from './config.js';
 import { show as showClip, hide as hideClip } from './media.js';
+import { hud as ui, patch, pushToast } from './ui/store.js';
 
 const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -74,6 +75,7 @@ export class HUD {
 
   setDistrict(name) {
     this.el.district.textContent = name;
+    patch(ui, { district: name });
     this.lastLocation = '';
   }
 
@@ -84,6 +86,23 @@ export class HUD {
     const safe = (text || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     this.el.prompt.innerHTML = safe.replace(/^Press (\w+) /, '<kbd>$1</kbd> ');
     this.el.prompt.classList.toggle('show', !!text);
+    const m = (text || '').match(/^Press (\w+) (?:to )?(.*)$/);
+    const rest = m ? m[2] : text || '';
+    patch(ui, { promptKey: m ? m[1] : '', prompt: rest ? rest[0].toUpperCase() + rest.slice(1) : '' });
+  }
+
+  /** The line under the objective: the nearest memory, or the delivery you're on. */
+  setHint(text) {
+    patch(ui, { hint: text });
+  }
+
+  /** Energy, 0..1 (shown only while it changes). */
+  setEnergy(v) {
+    patch(ui, { energy: Math.round(v * 100) / 100 });
+  }
+
+  setTemp(f) {
+    patch(ui, { temp: f == null ? null : Math.round(f) });
   }
 
   /** The live countdown board (subway arrivals, a Citi Bike dock); html is built from escaped text. */
@@ -99,6 +118,7 @@ export class HUD {
     if (this.el.ride.dataset.mode === mode && this.el.rideName.textContent === name) return;
     this.el.ride.dataset.mode = mode;
     this.el.rideName.textContent = name;
+    patch(ui, { ride: name, rideMode: mode });
   }
 
   setSpeed(mph) {
@@ -106,6 +126,7 @@ export class HUD {
     if (v === this.lastSpeed) return;
     this.lastSpeed = v;
     this.el.rideSpeed.textContent = v;
+    patch(ui, { speed: v });
   }
 
   /** Big street name, with the cross streets and extras on a smaller line under it. */
@@ -116,6 +137,7 @@ export class HUD {
     this.el.location.textContent = main ?? '';
     const sub = document.getElementById('sublocation');
     if (sub) sub.textContent = rest.join('  ·  ');
+    patch(ui, { street: main ?? '', cross: rest.join(' · ') });
   }
 
   /** Game clock: one minute passes every six seconds. t is in seconds. */
@@ -127,12 +149,14 @@ export class HUD {
     if (text !== this.lastClock) {
       this.lastClock = text;
       this.el.clock.textContent = text;
+      patch(ui, { clock: text });
     }
   }
 
   setCount(n, total) {
     this.el.count.textContent = `${n} / ${total}`;
     document.getElementById('objective-count').textContent = `${n} / ${total}`;
+    patch(ui, { count: n, total });
     // one segment per memory
     const bar = document.getElementById('progress');
     if (bar) {
@@ -176,24 +200,8 @@ export class HUD {
    * (by its length unless ms says otherwise). The same message again just stays up longer.
    */
   toast(msg, ms = null) {
-    const box = this.el.toast;
     const text = String(msg);
-    const life = ms ?? Math.min(7000, 1800 + text.length * 45);
-    const same = [...box.children].find((n) => n.dataset.msg === text && !n.classList.contains('out'));
-    if (same) {
-      clearTimeout(same.timer);
-      same.timer = setTimeout(() => this.dropToast(same), life);
-      return;
-    }
-    const n = document.createElement('div');
-    n.className = `tag ${toastKind(text)}`;
-    n.dataset.msg = text;
-    n.textContent = text;
-    box.append(n);
-    // three at most: the oldest goes
-    const live = [...box.children].filter((c) => !c.classList.contains('out'));
-    if (live.length > 3) this.dropToast(live[0]);
-    n.timer = setTimeout(() => this.dropToast(n), life);
+    pushToast(text, toastKind(text), ms ?? Math.min(7000, 1800 + text.length * 45));
   }
 
   dropToast(n) {

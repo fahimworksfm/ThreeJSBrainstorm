@@ -9,6 +9,8 @@
 | Custom post-processing | Depth-based ink outlines, cel bands, halftone shadows, speed lines, bloom |
 | Web Audio API | All sound is synthesized; no audio files |
 | Canvas 2D | All textures (facades, signs, awnings, asphalt) are drawn in code |
+| **Svelte 5** (plain, no SvelteKit) | The HUD and the phone menu (`src/ui/`), compiled away at build time |
+| **GSAP** | Spring and slide motion in the interface (off with Reduce motion) |
 
 Everything is free and open source.
 
