@@ -1,0 +1,152 @@
+/* Pass 2: the screens inside and around the phone in the same design system: the journal (Notes), badges
+   (Wallet), the train map, the big neighborhood map (Tab), the ride wheel (V), the postcard (K) and photo mode. */
+
+/* ---------- Notes: the journal ---------- */
+#ui-phone #journal { display: grid; gap: var(--sp-2); }
+#ui-phone .j-sum {
+  display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 4px 10px; margin: 0 0 var(--sp-2);
+  padding: var(--sp-4); border: 0; border-radius: var(--r-md); box-shadow: none; color: var(--text); transform: none;
+  background: linear-gradient(135deg, rgba(255, 210, 63, 0.18), rgba(255, 255, 255, 0.05));
+}
+#ui-phone .j-sum b { font: 800 calc(28px * var(--s)) / 1 var(--font); letter-spacing: -0.02em; color: var(--accent); }
+#ui-phone .j-sum span { font: 500 13px var(--font); letter-spacing: 0; color: var(--text-2); }
+#ui-phone .j-sum i, #ui-phone .j-hood summary i, #ui-phone #badges .prog i {
+  grid-column: 1 / -1; display: block; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden;
+}
+#ui-phone .j-sum i em, #ui-phone .j-hood summary i em, #ui-phone #badges .prog i em { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+#ui-phone .j-hood { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--r-md); overflow: hidden; }
+#ui-phone .j-hood.done summary i em { background: var(--good); }
+#ui-phone .j-hood summary { padding: var(--sp-3) var(--sp-4); gap: 6px 10px; }
+#ui-phone .j-hood summary .n { font: 650 calc(15px * var(--s)) var(--font); letter-spacing: 0; text-transform: none; color: var(--text); }
+#ui-phone .j-hood summary .c { font: 650 13px var(--font); color: var(--accent); font-variant-numeric: tabular-nums; }
+#ui-phone .j-hood.done summary .c { color: var(--good); }
+#ui-phone .j-hood summary::after { content: '›'; grid-column: 2; grid-row: 1; justify-self: end; display: none; }
+#ui-phone .j-hood .entry {
+  margin: 0 var(--sp-3) var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-3) 14px; border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.22); border-left: 3px solid var(--accent);
+}
+#ui-phone .j-hood .entry h4 { margin: 0 0 4px; font: 650 calc(14px * var(--s)) var(--font); letter-spacing: 0; text-transform: none; color: var(--text); }
+#ui-phone .j-hood .entry p { margin: 0; font: 400 calc(13.5px * var(--s)) / 1.5 var(--font); color: var(--text-2); font-style: normal; }
+#ui-phone #journal .empty { margin: var(--sp-2) 0 0; font: 400 13px / 1.5 var(--font); color: var(--text-3); }
+#ui-phone #journal h5 { font: 650 12px var(--font); color: var(--text-2); }
+
+/* ---------- Wallet: badges ---------- */
+#ui-phone #badges { display: grid; gap: var(--sp-2); }
+#ui-phone #badges .badge-sum {
+  margin: 0 0 var(--sp-1); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: rgba(255, 255, 255, 0.07);
+  font: 500 12px / 1.45 var(--font); letter-spacing: 0; color: var(--text-2);
+}
+#ui-phone #badges .badge-sum b { display: block; font: 800 22px var(--font); letter-spacing: -0.01em; color: var(--accent); }
+#ui-phone #badges .badge {
+  gap: var(--sp-3); padding: 10px var(--sp-3); border-radius: var(--r-md); border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05); box-shadow: none; opacity: 1; filter: none; transform: none;
+}
+#ui-phone #badges .badge.got { background: linear-gradient(135deg, rgba(255, 210, 63, 0.2), rgba(255, 255, 255, 0.05)); border-color: rgba(255, 210, 63, 0.45); box-shadow: none; }
+#ui-phone #badges .badge b { font: 650 calc(14px * var(--s)) var(--font); letter-spacing: 0; color: var(--text); text-transform: none; }
+#ui-phone #badges .badge.got b { color: var(--text); }
+#ui-phone #badges .badge small, #ui-phone #badges .badge.got small { font: 400 12px var(--font); color: var(--text-2); letter-spacing: 0; }
+#ui-phone #badges .badge .icon { flex: none; width: 44px; height: 44px; border-radius: 50%; }
+#ui-phone #badges .badge:not(.got) .icon { filter: grayscale(1) brightness(0.65); opacity: 0.6; }
+#ui-phone #badges .badge .txt { display: grid; gap: 2px; min-width: 0; flex: 1; }
+#ui-phone #badges .prog span { font: 650 11px var(--font); color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* ---------- Maps: the subway map, inline ---------- */
+.subway-inline {
+  position: relative; aspect-ratio: 1; max-height: 70vh; margin-top: var(--sp-3); border-radius: var(--r-md); overflow: hidden;
+  background: #101a28; border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.subway-inline .subway { position: absolute; inset: 0; width: 100%; height: 100%; }
+.subway-inline.locked .subway { opacity: 0.45; pointer-events: none; }
+.subway-inline .lock {
+  position: absolute; left: 50%; bottom: var(--sp-3); translate: -50% 0; white-space: nowrap; padding: 7px 12px; border-radius: 999px;
+  font: 600 12px var(--font); background: var(--glass-strong); border: 1px solid var(--glass-line);
+}
+.subway-inline:not(.locked) .lock { display: none; }
+
+/* the map's own look, everywhere it's drawn (the phone and the station screen) */
+body.ui2 .subway .water { fill: #0f1a28; }
+body.ui2 .subway .boro-name { fill: rgba(255, 255, 255, 0.1); font: 800 30px var(--font); letter-spacing: 0.18em; }
+body.ui2 .subway .stop .dot { fill: #fff; stroke: #0b0b10; stroke-width: 3; }
+body.ui2 .subway .stop .name { font: 650 18px var(--font); letter-spacing: 0; stroke: #0b0b10; stroke-width: 5px; }
+body.ui2 .subway .stop:hover .dot, body.ui2 .subway .stop:focus-visible .dot { fill: var(--accent); }
+body.ui2 .subway .stop:hover .name, body.ui2 .subway .stop:focus-visible .name { fill: var(--accent); }
+body.ui2 .subway .stop.here .dot { fill: var(--good); }
+body.ui2 .subway .stop.here .you { fill: var(--good); font: 750 11px var(--font); letter-spacing: 0.12em; }
+
+/* ---------- the station screen ("Where to?") ---------- */
+body.ui2 #travel { background: rgba(6, 6, 10, 0.55); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); font-family: var(--font); }
+body.ui2 .travel-card {
+  width: min(1100px, calc(100% - 32px)); height: calc(100dvh - 32px); margin: 16px auto; padding: var(--sp-4); border-radius: var(--r-lg);
+  background: linear-gradient(180deg, var(--glass-hi), transparent 30%), var(--glass-strong); border: 1px solid var(--glass-line); box-shadow: var(--shadow);
+}
+body.ui2 .travel-head { align-items: center; }
+body.ui2 .travel-head .eyebrow { font: 650 12px var(--font); letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+body.ui2 .travel-head h2 { margin: 2px 0 0; font: 750 calc(26px * var(--s)) / 1.1 var(--font); letter-spacing: -0.01em; color: var(--text); text-shadow: none; }
+body.ui2 #travel-close {
+  font: 650 14px var(--font); letter-spacing: 0; text-transform: none; padding: 10px 18px; border-radius: 999px; border: 0; box-shadow: none;
+  background: var(--accent); color: var(--accent-ink); cursor: pointer; transform: none;
+}
+body.ui2 #map { border-radius: var(--r-md); overflow: hidden; background: #0f1a28; border: 0; box-shadow: none; outline: 0; }
+@media (max-width: 560px), (max-height: 560px) {
+  body.ui2 .travel-card { width: 100%; height: 100dvh; margin: 0; border-radius: 0; border: 0; padding: max(10px, var(--safe-t)) max(12px, var(--safe-r)) max(10px, var(--safe-b)) max(12px, var(--safe-l)); }
+  body.ui2 .travel-head h2 { font-size: 20px; }
+}
+
+/* ---------- the big map (Tab) ---------- */
+body.ui2 #bigmap .bm-head {
+  padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--glass-line);
+  -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); text-shadow: none;
+}
+body.ui2 #bigmap .bm-boro { font: 650 12px var(--font); letter-spacing: 0.1em; color: var(--accent); }
+body.ui2 #bigmap .bm-name { font: 750 calc(28px * var(--s)) / 1.1 var(--font); letter-spacing: -0.01em; text-shadow: none; }
+body.ui2 #bigmap .bm-legend {
+  font: 550 12px var(--font); letter-spacing: 0; text-transform: none; color: var(--text); border-radius: var(--r-md);
+  background: var(--glass); border: 1px solid var(--glass-line); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow);
+}
+body.ui2 #bigmap .bm-legend i { border-width: 1.5px; }
+body.ui2 #bigmap .bm-hint {
+  font: 600 12px var(--font); letter-spacing: 0; text-transform: none; color: var(--text); padding: 7px 12px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--glass-line);
+}
+
+/* ---------- the ride wheel (hold V) ---------- */
+body.ui2 #ridewheel .rw-ring {
+  background: var(--glass-strong); box-shadow: 0 0 0 1px var(--glass-line), var(--shadow);
+  -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+}
+body.ui2 #ridewheel .rw-slot { border: 0; box-shadow: none; background: rgba(255, 255, 255, 0.08); color: var(--text); }
+body.ui2 #ridewheel .rw-slot.on { background: var(--accent); color: var(--accent-ink); box-shadow: 0 8px 24px rgba(255, 210, 63, 0.3); }
+body.ui2 #ridewheel .rw-label { font: 650 11px var(--font); letter-spacing: 0.02em; text-transform: none; }
+body.ui2 #ridewheel .rw-center { font: 750 20px var(--font); letter-spacing: -0.01em; text-shadow: none; }
+
+/* ---------- the postcard (K) ---------- */
+body.ui2 #hud #postcard {
+  padding: var(--sp-3); border-radius: var(--r-md); border: 1px solid var(--glass-line); color: var(--text);
+  background: var(--glass-strong); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); box-shadow: var(--shadow);
+}
+body.ui2 #hud #postcard.show { transform: none; }
+body.ui2 #hud #postcard .pc-head { font: 650 13px var(--font); letter-spacing: 0; color: var(--text); }
+body.ui2 #hud #postcard .pc-head kbd { font: 700 10px var(--font); padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.15); color: var(--text); border: 0; box-shadow: none; }
+body.ui2 #hud #postcard img { border: 0; border-radius: var(--r-sm); }
+body.ui2 #hud #postcard .heat { font: 600 12px var(--font); color: var(--text-2); }
+
+/* ---------- photo mode ---------- */
+body.ui2 #photobar {
+  font: 550 12px var(--font); letter-spacing: 0; text-transform: none; border-radius: 999px; padding: 8px 10px 8px 18px; color: var(--text);
+  background: var(--glass-strong); border: 1px solid var(--glass-line); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+}
+body.ui2 #photobar b { font: 750 13px var(--font); letter-spacing: 0.08em; color: var(--accent); }
+body.ui2 #photobar kbd { font: 700 10px var(--font); background: rgba(255, 255, 255, 0.16); color: var(--text); box-shadow: none; border-radius: 5px; padding: 1px 6px; }
+body.ui2 #photobar #snap { background: var(--accent); color: var(--accent-ink); padding: 6px 12px; border-radius: 999px; font-weight: 700; }
+body.ui2 #photobar #snap kbd { background: rgba(0, 0, 0, 0.15); color: var(--accent-ink); }
+body.ui2 #photolist {
+  font: 500 13px / 1.6 var(--font); color: var(--text); border-radius: var(--r-md); border: 1px solid var(--glass-line); box-shadow: var(--shadow);
+  background: var(--glass-strong); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); transform: none;
+}
+body.ui2 #photolist h4 { font: 700 14px var(--font); letter-spacing: 0; margin-bottom: 6px; }
+body.ui2 #photolist .stars { color: var(--accent); }
+.subway-inline .map-host { position: absolute; inset: 0; }
+@media (max-height: 560px) and (orientation: landscape) {
+  .subway-inline { aspect-ratio: auto; width: 100%; height: 72vh; max-height: none; }
+}

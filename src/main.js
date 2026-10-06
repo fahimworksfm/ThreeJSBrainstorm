@@ -1181,6 +1181,7 @@ function openTravel() {
     return;
   }
   travelOpen = true;
+  ui.close();
   document.body.classList.add('menu-open');
   renderMenus();
   input.pause();
@@ -1533,6 +1534,17 @@ function fillPhone(app) {
   if (app === 'wallet') achievements.render(document.getElementById('badges'));
   if (app === 'weather' || app === 'home') renderAlmanac();
   if (app === 'maps' || app === 'weather') renderMenus();
+  // Maps: the subway map right in the app; a stop is a ride there (with a MetroCard)
+  const slot = document.querySelector('[data-slot="subway"]');
+  if (app === 'maps' && slot) {
+    let svg = slot.querySelector('.map-host');
+    if (!svg) {
+      svg = document.createElement('div');
+      svg.className = 'map-host';
+      slot.prepend(svg);
+    }
+    drawSubwayMap(svg, DISTRICTS, W.def.id, (id) => hasMetroCard() && goTo(id, true));
+  }
 }
 const ui = startUI({
   resume: () => input.start(),

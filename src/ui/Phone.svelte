@@ -142,8 +142,12 @@
                 <b>{$widgets.place}</b>
                 <span>{$widgets.borough}</span>
               </div>
+              <h3>Take the train <small>{$widgets.metro ? 'tap a stop to ride' : ''}</small></h3>
+              <div class="subway-inline" class:locked={!$widgets.metro} data-slot="subway">
+                <span class="lock">🎫 Find a memory here to earn a MetroCard</span>
+              </div>
               <button class="row-btn" type="button" onclick={() => onTravel?.()}>
-                <span>🚇</span><span>Subway map<small>{$widgets.metro ? 'Ride anywhere on the map' : 'Find a memory here to earn a MetroCard'}</small></span><em>›</em>
+                <span>🚇</span><span>Full-screen map<small>Every line and stop</small></span><em>›</em>
               </button>
               <h3>Neighborhoods</h3>
               <div data-adopt="picker"></div>

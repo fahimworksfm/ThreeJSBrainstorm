@@ -6,6 +6,7 @@ import Hud from './Hud.svelte';
 import Phone from './Phone.svelte';
 import { phone, widgets, markers, resumed, patch } from './store.js';
 import './tokens.css';
+import './screens.css';
 
 /** Which game panels go into which slot in the phone (by element id, or a selector). */
 const ADOPT = {
